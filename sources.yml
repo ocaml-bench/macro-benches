@@ -1,0 +1,7 @@
+# Pinned source versions for vendored packages.
+# Update versions here, then re-run the corresponding vendor script.
+
+menhir:
+  version: "20260209"
+  url: "https://gitlab.inria.fr/fpottier/menhir/-/archive/20260209/archive.tar.gz"
+  md5: "e993231085db95ab011ffe0cd606d9dd"

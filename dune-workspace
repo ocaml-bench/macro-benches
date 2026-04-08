@@ -1,0 +1,7 @@
+(lang dune 3.0)
+
+(context default)
+
+(env
+ (release
+  (ocamlopt_flags (:standard -O3))))

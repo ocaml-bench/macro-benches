@@ -1,0 +1,14 @@
+# Dune build artifacts
+_build/
+_build-*/
+
+# Vendored sources (fetched by scripts/vendor-*.sh)
+vendor/
+
+# Benchmark binaries
+*-ocaml-*
+*-oxcaml-*
+
+# Editor / OS
+*~
+.DS_Store
