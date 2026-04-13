@@ -1,0 +1,25 @@
+; ahrefs-devkit GC benchmark executables.
+
+(executable
+ (name htmlStream_bench)
+ (modules htmlStream_bench)
+ (libraries devkit)
+ (link_flags (-cclib -Wl,-rpath,/usr/lib/x86_64-linux-gnu -cclib /usr/lib/x86_64-linux-gnu/libevent.so -cclib -lcurl)))
+
+(executable
+ (name stre_bench)
+ (modules stre_bench)
+ (libraries devkit)
+ (link_flags (-cclib -Wl,-rpath,/usr/lib/x86_64-linux-gnu -cclib /usr/lib/x86_64-linux-gnu/libevent.so -cclib -lcurl)))
+
+(executable
+ (name network_bench)
+ (modules network_bench)
+ (libraries devkit)
+ (link_flags (-cclib -Wl,-rpath,/usr/lib/x86_64-linux-gnu -cclib /usr/lib/x86_64-linux-gnu/libevent.so -cclib -lcurl)))
+
+(executable
+ (name gzip_bench)
+ (modules gzip_bench)
+ (libraries devkit)
+ (link_flags (-cclib -Wl,-rpath,/usr/lib/x86_64-linux-gnu -cclib /usr/lib/x86_64-linux-gnu/libevent.so -cclib -lcurl)))

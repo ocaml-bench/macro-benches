@@ -1,0 +1,14 @@
+; Hand-written dune file for ocaml-libevent (upstream uses Makefile).
+; Links against system libevent (-levent).
+
+(library
+ (name libevent)
+ (public_name libevent)
+ (wrapped false)
+ (modules libevent)
+ (libraries unix)
+ (foreign_stubs
+  (language c)
+  (names event_stubs)
+  (flags (:standard -Wall)))
+ (c_library_flags (-Wl,-no-as-needed -levent)))

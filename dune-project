@@ -27,3 +27,9 @@
  (allow_empty)
  (depends
   (alt-ergo (= 2.6.2))))
+
+(package
+ (name macro-bench-devkit)
+ (allow_empty)
+ (depends
+  (devkit (>= 1.20240429))))

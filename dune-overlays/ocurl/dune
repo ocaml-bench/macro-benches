@@ -1,0 +1,26 @@
+; Hand-written dune file for ocurl (upstream uses autoconf + Makefile).
+; Links against system libcurl (-lcurl).
+;
+; config.h is pre-generated (from ./configure on this system) and shipped
+; as part of the overlay.  It detects which curl features are available.
+
+(library
+ (name curl)
+ (public_name curl)
+ (wrapped false)
+ (modules curl)
+ (libraries unix)
+ (foreign_stubs
+  (language c)
+  (names curl-helper)
+  (flags (:standard -Wall -DHAVE_CONFIG_H -I/usr/include/x86_64-linux-gnu))
+  (extra_deps config.h))
+ (c_library_flags (-lcurl)))
+
+; curl.lwt subpackage — optional lwt bindings
+(library
+ (name curl_lwt)
+ (public_name curl.lwt)
+ (wrapped false)
+ (modules curl_lwt)
+ (libraries curl lwt.unix))

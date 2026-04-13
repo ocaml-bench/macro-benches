@@ -1,0 +1,15 @@
+x-opam-monorepo-opam-provided: [
+  "libevent"
+  "conf-libcurl"
+  "conf-libevent"
+  "conf-libev"
+  "conf-libpcre"
+  "conf-libpcre2-8"
+  "conf-gmp"
+  "conf-pkg-config"
+  "conf-zlib"
+]
+x-opam-monorepo-opam-repositories: [
+  "git+https://github.com/dune-universe/opam-overlays.git"
+  "https://opam.ocaml.org"
+]
