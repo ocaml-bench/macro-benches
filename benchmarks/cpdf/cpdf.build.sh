@@ -13,6 +13,9 @@ BUILD_DIR="${MONOREPO_DIR}/_build-${RUNTIME_TAG//[^a-zA-Z0-9._-]/_}"
 
 echo "Building cpdf (monorepo) for runtime: ${RUNTIME_TAG}"
 
+unset OPAM_SWITCH_PREFIX OCAMLTOP_INCLUDE_PATH CAML_LD_LIBRARY_PATH OCAMLLIB
+export OCAMLPATH=""
+
 dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
   --profile release \
   vendor/cpdf-source/cpdfcommandrun.exe

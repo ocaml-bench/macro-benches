@@ -18,9 +18,10 @@ RUNTIME_TAG="${RUNNING_OCAML_RUNTIME_NAME:-default}"
 BUILD_DIR="${MONOREPO_DIR}/_build-${RUNTIME_TAG//[^a-zA-Z0-9._-]/_}"
 
 echo "Building menhir (monorepo) for runtime: ${RUNTIME_TAG}"
-echo "  monorepo: ${MONOREPO_DIR}"
-echo "  build-dir: ${BUILD_DIR}"
-echo "  output: ${OUT}"
+
+# Sanitize environment to avoid cross-runtime .cmi contamination.
+unset OPAM_SWITCH_PREFIX OCAMLTOP_INCLUDE_PATH CAML_LD_LIBRARY_PATH OCAMLLIB
+export OCAMLPATH=""
 
 dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
   --profile release \
