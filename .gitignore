@@ -2,7 +2,7 @@
 _build/
 _build-*/
 
-# Vendored sources (fetched by opam monorepo pull / scripts/vendor-*.sh)
+# Vendored sources (populated by scripts/setup-monorepo.sh)
 duniverse/
 vendor/
 

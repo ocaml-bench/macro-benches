@@ -12,8 +12,9 @@ Only the benchmark tool build changes: `dune build` replaces `opam install`.
 
 1. **Lock dependencies once** -- `opam monorepo lock` resolves all transitive
    deps and writes a `.opam.locked` file (committed to git).
-2. **Pull vendored sources** -- `opam monorepo pull` downloads everything into
-   `duniverse/`.  No solver runs, just downloads from the lock file.
+2. **Run setup script** -- `scripts/setup-monorepo.sh` populates `duniverse/`
+   and `vendor/` (gitignored), applies all required patches, and runs a test
+   build.  One-time step, takes ~10 minutes.
 3. **Build with any compiler** -- `dune build` compiles everything from local
    source.  The runtime compiler (5.4.1, trunk, OxCaml) is on PATH; dune uses
    it automatically.  Each runtime gets its own `_build-<runtime>/` directory.
@@ -33,63 +34,60 @@ macro-benches/
     cpdf/                     # cpdf.build.sh + .pdf input files
     alt-ergo/                 # alt-ergo.build.sh + .why input files
     coq/                      # coq.build.sh + .v input files
+    ahrefs-devkit/            # ahrefs-devkit.build.sh + benchmark .ml files
   scripts/
+    setup-monorepo.sh         # full setup from scratch (re-vendor + re-patch)
     vendor-cpdf.sh            # manual vendor for cpdf/camlpdf (non-dune)
     vendor-coq.sh             # manual vendor for zarith (non-dune)
+    vendor-devkit-deps.sh     # manual vendor for libevent/ocurl (non-dune)
   dune-overlays/
     camlpdf/                  # hand-written dune files (upstream uses Makefile)
     cpdf-source/              # hand-written dune files (upstream uses Makefile)
     zarith/                   # hand-written dune files (upstream uses configure)
+    libevent/                 # hand-written dune files (upstream uses configure)
+    ocurl/                    # hand-written dune files (upstream uses configure)
   duniverse/                  # (gitignored) vendored sources from opam-monorepo
     menhir/                   # menhir parser generator
     rocq/                     # Rocq proof assistant (formerly Coq)
     alt-ergo/                 # alt-ergo SMT solver
+    devkit/                   # ahrefs-devkit library
     ppxlib/ ppx_deriving/     # PPX ecosystem (alt-ergo deps)
     dolmen/ ocplib-simplex/   # alt-ergo deps
+    lwt/                      # lwt async library
     lib-findlib/              # findlib library (rocq dep)
-    ...                       # ~30 packages total
+    ...                       # ~50 packages total
   vendor/                     # (gitignored) manually vendored non-dune packages
     camlpdf/                  # camlpdf + dune overlay
     cpdf-source/              # cpdf + dune overlay
     zarith/                   # zarith + dune overlay
+    libevent/                 # libevent OCaml bindings + dune overlay
 ```
 
 ## Quick start
 
+### System dependencies
+
+Install these before building:
+
+```bash
+sudo apt install libgmp-dev libevent-dev libcurl4-openssl-dev libpcre3-dev zlib1g-dev
+```
+
 ### First-time setup
 
 ```bash
-# 1. Pull vendored sources from lock file
 cd ~/macro-benches
-OPAMSWITCH=running-ng-tools /usr/local/bin/opam monorepo pull \
-  --lockfile=macro-benches.opam.locked
-
-# 2. Patch vendored dune_ (needs lang version downgrade for dune 3.21)
-sed -i 's/lang dune 3.22/lang dune 3.21/' duniverse/dune_/dune-project
-rm -rf duniverse/dune_/test
-
-# 3. Vendor cpdf + camlpdf (non-dune, needs manual dune overlays)
-bash scripts/vendor-cpdf.sh
-
-# 4. Vendor zarith (non-dune, needs manual dune overlay + GMP)
-bash scripts/vendor-coq.sh
-# (only zarith from this script is needed; rocq is already in duniverse)
-rm -rf vendor/rocq  # avoid duplicate with duniverse/rocq
-
-# 5. Test build (requires OCaml >= 5.4 on PATH)
-PATH="$HOME/.opam/running-ng-tools/bin:$PATH" dune build \
-  duniverse/menhir/src/stage2/main.exe \
-  vendor/cpdf-source/cpdfcommandrun.exe \
-  duniverse/alt-ergo/src/bin/text/Main_text.exe \
-  duniverse/rocq/topbin/coqc_bin.exe \
-  --profile release
+bash scripts/setup-monorepo.sh
 ```
+
+This populates `duniverse/` and `vendor/`, applies all patches, generates
+rocq's config/dunestrap files, and runs a test build (~10 minutes).
 
 ### Running benchmarks via running-ng
 
 ```bash
 cd ~/running-ng
-export RUNNING_MACRO_BENCH_DIR="$HOME/macro-benches"
+RUNNING_MACRO_BENCH_DIR=~/macro-benches \
 CONFIG_FILE=src/running/config/macrobenchmarks_monorepo.yml \
   bash run_ocaml_bench_gc_sweep.sh
 ```
@@ -97,6 +95,21 @@ CONFIG_FILE=src/running/config/macrobenchmarks_monorepo.yml \
 The config defines three runtimes (OCaml 5.4.1, trunk, OxCaml trunk).
 running-ng builds each compiler, then calls the build scripts which
 run `dune build` in the monorepo with that compiler on PATH.
+
+### Manual test build
+
+To verify the build works with the tools switch compiler:
+
+```bash
+cd ~/macro-benches
+PATH="$HOME/.opam/running-ng-tools/bin:$PATH" dune build \
+  duniverse/menhir/src/stage2/main.exe \
+  vendor/cpdf-source/cpdfcommandrun.exe \
+  duniverse/alt-ergo/src/bin/text/Main_text.exe \
+  duniverse/rocq/topbin/coqc_bin.exe \
+  benchmarks/ahrefs-devkit/htmlStream_bench.exe \
+  --profile release
+```
 
 ## Build scripts
 
@@ -121,10 +134,21 @@ to build with the runtime's compiler, then copies the binary to
 | cpdf | 2.8.1 | `vendor/cpdf-source/cpdfcommandrun.exe` | Working |
 | alt-ergo | 2.6.2 | `duniverse/alt-ergo/src/bin/text/Main_text.exe` | Working |
 | coqc | Rocq 9.2 | `duniverse/rocq/topbin/coqc_bin.exe` | Working |
+| ahrefs-devkit | latest | `benchmarks/ahrefs-devkit/*.exe` | Working |
+
+## Rebuilding from scratch
+
+If you need to re-vendor everything (e.g. after updating the lock file):
+
+```bash
+rm -rf duniverse/ vendor/
+bash scripts/setup-monorepo.sh
+```
 
 ## Vendored source patches
 
-Two patches are needed on the vendored sources after `opam monorepo pull`:
+These patches are applied automatically by `scripts/setup-monorepo.sh`.
+They are documented here for reference.
 
 1. **alt-ergo ppx_blob paths** -- `duniverse/alt-ergo/src/lib/util/theories.ml`:
    change `[%blob "src/preludes/..."` to `[%blob "duniverse/alt-ergo/src/preludes/..."`
@@ -142,20 +166,10 @@ Two patches are needed on the vendored sources after `opam monorepo pull`:
    from https://github.com/ocaml-ppx/ppxlib (commit 37cda2c or later).
    The locked version (0.38.0) only supports up to OCaml 5.5; the main branch
    adds Ast_506 for trunk (5.6.0+dev).
-   ```bash
-   rm -rf duniverse/ppxlib
-   git clone --depth=1 https://github.com/ocaml-ppx/ppxlib.git duniverse/ppxlib
-   rm -rf duniverse/ppxlib/.git
-   ```
 
 5. **lwt 5.6 support** -- replace `duniverse/lwt/` with the latest from git.
    The locked version (6.1.0) has C stubs incompatible with OCaml 5.6's
    renamed `socketaddr.h` macros; 6.1.1+ fixes this.
-   ```bash
-   rm -rf duniverse/lwt
-   git clone --depth=1 https://github.com/ocsigen/lwt.git duniverse/lwt
-   rm -rf duniverse/lwt/.git
-   ```
 
 6. **devkit lwt 6.x compat** -- `duniverse/devkit/lwt_engines.ml`:
    add `type Lwt_engine.engine_id += Engine_id__libevent` before the class
@@ -172,23 +186,25 @@ Two patches are needed on the vendored sources after `opam monorepo pull`:
 # 1. Re-lock (uses opam solver to find new compatible versions)
 OPAMSWITCH=running-ng-tools /usr/local/bin/opam monorepo lock
 
-# 2. Re-pull (downloads new sources)
-rm -rf duniverse/
-OPAMSWITCH=running-ng-tools /usr/local/bin/opam monorepo pull \
-  --lockfile=macro-benches.opam.locked
+# 2. Rebuild from scratch
+rm -rf duniverse/ vendor/
+bash scripts/setup-monorepo.sh
 
-# 3. Re-apply patches (see above)
-# 4. Test build
+# 3. Commit the updated sources
+git add duniverse/ vendor/
+git commit -m "Update vendored dependencies"
 ```
 
 ## Notes
 
 - **OCaml >= 5.4 required** -- the vendored `ocaml-compiler-libs` uses the
   `Compunit` constructor introduced in OCaml 5.2.
-- **System deps** -- `libgmp-dev` (for zarith), `zlib1g-dev` (if camlzip used).
-- **Rocq dunestrap** -- coq.build.sh handles the dunestrap step automatically
-  on first build.  It needs `ocamlfind` and `zarith` installed in the runtime
-  switch (or a tools switch) so the gen_rules tool can locate OCaml stdlib
-  packages via findlib.
+- **System deps** -- `libgmp-dev` (zarith), `libevent-dev` (devkit),
+  `libcurl4-openssl-dev` (devkit), `libpcre3-dev` (devkit),
+  `zlib1g-dev` (camlzip).
+- **Rocq dunestrap** -- `scripts/setup-monorepo.sh` generates the
+  dunestrap dune files (`theories/Corelib/dune`, `theories/Ltac2/dune`)
+  and config fallback files (`config/coq_config.ml`, etc.).  Generation
+  needs `ocamlfind` and `zarith` installed in the tools switch.
 - **`OCAMLPATH`** -- rocq's build tools use findlib at runtime.  The build
   script sets `OCAMLPATH` to include the switch's lib directories.
