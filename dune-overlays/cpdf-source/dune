@@ -1,0 +1,26 @@
+; Hand-written dune file for cpdf (upstream uses OCamlMakefile).
+; Module list from Makefile NONDOC + DOC; entry point is cpdfcommandrun.
+
+(library
+ (name cpdflib)
+ (wrapped false)
+ (modules
+   cpdfyojson cpdfxmlm
+   cpdfutil cpdfunicodedata cpdferror cpdfdebug cpdfjson cpdfstrftime
+   cpdfcoord cpdfattach cpdfpagespec cpdfposition cpdfpresent cpdfmetadata
+   cpdfbookmarks cpdfpage cpdftruetype cpdfremovetext cpdfextracttext
+   cpdfembed cpdffont cpdftype cpdfaddtext cpdfpad cpdfocg cpdfsqueeze
+   cpdfdraft cpdfspot cpdfpagelabels cpdfcreate cpdfannot cpdfxobject
+   cpdfimpose cpdfchop cpdftweak cpdfprinttree cpdfua cpdftexttopdf
+   cpdftoc cpdfjpeg cpdfjpeg2000 cpdfpng cpdfimage cpdfdraw
+   cpdfcomposition cpdfshape cpdfcolours cpdfdrawcontrol cpdfcommand)
+ (libraries camlpdf)
+ (ocamlopt_flags (:standard -safe-string))
+ (ocamlc_flags (:standard -safe-string)))
+
+(executable
+ (name cpdfcommandrun)
+ (modules cpdfcommandrun)
+ (libraries cpdflib)
+ (ocamlopt_flags (:standard -safe-string))
+ (ocamlc_flags (:standard -safe-string)))

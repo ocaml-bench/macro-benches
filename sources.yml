@@ -1,7 +1,77 @@
 # Pinned source versions for vendored packages.
 # Update versions here, then re-run the corresponding vendor script.
 
+# --- menhir (parser generator) ---
 menhir:
   version: "20260209"
   url: "https://gitlab.inria.fr/fpottier/menhir/-/archive/20260209/archive.tar.gz"
   md5: "e993231085db95ab011ffe0cd606d9dd"
+
+# --- cpdf + camlpdf (PDF command-line tool) ---
+camlpdf:
+  version: "2.8.1"
+  url: "https://github.com/johnwhitington/camlpdf/archive/refs/tags/v2.8.1.tar.gz"
+  md5: "93883956f317d4037341b6a0da8a6d03"
+  notes: "OCaml PDF library — dependency of cpdf.  Uses OCamlMakefile; dune overlay in dune-overlays/camlpdf/."
+
+cpdf-source:
+  version: "2.8.1"
+  url: "https://github.com/johnwhitington/cpdf-source/archive/refs/tags/v2.8.1.tar.gz"
+  md5: "45ba51aae6b5d3ea6cb421037f8f73bb"
+  notes: "PDF command-line tool.  Uses OCamlMakefile; dune overlay in dune-overlays/cpdf-source/."
+
+# --- rocq / coq (proof assistant) ---
+zarith:
+  version: "1.14"
+  url: "https://github.com/ocaml/Zarith/archive/refs/tags/release-1.14.tar.gz"
+  md5: "05ef6f78ebea92aa5c3ff35bbfd29bf9"
+  notes: "GMP wrapper.  Uses configure/make; dune overlay in dune-overlays/zarith/.  System dep: libgmp-dev."
+
+rocq:
+  version: "9.0.0"
+  url: "https://github.com/rocq-prover/rocq/archive/refs/tags/V9.0.0.tar.gz"
+  md5: "e6c2f84353384300a47b2e90d6824229"
+  notes: "Proof assistant (formerly Coq).  Uses dune natively.  Needs dunestrap + findlib library."
+
+# --- alt-ergo (SMT solver) ---
+alt-ergo:
+  version: "2.6.2"
+  url: "https://github.com/OCamlPro/alt-ergo/archive/refs/tags/v2.6.2.tar.gz"
+  md5: "e4b1ffc9541d75bee8e02a5e40b68cc0"
+  notes: "SMT solver.  Uses dune.  Many external deps — see vendor-alt-ergo.sh."
+
+dolmen:
+  version: "0.10"
+  url: "https://github.com/Gbury/dolmen/archive/refs/tags/v0.10.tar.gz"
+  md5: "a89db80202d2f2d0cd7ea73c46d5e5e1"
+  notes: "SMT/TPTP parser.  Uses dune.  Alt-ergo dep."
+
+ocplib-simplex:
+  version: "0.5.1"
+  url: "https://github.com/OCamlPro/ocplib-simplex/archive/refs/tags/v0.5.1.tar.gz"
+  md5: "b6cb1e4852046a6aecfcfbbb94ecee51"
+  notes: "Simplex solver.  Uses dune.  Alt-ergo dep."
+
+psmt2-frontend:
+  version: "0.4.0"
+  url: "https://github.com/ACoquereau/psmt2-frontend/archive/refs/tags/0.4.0.tar.gz"
+  md5: "4fc9f9a68343b4614f120c1556bee644"
+  notes: "PSMT2 parser.  Uses dune.  Alt-ergo dep."
+
+cmdliner:
+  version: "1.3.0"
+  url: "https://github.com/dbuenzli/cmdliner/archive/refs/tags/v1.3.0.tar.gz"
+  md5: "49209ae417b18910eca24bd2ab6538da"
+  notes: "CLI argument parser.  Uses dune.  Alt-ergo dep."
+
+ppx_blob:
+  version: "0.9.0"
+  url: "https://github.com/johnwhitington/ppx_blob/archive/refs/tags/0.9.0.tar.gz"
+  md5: "8dc76254a66ed47aaab6e612ce5e913c"
+  notes: "PPX for embedding files as strings.  Uses dune.  Alt-ergo dep."
+
+# --- alt-ergo deps not yet vendored ---
+# ppx_deriving v6.0.3 — https://github.com/ocaml-ppx/ppx_deriving — needs ppxlib ecosystem
+# camlzip      rel113  — https://github.com/xavierleroy/camlzip     — Makefile, needs dune overlay + zlib
+# fmt          v0.9.0  — https://github.com/dbuenzli/fmt            — topkg, needs dune overlay
+# logs         v0.7.0  — https://github.com/dbuenzli/logs           — topkg, needs dune overlay

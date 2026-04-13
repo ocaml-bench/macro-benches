@@ -1,0 +1,19 @@
+; Hand-written dune file for zarith (upstream uses configure/make).
+; Links against system GMP (-lgmp).
+
+(rule
+ (target zarith_version.ml)
+ (action
+  (with-stdout-to %{target}
+   (echo "let version = \"1.14\""))))
+
+(library
+ (name zarith)
+ (public_name zarith)
+ (wrapped false)
+ (modules z q big_int_Z zarith_version)
+ (foreign_stubs
+  (language c)
+  (names caml_z)
+  (flags (:standard -O3 -Wall -Wextra -DHAS_GMP -I/usr/include/x86_64-linux-gnu)))
+ (c_library_flags (-lgmp)))

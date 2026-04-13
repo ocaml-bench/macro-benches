@@ -2,7 +2,8 @@
 _build/
 _build-*/
 
-# Vendored sources (fetched by scripts/vendor-*.sh)
+# Vendored sources (fetched by opam monorepo pull / scripts/vendor-*.sh)
+duniverse/
 vendor/
 
 # Benchmark binaries

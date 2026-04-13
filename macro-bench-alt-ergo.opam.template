@@ -1,0 +1,5 @@
+x-opam-monorepo-opam-provided: ["conf-gmp" "conf-pkg-config" "conf-zlib"]
+x-opam-monorepo-opam-repositories: [
+  "git+https://github.com/dune-universe/opam-overlays.git"
+  "https://opam.ocaml.org"
+]

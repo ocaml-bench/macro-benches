@@ -1,0 +1,3 @@
+(lang dune 3.0)
+(name cpdf)
+(package (name cpdf) (allow_empty) (depends camlpdf))

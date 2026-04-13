@@ -1,1 +1,2 @@
-(vendored_dirs vendor)
+(vendored_dirs duniverse vendor)
+(dirs :standard \ dune-overlays)
