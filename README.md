@@ -138,6 +138,16 @@ Two patches are needed on the vendored sources after `opam monorepo pull`:
 3. **dune_ version** -- `duniverse/dune_/dune-project`: change `3.22` to `3.21`
    and remove `duniverse/dune_/test/` (uses dune 3.22 features)
 
+4. **ppxlib 5.6 support** -- replace `duniverse/ppxlib/` with the main branch
+   from https://github.com/ocaml-ppx/ppxlib (commit 37cda2c or later).
+   The locked version (0.38.0) only supports up to OCaml 5.5; the main branch
+   adds Ast_506 for trunk (5.6.0+dev).
+   ```bash
+   rm -rf duniverse/ppxlib
+   git clone --depth=1 https://github.com/ocaml-ppx/ppxlib.git duniverse/ppxlib
+   rm -rf duniverse/ppxlib/.git
+   ```
+
 ## Updating dependencies
 
 ```bash
