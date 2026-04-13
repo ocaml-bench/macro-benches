@@ -148,6 +148,24 @@ Two patches are needed on the vendored sources after `opam monorepo pull`:
    rm -rf duniverse/ppxlib/.git
    ```
 
+5. **lwt 5.6 support** -- replace `duniverse/lwt/` with the latest from git.
+   The locked version (6.1.0) has C stubs incompatible with OCaml 5.6's
+   renamed `socketaddr.h` macros; 6.1.1+ fixes this.
+   ```bash
+   rm -rf duniverse/lwt
+   git clone --depth=1 https://github.com/ocsigen/lwt.git duniverse/lwt
+   rm -rf duniverse/lwt/.git
+   ```
+
+6. **devkit lwt 6.x compat** -- `duniverse/devkit/lwt_engines.ml`:
+   add `type Lwt_engine.engine_id += Engine_id__libevent` before the class
+   and `method id = Engine_id__libevent` inside it (lwt 6.x added the
+   `id` virtual method to `Lwt_engine.abstract`).
+
+7. **libevent label fix** -- `vendor/libevent/libevent.ml`:
+   add `~persist` and `~signal` labels to `set`, `set_timer`, `set_signal`
+   to match the `.mli` (OCaml 5.x strict label matching).
+
 ## Updating dependencies
 
 ```bash
