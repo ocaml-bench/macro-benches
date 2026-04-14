@@ -60,30 +60,44 @@ echo ""
 
 # ---- Vendor cpdf + camlpdf ----
 echo "[4/9] Vendoring cpdf + camlpdf..."
-bash scripts/vendor-cpdf.sh
+if [ -d vendor/camlpdf ] && [ -d vendor/cpdf-source ]; then
+  echo "  vendor/camlpdf and vendor/cpdf-source already exist. Skipping."
+else
+  bash scripts/vendor-cpdf.sh
+fi
 echo ""
 
-# ---- Vendor zarith (+ rocq, but we remove vendor/rocq) ----
+# ---- Vendor zarith ----
 echo "[5/9] Vendoring zarith..."
-bash scripts/vendor-coq.sh
-# rocq is already in duniverse — remove vendor/rocq to avoid duplication
-rm -rf vendor/rocq
-echo "  Removed vendor/rocq (using duniverse/rocq instead)."
+if [ -d vendor/zarith ]; then
+  echo "  vendor/zarith already exists. Skipping."
+else
+  bash scripts/vendor-coq.sh
+  # rocq is already in duniverse — remove vendor/rocq to avoid duplication
+  rm -rf vendor/rocq
+  echo "  Removed vendor/rocq (using duniverse/rocq instead)."
+fi
 echo ""
 
 # ---- Vendor devkit deps (libevent + ocurl) ----
 echo "[6/9] Vendoring devkit deps (libevent + ocurl)..."
-bash scripts/vendor-devkit-deps.sh
-# If opam-monorepo also pulled ocurl into duniverse/, remove the vendor one
-if [ -d duniverse/ocurl ] && [ -d vendor/ocurl ]; then
-  rm -rf vendor/ocurl
-  echo "  Removed vendor/ocurl (using duniverse/ocurl instead)."
+if [ -d vendor/libevent ]; then
+  echo "  vendor/libevent already exists. Skipping."
+else
+  bash scripts/vendor-devkit-deps.sh
+  # If opam-monorepo also pulled ocurl into duniverse/, remove the vendor one
+  if [ -d duniverse/ocurl ] && [ -d vendor/ocurl ]; then
+    rm -rf vendor/ocurl
+    echo "  Removed vendor/ocurl (using duniverse/ocurl instead)."
+  fi
 fi
-# Same for menhir (vendor/menhir is a leftover, duniverse/menhir is canonical)
-if [ -d duniverse/menhir ] && [ -d vendor/menhir ]; then
-  rm -rf vendor/menhir
-  echo "  Removed vendor/menhir (using duniverse/menhir instead)."
-fi
+# Clean up any stale duplicates between vendor/ and duniverse/
+for pkg in ocurl menhir; do
+  if [ -d "duniverse/$pkg" ] && [ -d "vendor/$pkg" ]; then
+    rm -rf "vendor/$pkg"
+    echo "  Removed vendor/$pkg (using duniverse/$pkg instead)."
+  fi
+done
 echo ""
 
 # ---- Apply vendored source patches ----
@@ -111,7 +125,7 @@ fi
 echo "  [3] dune_ version: done in step 3."
 
 # Patch 4: ppxlib 5.6 support (replace with main branch)
-if [ -f duniverse/ppxlib/ast/versions/ast_506.ml ]; then
+if [ -f duniverse/ppxlib/astlib/ast_506.ml ]; then
   echo "  [4] ppxlib 5.6 support: already has Ast_506."
 else
   echo "  [4] ppxlib 5.6 support: replacing with main branch..."
@@ -122,8 +136,9 @@ else
 fi
 
 # Patch 5: lwt 5.6 support (replace with latest)
-if grep -q 'socketaddr' duniverse/lwt/src/unix/unix_c/unix_socketaddr.h 2>/dev/null; then
-  echo "  [5] lwt 5.6 support: already up to date."
+# Check if lwt version is >= 6.1.1 (the fix version)
+if grep -q 'version: "6.1.1"' duniverse/lwt/lwt.opam 2>/dev/null; then
+  echo "  [5] lwt 5.6 support: already up to date (6.1.1+)."
 else
   echo "  [5] lwt 5.6 support: replacing with latest..."
   rm -rf duniverse/lwt
