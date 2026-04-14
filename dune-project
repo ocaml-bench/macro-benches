@@ -33,3 +33,9 @@
  (allow_empty)
  (depends
   (devkit (>= 1.20240429))))
+
+(package
+ (name macro-bench-jsoo)
+ (allow_empty)
+ (depends
+  (js_of_ocaml-compiler (= 6.2.0))))

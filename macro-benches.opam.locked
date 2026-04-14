@@ -48,6 +48,7 @@ depends: [
   "gen" {= "1.1" & ?vendor}
   "hex" {= "1.5.0" & ?vendor}
   "hmap" {= "0.8.1+dune" & ?vendor}
+  "js_of_ocaml-compiler" {= "6.2.0" & ?vendor}
   "jsonm" {= "1.0.1+dune" & ?vendor}
   "libevent" {= "0.9.0"}
   "logs" {= "0.10.0+dune" & ?vendor}
@@ -81,6 +82,7 @@ depends: [
   "psmt2-frontend" {= "0.4.0" & ?vendor}
   "result" {= "1.5" & ?vendor}
   "rocq-runtime" {= "9.2.0" & ?vendor}
+  "sedlex" {= "3.7" & ?vendor}
   "seq" {= "base+dune" & ?vendor}
   "sexplib" {= "v0.17.0" & ?vendor}
   "sexplib0" {= "v0.17.0" & ?vendor}
@@ -91,6 +93,7 @@ depends: [
   "trace" {= "0.12" & ?vendor}
   "uutf" {= "1.0.3+dune" & ?vendor}
   "yojson" {= "3.0.0" & ?vendor}
+  "zarith" {= "1.14+dune" & ?vendor}
   "zip" {= "1.11+dune" & ?vendor}
 ]
 depexts: [
@@ -326,6 +329,10 @@ pin-depends: [
     "https://github.com/dune-universe/hmap/releases/download/v0.8.1%2Bdune/hmap-0.8.1.dune.tbz"
   ]
   [
+    "js_of_ocaml-compiler.6.2.0"
+    "https://github.com/ocsigen/js_of_ocaml/releases/download/6.2.0/js_of_ocaml-6.2.0.tbz"
+  ]
+  [
     "jsonm.1.0.1+dune"
     "https://github.com/dune-universe/jsonm/archive/v1.0.1+dune.tar.gz"
   ]
@@ -429,6 +436,10 @@ pin-depends: [
     "rocq-runtime.9.2.0"
     "https://github.com/rocq-prover/rocq/releases/download/V9.2.0/rocq-9.2.0.tar.gz"
   ]
+  [
+    "sedlex.3.7"
+    "https://github.com/ocaml-community/sedlex/archive/refs/tags/v3.7.tar.gz"
+  ]
   ["seq.base+dune" "https://github.com/c-cube/seq/archive/0.2.2.tar.gz"]
   [
     "sexplib.v0.17.0"
@@ -462,6 +473,10 @@ pin-depends: [
   [
     "yojson.3.0.0"
     "https://github.com/ocaml-community/yojson/releases/download/3.0.0/yojson-3.0.0.tbz"
+  ]
+  [
+    "zarith.1.14+dune"
+    "https://github.com/dune-universe/Zarith/releases/download/v1.14%2Bdune/zarith-1.14.dune.tbz"
   ]
   [
     "zip.1.11+dune"
@@ -546,6 +561,14 @@ x-opam-monorepo-duniverse-dirs: [
     [
       "md5=5be47bca50e0c92e1f029b3bb3ee5abc"
       "sha512=6a7f0e6434b952819a90c05a7f6b28e12d1cd98bbb626d1e0f098bfdf95e8d910962261f332b48b7e277b72514ca224ecea964dcdd481b91924b35b1a099e786"
+    ]
+  ]
+  [
+    "https://github.com/dune-universe/Zarith/releases/download/v1.14%2Bdune/zarith-1.14.dune.tbz"
+    "Zarith"
+    [
+      "sha256=03f85ed1c8dd5fbae5b69c417e56a87b95d0a15cce37a7637a8c8ef8b242834b"
+      "sha512=143612c568cab4b4fb6d7092d35e27a219a76da5453d54fca179d7ddfabf113e700d6be0bb340adbc12c76f870b351270741753417198bd2dbab6cad44362df4"
     ]
   ]
   [
@@ -743,6 +766,14 @@ x-opam-monorepo-duniverse-dirs: [
     ]
   ]
   [
+    "https://github.com/ocaml-community/sedlex/archive/refs/tags/v3.7.tar.gz"
+    "sedlex"
+    [
+      "md5=893790268f68a1bb60dcc139f390a2d3"
+      "sha512=053bceea4944309705e6b8014381711a2c4f7f0ab235cd239e2d2f5a2dbd3efe1b1c2d533631a8545dacf563cdb5b7469fe53982ef79ace270ee8a4a471f1fe2"
+    ]
+  ]
+  [
     "https://github.com/ocaml-community/yojson/releases/download/3.0.0/yojson-3.0.0.tbz"
     "yojson"
     [
@@ -815,6 +846,14 @@ x-opam-monorepo-duniverse-dirs: [
     ]
   ]
   [
+    "https://github.com/ocsigen/js_of_ocaml/releases/download/6.2.0/js_of_ocaml-6.2.0.tbz"
+    "js_of_ocaml"
+    [
+      "sha256=7cc641778d1b172a352a88333ee0e8c621365a0acfcd9b87e38bfddb8dd2a5da"
+      "sha512=da50c79e1ad667df22abe03d0928ee135729c90cf09279e3c4854aec66557e8600890ca58f550529de1b1a44698720890b97528df167fd9e10cce24c71e763e6"
+    ]
+  ]
+  [
     "https://github.com/ocsigen/lwt/archive/refs/tags/6.1.0.tar.gz"
     "lwt"
     [
@@ -875,12 +914,13 @@ x-opam-monorepo-opam-provided: [
 ]
 x-opam-monorepo-opam-repositories: [
   "git+https://github.com/dune-universe/opam-overlays.git#12731a6f86d7c452a94c72106fa9d3327988582d"
-  "git+https://github.com/ocaml/opam-repository.git#0404939bde256ca9d097922f265c4342b3b383b0"
+  "git+https://github.com/ocaml/opam-repository.git#95a242e172a2ddddcaf38930d87c5983a6f23027"
 ]
 x-opam-monorepo-root-packages: [
   "macro-bench-alt-ergo"
   "macro-bench-coq"
   "macro-bench-devkit"
+  "macro-bench-jsoo"
   "macro-bench-menhir"
 ]
 x-opam-monorepo-version: "0.3"

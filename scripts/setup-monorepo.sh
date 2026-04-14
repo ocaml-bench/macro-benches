@@ -69,7 +69,9 @@ echo ""
 
 # ---- Vendor zarith ----
 echo "[5/9] Vendoring zarith..."
-if [ -d vendor/zarith ]; then
+if ls duniverse/[Zz]arith*/zarith.opam >/dev/null 2>&1; then
+  echo "  zarith already in duniverse (dune-universe +dune version). Skipping manual vendor."
+elif [ -d vendor/zarith ]; then
   echo "  vendor/zarith already exists. Skipping."
 else
   bash scripts/vendor-coq.sh
@@ -138,37 +140,34 @@ fi
 # Patch 3: dune_ version — already done in step 3
 echo "  [3] dune_ version: done in step 3."
 
-# Patch 4: ppxlib 5.6 support (replace with main branch)
-if [ -f duniverse/ppxlib/astlib/ast_506.ml ]; then
-  echo "  [4] ppxlib 5.6 support: already has Ast_506."
-else
-  echo "  [4] ppxlib 5.6 support: replacing with main branch..."
-  rm -rf duniverse/ppxlib
-  git clone --depth=1 https://github.com/ocaml-ppx/ppxlib.git duniverse/ppxlib
-  rm -rf duniverse/ppxlib/.git
-  echo "  [4] ppxlib replaced."
-fi
+# Patch 4: ppxlib 5.6 support
+# BLOCKED: replacing ppxlib with git main breaks extunix and other packages
+# that depend on ppxlib 0.38.0 APIs (pexp_function signature changed).
+# Trunk (OCaml 5.6) support requires ppxlib to release a 5.6-compatible
+# version AND all transitive deps to be updated. Until then, benchmarks
+# that use ppxlib (alt-ergo, devkit, jsoo) only run on OCaml 5.4.x.
+# Menhir, cpdf, and coq work on trunk since they don't use ppxlib.
+echo "  [4] ppxlib 5.6 support: BLOCKED (see setup-monorepo.sh comments). Using locked 0.38.0."
 
-# Patch 5: lwt 5.6 support (replace with latest)
-# Check if lwt version is >= 6.1.1 (the fix version)
-if grep -q 'version: "6.1.1"' duniverse/lwt/lwt.opam 2>/dev/null; then
-  echo "  [5] lwt 5.6 support: already up to date (6.1.1+)."
-else
-  echo "  [5] lwt 5.6 support: replacing with latest..."
-  rm -rf duniverse/lwt
-  git clone --depth=1 https://github.com/ocsigen/lwt.git duniverse/lwt
-  rm -rf duniverse/lwt/.git
-  echo "  [5] lwt replaced."
-fi
+# Patch 5: lwt 5.6 support
+# Same blocker — lwt 6.1.0 has C stubs incompatible with OCaml 5.6's
+# socketaddr.h, but upgrading lwt requires upgrading ppxlib too.
+echo "  [5] lwt 5.6 support: BLOCKED (depends on ppxlib upgrade). Using locked 6.1.0."
 
 # Patch 6: devkit lwt 6.x compat (engine_id extension)
+# Only needed if lwt >= 6.1.1 (which adds virtual method `id` to Lwt_engine.abstract).
+# With the locked lwt 6.1.0, this patch is NOT needed.
 DEVKIT_LWT="duniverse/devkit/lwt_engines.ml"
-if grep -q 'Engine_id__libevent' "$DEVKIT_LWT" 2>/dev/null; then
-  echo "  [6] devkit lwt 6.x compat: already patched."
+if grep -q 'method virtual id' duniverse/lwt/src/unix/lwt_engine.mli 2>/dev/null; then
+  if grep -q 'Engine_id__libevent' "$DEVKIT_LWT" 2>/dev/null; then
+    echo "  [6] devkit lwt 6.x compat: already patched."
+  else
+    sed -i '/libevent-based engine for lwt/a type Lwt_engine.engine_id += Engine_id__libevent' "$DEVKIT_LWT"
+    sed -i '/inherit Lwt_engine.abstract/a\  method id = Engine_id__libevent' "$DEVKIT_LWT"
+    echo "  [6] devkit lwt 6.x compat: patched."
+  fi
 else
-  sed -i '/libevent-based engine for lwt/a type Lwt_engine.engine_id += Engine_id__libevent' "$DEVKIT_LWT"
-  sed -i '/inherit Lwt_engine.abstract/a\  method id = Engine_id__libevent' "$DEVKIT_LWT"
-  echo "  [6] devkit lwt 6.x compat: patched."
+  echo "  [6] devkit lwt 6.x compat: not needed (lwt < 6.1.1)."
 fi
 
 # Patch 7: libevent label fix (~persist and ~signal)
@@ -180,6 +179,22 @@ else
   sed -i 's/^let set_timer base event persist/let set_timer base event ~persist/' "$LIBEVENT_ML"
   sed -i 's/^let set_signal base event signal persist/let set_signal base event ~signal ~persist/' "$LIBEVENT_ML"
   echo "  [7] libevent labels: patched."
+fi
+
+# Patch 8: js_of_ocaml public_name removal from executable stanza
+# Only remove from the (executable ...) block, not from (install ...) stanzas.
+JSOO_DUNE="duniverse/js_of_ocaml/compiler/bin-js_of_ocaml/dune"
+if [ -f "$JSOO_DUNE" ] && grep -q '(public_name js_of_ocaml)' "$JSOO_DUNE" 2>/dev/null; then
+  # Remove only the public_name line (the package line in the executable
+  # stanza is on the same line pattern but also appears in install stanzas,
+  # so we use a targeted approach: remove the 2nd and 3rd lines of the file)
+  sed -i '2{/(public_name js_of_ocaml)/d}' "$JSOO_DUNE"
+  sed -i '2{/(package js_of_ocaml-compiler)/d}' "$JSOO_DUNE"
+  echo "  [8] jsoo public_name: removed from executable stanza."
+elif [ -f "$JSOO_DUNE" ]; then
+  echo "  [8] jsoo public_name: already removed."
+else
+  echo "  [8] jsoo: not vendored. Skipping."
 fi
 echo ""
 
@@ -225,6 +240,7 @@ dune build \
   duniverse/alt-ergo/src/bin/text/Main_text.exe \
   duniverse/rocq/topbin/coqc_bin.exe \
   benchmarks/ahrefs-devkit/htmlStream_bench.exe \
+  duniverse/js_of_ocaml/compiler/bin-js_of_ocaml/js_of_ocaml.exe \
   --profile release
 
 echo ""
