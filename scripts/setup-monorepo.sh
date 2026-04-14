@@ -258,6 +258,7 @@ dune build \
   benchmarks/irmin/irmin_mem_rw.exe \
   duniverse/ocamlformat/bin/ocamlformat/main.exe \
   benchmarks/decompress/test_decompress.exe \
+  benchmarks/eio/eio_bench.exe \
   --profile release
 
 echo ""

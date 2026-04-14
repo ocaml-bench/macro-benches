@@ -1,0 +1,4 @@
+(executable
+ (name eio_bench)
+ (modules eio_bench)
+ (libraries eio eio_main unix))
