@@ -1,0 +1,4 @@
+(executable
+ (name irmin_mem_rw)
+ (modules irmin_mem_rw)
+ (libraries irmin irmin.mem lwt lwt.unix))

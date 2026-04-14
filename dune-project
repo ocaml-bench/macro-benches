@@ -39,3 +39,15 @@
  (allow_empty)
  (depends
   (js_of_ocaml-compiler (= 6.2.0))))
+
+(package
+ (name macro-bench-irmin)
+ (allow_empty)
+ (depends
+  (irmin (>= 3.10.0))))
+
+(package
+ (name macro-bench-ocamlformat)
+ (allow_empty)
+ (depends
+  (ocamlformat (>= 0.27.0))))

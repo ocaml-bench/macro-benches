@@ -196,6 +196,18 @@ elif [ -f "$JSOO_DUNE" ]; then
 else
   echo "  [8] jsoo: not vendored. Skipping."
 fi
+
+# Patch 9: ocamlformat public_name removal
+OCFMT_DUNE="duniverse/ocamlformat/bin/ocamlformat/dune"
+if [ -f "$OCFMT_DUNE" ] && grep -q '(public_name ocamlformat)' "$OCFMT_DUNE" 2>/dev/null; then
+  sed -i '/(public_name ocamlformat)/d' "$OCFMT_DUNE"
+  sed -i '/(package ocamlformat)/d' "$OCFMT_DUNE"
+  echo "  [9] ocamlformat public_name: removed."
+elif [ -f "$OCFMT_DUNE" ]; then
+  echo "  [9] ocamlformat public_name: already removed."
+else
+  echo "  [9] ocamlformat: not vendored. Skipping."
+fi
 echo ""
 
 # ---- Generate rocq config + dunestrap ----
@@ -241,6 +253,8 @@ dune build \
   duniverse/rocq/topbin/coqc_bin.exe \
   benchmarks/ahrefs-devkit/htmlStream_bench.exe \
   duniverse/js_of_ocaml/compiler/bin-js_of_ocaml/js_of_ocaml.exe \
+  benchmarks/irmin/irmin_mem_rw.exe \
+  duniverse/ocamlformat/bin/ocamlformat/main.exe \
   --profile release
 
 echo ""
