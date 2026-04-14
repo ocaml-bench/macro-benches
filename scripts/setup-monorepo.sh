@@ -218,6 +218,18 @@ elif [ -f "$OCFMT_DUNE" ]; then
 else
   echo "  [9] ocamlformat: not vendored. Skipping."
 fi
+
+# Patch 10: owl C bug — std_gaussian_rvs called with arguments but takes none
+OWL_EXPONPOW="duniverse/owl/src/owl/stats/owl_stats_dist_exponpow.c"
+if [ -f "$OWL_EXPONPOW" ] && grep -q 'std_gaussian_rvs (a' "$OWL_EXPONPOW" 2>/dev/null; then
+  sed -i 's/std_gaussian_rvs (a \/ sqrt (2.0))/gaussian_rvs (0, a \/ sqrt (2.0))/' "$OWL_EXPONPOW"
+  sed -i 's/std_gaussian_rvs (B)/gaussian_rvs (0, B)/' "$OWL_EXPONPOW"
+  echo "  [10] owl std_gaussian_rvs: patched (upstream C bug)."
+elif [ -f "$OWL_EXPONPOW" ]; then
+  echo "  [10] owl std_gaussian_rvs: already patched."
+else
+  echo "  [10] owl: not vendored. Skipping."
+fi
 echo ""
 
 # ---- Generate rocq config + dunestrap ----
