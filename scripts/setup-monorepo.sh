@@ -140,19 +140,27 @@ fi
 # Patch 3: dune_ version — already done in step 3
 echo "  [3] dune_ version: done in step 3."
 
-# Patch 4: ppxlib 5.6 support
-# BLOCKED: replacing ppxlib with git main breaks extunix and other packages
-# that depend on ppxlib 0.38.0 APIs (pexp_function signature changed).
-# Trunk (OCaml 5.6) support requires ppxlib to release a 5.6-compatible
-# version AND all transitive deps to be updated. Until then, benchmarks
-# that use ppxlib (alt-ergo, devkit, jsoo) only run on OCaml 5.4.x.
-# Menhir, cpdf, and coq work on trunk since they don't use ppxlib.
-echo "  [4] ppxlib 5.6 support: BLOCKED (see setup-monorepo.sh comments). Using locked 0.38.0."
+# Patch 4: ppxlib 5.6 support (replace with main branch)
+if [ -f duniverse/ppxlib/astlib/ast_506.ml ]; then
+  echo "  [4] ppxlib 5.6 support: already has Ast_506."
+else
+  echo "  [4] ppxlib 5.6 support: replacing with main branch..."
+  rm -rf duniverse/ppxlib
+  git clone --depth=1 https://github.com/ocaml-ppx/ppxlib.git duniverse/ppxlib
+  rm -rf duniverse/ppxlib/.git
+  echo "  [4] ppxlib replaced."
+fi
 
-# Patch 5: lwt 5.6 support
-# Same blocker — lwt 6.1.0 has C stubs incompatible with OCaml 5.6's
-# socketaddr.h, but upgrading lwt requires upgrading ppxlib too.
-echo "  [5] lwt 5.6 support: BLOCKED (depends on ppxlib upgrade). Using locked 6.1.0."
+# Patch 5: lwt 5.6 support (replace with latest)
+if grep -q 'caml_unix_get_sockaddr' duniverse/lwt/src/unix/unix_c/unix_recv_send_utils.h 2>/dev/null; then
+  echo "  [5] lwt 5.6 support: already has socketaddr fix."
+else
+  echo "  [5] lwt 5.6 support: replacing with latest..."
+  rm -rf duniverse/lwt
+  git clone --depth=1 https://github.com/ocsigen/lwt.git duniverse/lwt
+  rm -rf duniverse/lwt/.git
+  echo "  [5] lwt replaced."
+fi
 
 # Patch 6: devkit lwt 6.x compat (engine_id extension)
 # Only needed if lwt >= 6.1.1 (which adds virtual method `id` to Lwt_engine.abstract).
