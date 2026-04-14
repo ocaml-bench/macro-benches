@@ -65,3 +65,9 @@
  (allow_empty)
  (depends
   (eio_main (>= 1.0))))
+
+(package
+ (name macro-bench-owl)
+ (allow_empty)
+ (depends
+  (owl (>= 1.0))))

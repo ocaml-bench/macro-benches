@@ -1,0 +1,4 @@
+(executable
+ (name zarith_pi)
+ (modules zarith_pi)
+ (libraries zarith))

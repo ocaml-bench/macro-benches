@@ -1,0 +1,4 @@
+(executable
+ (name ydump)
+ (modules ydump)
+ (libraries yojson camlp-streams))
