@@ -1,0 +1,5 @@
+(executable
+ (name sedlex_bench)
+ (modules sedlex_bench)
+ (libraries sedlex)
+ (preprocess (pps sedlex.ppx)))

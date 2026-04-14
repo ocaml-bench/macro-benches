@@ -259,6 +259,7 @@ dune build \
   duniverse/ocamlformat/bin/ocamlformat/main.exe \
   benchmarks/decompress/test_decompress.exe \
   benchmarks/eio/eio_bench.exe \
+  benchmarks/sedlex/sedlex_bench.exe \
   --profile release
 
 echo ""
