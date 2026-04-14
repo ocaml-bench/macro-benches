@@ -115,10 +115,24 @@ fi
 # Patch 2: alt-ergo public_name removal from Main_text executable
 ALT_ERGO_DUNE="duniverse/alt-ergo/src/bin/text/dune"
 if grep -q '(public_name alt-ergo)' "$ALT_ERGO_DUNE" 2>/dev/null; then
-  sed -i '/(public_name alt-ergo)/d; /^  (package alt-ergo)$/d' "$ALT_ERGO_DUNE"
-  echo "  [2] alt-ergo public_name: removed."
+  # Rewrite the file entirely — sed is too fragile for nested s-expressions
+  cat > "$ALT_ERGO_DUNE" << 'DUNE_EOF'
+(executable
+  (name gen_link_flags)
+  (libraries unix fmt)
+  (modules gen_link_flags))
+(rule
+ (with-stdout-to link_flags.dune
+  (run ./gen_link_flags.exe %{env:LINK_MODE=dynamic} %{ocaml-config:system})))
+(executable
+  (name Main_text)
+  (libraries alt_ergo_common)
+  (link_flags (:standard (:include link_flags.dune)))
+  (modules Main_text))
+DUNE_EOF
+  echo "  [2] alt-ergo dune: rewritten (removed public_name/package/promote)."
 else
-  echo "  [2] alt-ergo public_name: already removed."
+  echo "  [2] alt-ergo dune: already patched."
 fi
 
 # Patch 3: dune_ version — already done in step 3
@@ -152,8 +166,8 @@ DEVKIT_LWT="duniverse/devkit/lwt_engines.ml"
 if grep -q 'Engine_id__libevent' "$DEVKIT_LWT" 2>/dev/null; then
   echo "  [6] devkit lwt 6.x compat: already patched."
 else
-  sed -i '/^(\*\* libevent-based engine for lwt \*\)$/a type Lwt_engine.engine_id += Engine_id__libevent' "$DEVKIT_LWT"
-  sed -i '/inherit Lwt_engine.abstract$/a\  method id = Engine_id__libevent' "$DEVKIT_LWT"
+  sed -i '/libevent-based engine for lwt/a type Lwt_engine.engine_id += Engine_id__libevent' "$DEVKIT_LWT"
+  sed -i '/inherit Lwt_engine.abstract/a\  method id = Engine_id__libevent' "$DEVKIT_LWT"
   echo "  [6] devkit lwt 6.x compat: patched."
 fi
 
