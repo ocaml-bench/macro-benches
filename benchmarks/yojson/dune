@@ -2,3 +2,8 @@
  (name ydump)
  (modules ydump)
  (libraries yojson camlp-streams))
+
+(executable
+ (name ydump_repeat)
+ (modules ydump_repeat)
+ (libraries yojson))

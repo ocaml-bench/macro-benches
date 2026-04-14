@@ -6,7 +6,7 @@
 
 let n_producers = 4
 let n_consumers = 4
-let items_per_producer = 5_000_000
+let items_per_producer = 15_000_000
 
 let producer stream id =
   for i = 1 to items_per_producer do

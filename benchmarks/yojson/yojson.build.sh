@@ -5,10 +5,11 @@ OUT="${RUNNING_OCAML_OUTPUT:-${BENCH_DIR}/yojson-${RUNNING_OCAML_RUNTIME_NAME:-r
 MONOREPO_DIR="${RUNNING_MACRO_MONOREPO_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
 RUNTIME_TAG="${RUNNING_OCAML_RUNTIME_NAME:-default}"
 BUILD_DIR="${MONOREPO_DIR}/_build-${RUNTIME_TAG//[^a-zA-Z0-9._-]/_}"
-echo "Building yojson (monorepo) for runtime: ${RUNTIME_TAG}"
+echo "Building ydump_repeat (monorepo) for runtime: ${RUNTIME_TAG}"
 unset OPAM_SWITCH_PREFIX OCAMLTOP_INCLUDE_PATH CAML_LD_LIBRARY_PATH OCAMLLIB
 export OCAMLPATH=""
-dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" --profile release benchmarks/yojson/ydump.exe
-cp "${BUILD_DIR}/default/benchmarks/yojson/ydump.exe" "${OUT}"
+dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" --profile release benchmarks/yojson/ydump_repeat.exe
+mkdir -p "$(dirname "${OUT}")"
+cp "${BUILD_DIR}/default/benchmarks/yojson/ydump_repeat.exe" "${OUT}"
 chmod +x "${OUT}"
-echo "yojson built: ${OUT}"
+echo "ydump_repeat built: ${OUT}"
