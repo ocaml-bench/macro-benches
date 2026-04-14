@@ -197,11 +197,13 @@ else
   echo "  [8] jsoo: not vendored. Skipping."
 fi
 
-# Patch 9: ocamlformat public_name removal
+# Patch 9: ocamlformat public_name removal (only from executable stanza)
 OCFMT_DUNE="duniverse/ocamlformat/bin/ocamlformat/dune"
 if [ -f "$OCFMT_DUNE" ] && grep -q '(public_name ocamlformat)' "$OCFMT_DUNE" 2>/dev/null; then
-  sed -i '/(public_name ocamlformat)/d' "$OCFMT_DUNE"
-  sed -i '/(package ocamlformat)/d' "$OCFMT_DUNE"
+  # Remove only the first occurrence of public_name and the package line
+  # immediately after it (lines 14-15 in the executable stanza).
+  sed -i '0,/(public_name ocamlformat)/{/(public_name ocamlformat)/d}' "$OCFMT_DUNE"
+  sed -i '0,/^ (package ocamlformat)$/{/^ (package ocamlformat)$/d}' "$OCFMT_DUNE"
   echo "  [9] ocamlformat public_name: removed."
 elif [ -f "$OCFMT_DUNE" ]; then
   echo "  [9] ocamlformat public_name: already removed."
@@ -255,6 +257,7 @@ dune build \
   duniverse/js_of_ocaml/compiler/bin-js_of_ocaml/js_of_ocaml.exe \
   benchmarks/irmin/irmin_mem_rw.exe \
   duniverse/ocamlformat/bin/ocamlformat/main.exe \
+  benchmarks/decompress/test_decompress.exe \
   --profile release
 
 echo ""

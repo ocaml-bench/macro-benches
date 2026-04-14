@@ -1,0 +1,4 @@
+(executable
+ (name test_decompress)
+ (modules test_decompress)
+ (libraries bigstringaf checkseum.ocaml decompress.zl))
