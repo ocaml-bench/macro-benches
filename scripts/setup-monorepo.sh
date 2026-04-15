@@ -102,6 +102,11 @@ for pkg in ocurl menhir; do
 done
 echo ""
 
+# ---- Vendor pplacer + mcl ----
+echo "[6b/9] Vendoring pplacer + mcl..."
+bash scripts/vendor-pplacer.sh
+echo ""
+
 # ---- Apply vendored source patches ----
 echo "[7/9] Applying vendored source patches..."
 
@@ -230,6 +235,31 @@ elif [ -f "$OWL_EXPONPOW" ]; then
 else
   echo "  [10] owl: not vendored. Skipping."
 fi
+
+# Patch 11: batteries Gc.stat — add live_stacks_words for OCaml 5.6 trunk
+BATGC_MLI="duniverse/batteries-included/src/batGc.mli"
+if [ -f "$BATGC_MLI" ] && ! grep -q 'live_stacks_words' "$BATGC_MLI" 2>/dev/null; then
+  sed -i '/##V>=4.12## forced_major_collections: int;/{
+    N;N;N
+    a##V>=5.6## live_stacks_words: int;\n##V>=5.6## (** Total space allocated outside of the OCaml heap for stack fragments.\n##V>=5.6##     @since 5.6.0 *)
+  }' "$BATGC_MLI"
+  echo "  [11] batteries Gc.stat: added live_stacks_words for OCaml 5.6."
+elif [ -f "$BATGC_MLI" ]; then
+  echo "  [11] batteries Gc.stat: already patched."
+else
+  echo "  [11] batteries: not vendored. Skipping."
+fi
+
+# Patch 12: mcl caml_mcl.c — add #include <stdint.h> for OCaml 5.6 trunk headers
+MCL_CAML="vendor/pplacer/mcl/caml/caml_mcl.c"
+if [ -f "$MCL_CAML" ] && ! grep -q 'stdint.h' "$MCL_CAML" 2>/dev/null; then
+  sed -i '1a #include <stdint.h>' "$MCL_CAML"
+  echo "  [12] mcl caml_mcl.c: added #include <stdint.h>."
+elif [ -f "$MCL_CAML" ]; then
+  echo "  [12] mcl caml_mcl.c: already patched."
+else
+  echo "  [12] mcl: not vendored. Skipping."
+fi
 echo ""
 
 # ---- Generate rocq config + dunestrap ----
@@ -310,6 +340,7 @@ dune build \
   benchmarks/decompress/test_decompress.exe \
   benchmarks/eio/eio_bench.exe \
   benchmarks/sedlex/sedlex_bench.exe \
+  vendor/pplacer/tests.exe \
   --profile release
 
 echo ""

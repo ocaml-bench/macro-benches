@@ -16,6 +16,7 @@ depends: [
   "base-threads" {= "base"}
   "base-unix" {= "base"}
   "base64" {= "3.5.2" & ?vendor}
+  "batteries" {= "3.10.0" & ?vendor}
   "bheap" {= "2.0.0" & ?vendor}
   "bigstringaf" {= "0.10.0" & ?vendor}
   "camlp-streams" {= "5.0.1" & ?vendor}
@@ -23,16 +24,19 @@ depends: [
   "checkseum" {= "0.5.2" & ?vendor}
   "cmdliner" {= "1.3.0+dune" & ?vendor}
   "conf-gmp" {= "5"}
+  "conf-gsl" {= "2"}
   "conf-libcurl" {= "2"}
   "conf-libevent" {= "1"}
   "conf-libpcre" {= "2"}
   "conf-linux-libc-dev" {= "0"}
   "conf-openblas" {= "0.2.3"}
   "conf-pkg-config" {= "4"}
+  "conf-sqlite3" {= "1"}
   "conf-zlib" {= "1"}
   "cppo" {= "1.8.0" & ?vendor}
   "csexp" {= "1.5.2" & ?vendor}
   "cstruct" {= "6.2.0" & ?vendor}
+  "csv" {= "2.4" & ?vendor}
   "ctypes" {= "0.24.0" & ?vendor}
   "curl" {= "0.10.0" & ?vendor}
   "curl_lwt" {= "0.10.0" & ?vendor}
@@ -43,13 +47,13 @@ depends: [
   "dolmen_loop" {= "0.10" & ?vendor}
   "dolmen_type" {= "0.10" & ?vendor}
   "domain-local-await" {= "1.0.1" & ?vendor}
-  "dune" {= "3.22.1"}
-  "dune-build-info" {= "3.22.1" & ?vendor}
+  "dune" {= "3.22.2"}
+  "dune-build-info" {= "3.22.2" & ?vendor}
   "dune-compiledb" {= "0.6.0" & ?vendor}
-  "dune-configurator" {= "3.22.1" & ?vendor}
-  "dune-private-libs" {= "3.22.1" & ?vendor}
-  "dune-site" {= "3.22.1" & ?vendor}
-  "dyn" {= "3.22.1" & ?vendor}
+  "dune-configurator" {= "3.22.2" & ?vendor}
+  "dune-private-libs" {= "3.22.2" & ?vendor}
+  "dune-site" {= "3.22.2" & ?vendor}
+  "dyn" {= "3.22.2" & ?vendor}
   "eio" {= "1.3" & ?vendor}
   "eio_linux" {= "1.3" & ?vendor}
   "eio_main" {= "1.3" & ?vendor}
@@ -63,8 +67,9 @@ depends: [
   "fix" {= "20250919" & ?vendor}
   "fmt" {= "0.11.0+dune" & ?vendor}
   "fpath" {= "0.7.3+dune" & ?vendor}
-  "fs-io" {= "3.22.1" & ?vendor}
+  "fs-io" {= "3.22.2" & ?vendor}
   "gen" {= "1.1" & ?vendor}
+  "gsl" {= "1.25.1" & ?vendor}
   "hex" {= "1.5.0" & ?vendor}
   "hmap" {= "0.8.1+dune" & ?vendor}
   "integers" {= "0.7.0" & ?vendor}
@@ -102,7 +107,7 @@ depends: [
   "ocplib-simplex" {= "0.5.1" & ?vendor}
   "ocurl" {= "transition"}
   "optint" {= "0.3.0" & ?vendor}
-  "ordering" {= "3.22.1" & ?vendor}
+  "ordering" {= "3.22.2" & ?vendor}
   "ounit2" {= "2.2.7" & ?vendor}
   "owl" {= "1.2" & ?vendor}
   "owl-base" {= "1.2" & ?vendor}
@@ -127,18 +132,20 @@ depends: [
   "sexplib" {= "v0.17.0" & ?vendor}
   "sexplib0" {= "v0.17.0" & ?vendor}
   "spelll" {= "0.4" & ?vendor}
+  "sqlite3" {= "5.4.0" & ?vendor}
   "stdio" {= "v0.17.0" & ?vendor}
   "stdlib-shims" {= "0.3.0" & ?vendor}
-  "stdune" {= "3.22.1" & ?vendor}
+  "stdune" {= "3.22.2" & ?vendor}
   "stringext" {= "1.6.0" & ?vendor}
   "thread-table" {= "1.0.0" & ?vendor}
-  "top-closure" {= "3.22.1" & ?vendor}
+  "top-closure" {= "3.22.2" & ?vendor}
   "trace" {= "0.12" & ?vendor}
   "uri" {= "4.4.0" & ?vendor}
   "uring" {= "2.7.0" & ?vendor}
   "uucp" {= "17.0.0+dune" & ?vendor}
   "uuseg" {= "17.0.0+dune" & ?vendor}
   "uutf" {= "1.0.3+dune" & ?vendor}
+  "xmlm" {= "1.4.0+dune" & ?vendor}
   "yojson" {= "3.0.0" & ?vendor}
   "zarith" {= "1.14+dune" & ?vendor}
   "zip" {= "1.11+dune" & ?vendor}
@@ -152,6 +159,9 @@ depexts: [
   ["curl"] {os-distribution = "homebrew" & os = "macos"}
   ["curl"] {os-distribution = "macports" & os = "macos"}
   ["curl-dev"] {os-distribution = "alpine"}
+  ["database/sqlite3"] {os = "openbsd"}
+  ["epel-release" "gsl-devel"]
+    {os-distribution = "centos" & os-version >= "10"}
   ["epel-release" "openblas-devel"]
     {os-distribution = "centos" | os-family = "rhel"}
   ["gmp"] {os = "freebsd"}
@@ -166,6 +176,15 @@ depexts: [
   ["gmp" "gmp-devel"] {os-family = "fedora" | os-family = "fedora"}
   ["gmp-dev"] {os-distribution = "alpine"}
   ["gmp-devel"] {os-family = "suse" | os-family = "opensuse"}
+  ["gsl"] {os = "freebsd"}
+  ["gsl"] {os-distribution = "arch"}
+  ["gsl"] {os = "macos" & os-distribution = "homebrew"}
+  ["gsl-dev"] {os-distribution = "alpine"}
+  ["gsl-devel"] {os-distribution = "ol"}
+  ["gsl-devel"] {os-distribution = "rhel"}
+  ["gsl-devel"] {os-family = "fedora"}
+  ["gsl-devel"] {os-distribution = "centos" & os-version < "10"}
+  ["gsl-devel"] {os-family = "suse" | os-family = "opensuse"}
   ["kernel-headers"]
     {os-family = "fedora" | os-distribution = "rhel" |
      os-distribution = "centos" |
@@ -197,12 +216,17 @@ depexts: [
   ["libgmp-dev"] {os-family = "debian"}
   ["libgmp-dev"] {os-family = "ubuntu"}
   ["libgmp-devel"] {os-family = "altlinux"}
+  ["libgsl-dev"] {os-family = "debian"}
+  ["libgsl-dev"] {os-family = "ubuntu"}
+  ["libgsl-devel"] {os-distribution = "mageia"}
   ["liblapacke-dev" "libopenblas-dev"] {os-family = "debian"}
   ["liblapacke-dev" "libopenblas-dev"] {os-family = "ubuntu"}
   ["libopenblas_openmp-devel"] {os-family = "suse" | os-family = "opensuse"}
   ["libpcre-devel"] {os-distribution = "mageia"}
   ["libpcre3-dev"] {os-family = "debian"}
   ["libpcre3-dev"] {os-family = "ubuntu"}
+  ["libsqlite3-dev"] {os-family = "debian"}
+  ["libsqlite3-dev"] {os-family = "ubuntu"}
   ["linux-api-headers"] {os-family = "arch"}
   ["linux-glibc-devel"] {os-family = "suse" | os-family = "opensuse"}
   ["linux-headers"] {os-distribution = "alpine"}
@@ -239,6 +263,17 @@ depexts: [
   ["pkgconfig"] {os-distribution = "centos" & os-version <= "7"}
   ["pkgconfig"] {os-distribution = "ol" & os-version <= "7"}
   ["pkgconfig"] {os-distribution = "rhel" & os-version <= "7"}
+  ["sqlite"] {os-distribution = "nixos"}
+  ["sqlite"] {os = "macos" & os-distribution = "homebrew"}
+  ["sqlite-dev"] {os-distribution = "alpine"}
+  ["sqlite-devel"] {os-distribution = "centos"}
+  ["sqlite-devel"] {os-distribution = "ol"}
+  ["sqlite-devel"] {os-distribution = "rhel"}
+  ["sqlite-devel"] {os-family = "fedora"}
+  ["sqlite3"] {os = "freebsd"}
+  ["sqlite3"] {os = "macos" & os-distribution = "macports"}
+  ["sqlite3"] {os = "win32" & os-distribution = "cygwinports"}
+  ["sqlite3-devel"] {os-family = "suse" | os-family = "opensuse"}
   ["system:pkgconf"] {os = "win32" & os-distribution = "cygwinports"}
   ["zlib"] {os-distribution = "nixos"}
   ["zlib"] {os-family = "arch"}
@@ -294,6 +329,10 @@ pin-depends: [
     "https://github.com/mirage/ocaml-base64/releases/download/v3.5.2/base64-3.5.2.tbz"
   ]
   [
+    "batteries.3.10.0"
+    "https://github.com/ocaml-batteries-team/batteries-included/releases/download/v3.10.0/batteries-3.10.0.tar.gz"
+  ]
+  [
     "bheap.2.0.0"
     "https://github.com/backtracking/bheap/releases/download/2.0.0/bheap-2.0.0.tbz"
   ]
@@ -328,6 +367,10 @@ pin-depends: [
   [
     "cstruct.6.2.0"
     "https://github.com/mirage/ocaml-cstruct/releases/download/v6.2.0/cstruct-6.2.0.tbz"
+  ]
+  [
+    "csv.2.4"
+    "https://github.com/Chris00/ocaml-csv/releases/download/2.4/csv-2.4.tbz"
   ]
   [
     "ctypes.0.24.0"
@@ -370,28 +413,28 @@ pin-depends: [
     "https://github.com/ocaml-multicore/domain-local-await/releases/download/1.0.1/domain-local-await-1.0.1.tbz"
   ]
   [
-    "dune-build-info.3.22.1"
-    "https://github.com/ocaml/dune/releases/download/3.22.1/dune-3.22.1.tbz"
+    "dune-build-info.3.22.2"
+    "https://github.com/ocaml/dune/releases/download/3.22.2/dune-3.22.2.tbz"
   ]
   [
     "dune-compiledb.0.6.0"
     "https://github.com/edwintorok/dune-compiledb/releases/download/0.6.0/dune-compiledb-0.6.0.tbz"
   ]
   [
-    "dune-configurator.3.22.1"
-    "https://github.com/ocaml/dune/releases/download/3.22.1/dune-3.22.1.tbz"
+    "dune-configurator.3.22.2"
+    "https://github.com/ocaml/dune/releases/download/3.22.2/dune-3.22.2.tbz"
   ]
   [
-    "dune-private-libs.3.22.1"
-    "https://github.com/ocaml/dune/releases/download/3.22.1/dune-3.22.1.tbz"
+    "dune-private-libs.3.22.2"
+    "https://github.com/ocaml/dune/releases/download/3.22.2/dune-3.22.2.tbz"
   ]
   [
-    "dune-site.3.22.1"
-    "https://github.com/ocaml/dune/releases/download/3.22.1/dune-3.22.1.tbz"
+    "dune-site.3.22.2"
+    "https://github.com/ocaml/dune/releases/download/3.22.2/dune-3.22.2.tbz"
   ]
   [
-    "dyn.3.22.1"
-    "https://github.com/ocaml/dune/releases/download/3.22.1/dune-3.22.1.tbz"
+    "dyn.3.22.2"
+    "https://github.com/ocaml/dune/releases/download/3.22.2/dune-3.22.2.tbz"
   ]
   [
     "eio.1.3"
@@ -446,10 +489,14 @@ pin-depends: [
     "https://github.com/dune-universe/fpath/archive/v0.7.3+dune.tar.gz"
   ]
   [
-    "fs-io.3.22.1"
-    "https://github.com/ocaml/dune/releases/download/3.22.1/dune-3.22.1.tbz"
+    "fs-io.3.22.2"
+    "https://github.com/ocaml/dune/releases/download/3.22.2/dune-3.22.2.tbz"
   ]
   ["gen.1.1" "https://github.com/c-cube/gen/archive/v1.1.tar.gz"]
+  [
+    "gsl.1.25.1"
+    "https://github.com/mmottl/gsl-ocaml/releases/download/1.25.1/gsl-1.25.1.tbz"
+  ]
   [
     "hex.1.5.0"
     "https://github.com/mirage/ocaml-hex/releases/download/v1.5.0/hex-1.5.0.tbz"
@@ -571,8 +618,8 @@ pin-depends: [
     "https://github.com/mirage/optint/releases/download/v0.3.0/optint-0.3.0.tbz"
   ]
   [
-    "ordering.3.22.1"
-    "https://github.com/ocaml/dune/releases/download/3.22.1/dune-3.22.1.tbz"
+    "ordering.3.22.2"
+    "https://github.com/ocaml/dune/releases/download/3.22.2/dune-3.22.2.tbz"
   ]
   [
     "ounit2.2.2.7"
@@ -665,6 +712,10 @@ pin-depends: [
   ]
   ["spelll.0.4" "https://github.com/c-cube/spelll/archive/v0.4.tar.gz"]
   [
+    "sqlite3.5.4.0"
+    "https://github.com/mmottl/sqlite3-ocaml/releases/download/5.4.0/sqlite3-5.4.0.tbz"
+  ]
+  [
     "stdio.v0.17.0"
     "https://github.com/janestreet/stdio/archive/refs/tags/v0.17.0.tar.gz"
   ]
@@ -673,8 +724,8 @@ pin-depends: [
     "https://github.com/ocaml/stdlib-shims/releases/download/0.3.0/stdlib-shims-0.3.0.tbz"
   ]
   [
-    "stdune.3.22.1"
-    "https://github.com/ocaml/dune/releases/download/3.22.1/dune-3.22.1.tbz"
+    "stdune.3.22.2"
+    "https://github.com/ocaml/dune/releases/download/3.22.2/dune-3.22.2.tbz"
   ]
   [
     "stringext.1.6.0"
@@ -685,8 +736,8 @@ pin-depends: [
     "https://github.com/ocaml-multicore/thread-table/releases/download/1.0.0/thread-table-1.0.0.tbz"
   ]
   [
-    "top-closure.3.22.1"
-    "https://github.com/ocaml/dune/releases/download/3.22.1/dune-3.22.1.tbz"
+    "top-closure.3.22.2"
+    "https://github.com/ocaml/dune/releases/download/3.22.2/dune-3.22.2.tbz"
   ]
   [
     "trace.0.12"
@@ -713,6 +764,10 @@ pin-depends: [
     "https://github.com/dune-universe/uutf/releases/download/v1.0.3%2Bdune/uutf-1.0.3.dune.tbz"
   ]
   [
+    "xmlm.1.4.0+dune"
+    "https://github.com/dune-universe/xmlm/releases/download/v1.4.0%2Bdune/xmlm-1.4.0.dune.tbz"
+  ]
+  [
     "yojson.3.0.0"
     "https://github.com/ocaml-community/yojson/releases/download/3.0.0/yojson-3.0.0.tbz"
   ]
@@ -732,6 +787,14 @@ x-opam-monorepo-duniverse-dirs: [
     [
       "sha256=2f736505d431e81a4fe851ad310ff29ec4cd20c8fd37ef050d9e6f1050baa7cb"
       "sha512=7e51eeeb29037d1e1db4ebe4d4d14e40cbb45162970773f35ffe43b6107570ee5d6ec21698791fc8cfd79df5ccfd173fb6b2a8108af7bda976368b13b64ea749"
+    ]
+  ]
+  [
+    "https://github.com/Chris00/ocaml-csv/releases/download/2.4/csv-2.4.tbz"
+    "ocaml-csv"
+    [
+      "sha256=13fec48177f2658c4c62edf04f5edd055962fbf2abb4c3e372d268dd2ab2a98e"
+      "sha512=a8a952315950fc7fcca36c758b69618296060fd4eab3140ac364ad62172cf665b3c0c9d892ddb586929217466a42f33f432e32e3bd0c1e549ea22bef6ef8a900"
     ]
   ]
   [
@@ -955,6 +1018,14 @@ x-opam-monorepo-duniverse-dirs: [
     ]
   ]
   [
+    "https://github.com/dune-universe/xmlm/releases/download/v1.4.0%2Bdune/xmlm-1.4.0.dune.tbz"
+    "xmlm"
+    [
+      "sha256=415d3280cc201290cafe7fc80d391bb45723292740ac78a3773431048e9c443e"
+      "sha512=52611353dbb2ed347db69623c3cbbad544459c6e963a7c0ff1b3b86bfe4cdfc61ff5a22c8b5ac00c4a55bd63546598b65460a7f70145f68cb2d6a7c925ba6bdd"
+    ]
+  ]
+  [
     "https://github.com/edwintorok/dune-compiledb/releases/download/0.6.0/dune-compiledb-0.6.0.tbz"
     "dune-compiledb"
     [
@@ -1172,11 +1243,35 @@ x-opam-monorepo-duniverse-dirs: [
     ]
   ]
   [
+    "https://github.com/mmottl/gsl-ocaml/releases/download/1.25.1/gsl-1.25.1.tbz"
+    "gsl-ocaml"
+    [
+      "sha256=837b2869aa001b1d9c72cc70ac02cc603ff93632f0c67936dacb3bda91c58d60"
+      "sha512=dc6f745738d8f2ad6da221c32634c072bb3de397613b76312d46f59ea66459aee8884019ddd88f3ef2d00ccbd015b63a37265dc5dded4d0207e954ae3fa9ec8f"
+    ]
+  ]
+  [
     "https://github.com/mmottl/pcre-ocaml/releases/download/8.0.5/pcre-8.0.5.tbz"
     "pcre-ocaml"
     [
       "sha256=ed9bcf88d781767ad6a7c0480aff09d5889f2fc500dda0d1620a1786d4e44490"
       "sha512=3b221f39641864d16ee72ab80cc984eb8cd3b4bad0caa649e4fe0b89eb04e5d05ed3986135826761773fbbd83f87b28acc4f329bb0242790a2c1ea18602857a1"
+    ]
+  ]
+  [
+    "https://github.com/mmottl/sqlite3-ocaml/releases/download/5.4.0/sqlite3-5.4.0.tbz"
+    "sqlite3-ocaml"
+    [
+      "sha256=f0069532f78ac24f16d79262af01434952d0481f8bf80ae541dff4a56cc4e9ff"
+      "sha512=3ab7eb7a41e13a8448ce58dec388dee90fe7a18681323266ac14d2bd5b97c601b25f9b8ab60afa4f507b6ce13792f791e4b78bab1b0747b28097da273ff5a737"
+    ]
+  ]
+  [
+    "https://github.com/ocaml-batteries-team/batteries-included/releases/download/v3.10.0/batteries-3.10.0.tar.gz"
+    "batteries-included"
+    [
+      "md5=b7f3b99f12f21b1da6b6aa13d993206d"
+      "sha512=8b7f2479eb0271bcfd9168887c1e4a9a815c512eab3ee61b150fc4dfa9ec803e4f73115155f20b3017e4a822148d0e6d1c1e8e5f96790fd691b419dd39a908a2"
     ]
   ]
   [
@@ -1316,11 +1411,11 @@ x-opam-monorepo-duniverse-dirs: [
     ]
   ]
   [
-    "https://github.com/ocaml/dune/releases/download/3.22.1/dune-3.22.1.tbz"
+    "https://github.com/ocaml/dune/releases/download/3.22.2/dune-3.22.2.tbz"
     "dune_"
     [
-      "sha256=0c0b98396c32ec426886c2c2294024fd687ac5114d4dda0af9dc8a2e584d47fd"
-      "sha512=4dc4ed45fb52a3017bc73fdbcb7b88c1710cebfdbb87ecb6f933582f8f0a27ef740f8c4009439ff6a878e1115c3f29d199e63d0367a88a09d2ea19b61517a814"
+      "sha256=c2ccf8bc6b17afa47c450297357496303aa7c8680e329b79d98c68e35013a118"
+      "sha512=26d3df56a509c6e8937a9333944303bdd8800a41e1b869c3adfb76d1e1fe615b6ec41491d596bd5982e338dcf70b97c18f963f37bfbf2bd581cbd356f3d5f4e5"
     ]
   ]
   [
@@ -1453,6 +1548,7 @@ x-opam-monorepo-duniverse-dirs: [
 ]
 x-opam-monorepo-opam-provided: [
   "conf-gmp"
+  "conf-gsl"
   "conf-libcurl"
   "conf-libev"
   "conf-libevent"
@@ -1460,12 +1556,13 @@ x-opam-monorepo-opam-provided: [
   "conf-libpcre2-8"
   "conf-openblas"
   "conf-pkg-config"
+  "conf-sqlite3"
   "conf-zlib"
   "libevent"
 ]
 x-opam-monorepo-opam-repositories: [
   "git+https://github.com/dune-universe/opam-overlays.git#12731a6f86d7c452a94c72106fa9d3327988582d"
-  "git+https://github.com/ocaml/opam-repository.git#95a242e172a2ddddcaf38930d87c5983a6f23027"
+  "git+https://github.com/ocaml/opam-repository.git#d1c96c8e211dddd369fb445f0e7348fb9cffad4a"
 ]
 x-opam-monorepo-root-packages: [
   "macro-bench-alt-ergo"
@@ -1478,5 +1575,6 @@ x-opam-monorepo-root-packages: [
   "macro-bench-menhir"
   "macro-bench-ocamlformat"
   "macro-bench-owl"
+  "macro-bench-pplacer"
 ]
 x-opam-monorepo-version: "0.3"

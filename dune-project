@@ -71,3 +71,16 @@
  (allow_empty)
  (depends
   (owl (>= 1.0))))
+
+; pplacer is vendored manually (not in opam).  These are its OCaml deps.
+(package
+ (name macro-bench-pplacer)
+ (allow_empty)
+ (depends
+  (batteries (>= 3.6.0))
+  (gsl (>= 1.25.0))
+  (sqlite3 (>= 5.0.0))
+  (camlzip (>= 1.11))
+  (csv (>= 2.4))
+  (xmlm (>= 1.3.0))
+  (ounit2 (>= 2.2.0))))
