@@ -272,20 +272,18 @@ else
   export PATH="$TOOLS_BIN:$PATH"
   export OCAMLPATH="$("$_OPAM" var prefix --switch="$TOOLS_SWITCH")/lib:$("$_OPAM" var prefix --switch="$TOOLS_SWITCH")/lib/ocaml"
 
-  # Create symlink for the install directory that dunestrap dune rules reference
-  # (they use %{workspace_root}/_build/../../install/default/lib/rocq-runtime/)
-  INSTALL_LINK="$(dirname "$(dirname "$MONOREPO_DIR")")/install/default/lib"
-  mkdir -p "$(dirname "$INSTALL_LINK")"
-
   # Build and install rocq-runtime
   dune build duniverse/rocq/rocq-runtime.install --profile release
   DESTDIR="$ROCQ_PREFIX" dune install rocq-runtime --prefix /rocq --profile release
 
-  # Symlink for .vo compilation deps
-  if [ ! -L "$INSTALL_LINK/rocq-runtime" ]; then
-    mkdir -p "$INSTALL_LINK"
-    ln -sfn "$ROCQ_PREFIX/rocq/lib/rocq-runtime" "$INSTALL_LINK/rocq-runtime"
-  fi
+  # The generated theories/Corelib/dune files reference .vo compilation deps
+  # via %{workspace_root}/_build/../../install/default/lib/rocq-runtime/.
+  # This resolves to <parent_of_monorepo>/install/default/lib/rocq-runtime/.
+  # We create a symlink there pointing at our local install.
+  ROCQ_INSTALL_LINK="$(dirname "$MONOREPO_DIR")/install/default/lib"
+  mkdir -p "$ROCQ_INSTALL_LINK"
+  ln -sfn "$ROCQ_PREFIX/rocq/lib/rocq-runtime" "$ROCQ_INSTALL_LINK/rocq-runtime"
+  echo "  Symlink: $ROCQ_INSTALL_LINK/rocq-runtime -> _rocq_prefix"
 
   # Build and install rocq-core (theories / .vo files)
   dune build duniverse/rocq/rocq-core.install --profile release

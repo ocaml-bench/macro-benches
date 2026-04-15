@@ -16,7 +16,7 @@ per benchmark (DaCapo sweet spot).
 | **menhir** | Text processing | 3 (ocamly, sql, sysver) | 0.4-20s | |
 | **cpdf** | Text/media | 4 (merge, blacktext, scale, squeeze) | 1-9s | |
 | **alt-ergo** | SMT solver | 3 (fill, yyll, unsat_smt2) | 0.02-8s | |
-| **coq/rocq** | Proof assistant | 2 (basicsyntax, abstractinterpretation) | ~0s | Build is the workload (see notes) |
+| **coq/rocq** | Proof assistant | 1 (corelib_stress) | 44s | fib, ack, tree construction; 5.5GB RSS |
 | **ahrefs-devkit** | GC stress | 4 (htmlstream, stre, network, gzip) | 1-25s | |
 | **irmin** | Databases | 1 (mem_rw) | 12s | |
 | **ocamlformat** | Build tools | 1 (format 16k-line file) | 5s | |
@@ -75,7 +75,7 @@ CONFIG_FILE=src/running/config/macrobenchmarks_monorepo.yml \
 
 ```bash
 make clean          # Remove build artifacts (keeps vendored sources)
-make clean-all      # Remove everything (duniverse/ + vendor/ + _build/)
+make clean-all      # Remove everything (duniverse/ + vendor/ + _rocq_prefix/ + _build/)
 make setup          # Re-populate from lock file
 ```
 
@@ -87,7 +87,9 @@ make setup          # Re-populate from lock file
    `duniverse/` from the lock file.  No solver, no opam install.
 3. **Apply patches** — `setup-monorepo.sh` fixes version incompatibilities
    (ppxlib for 5.6, lwt for 5.6, owl C bug, etc.).
-4. **Build with any compiler** — `dune build` compiles from local source.
+4. **Install Rocq locally** — `dune install rocq-runtime rocq-core` into
+   `_rocq_prefix/` so coqc can find its stdlib and plugins at runtime.
+5. **Build with any compiler** — `dune build` compiles from local source.
    Each runtime gets its own `_build-<runtime>/` directory for isolation.
 
 ## Directory layout
@@ -130,6 +132,7 @@ macro-benches/
     libevent/                  # upstream uses Makefile
     ocurl/                     # upstream uses autoconf (config.h pre-generated)
 
+  _rocq_prefix/                # (gitignored) local Rocq install for coqc runtime
   duniverse/                   # (gitignored) ~88 vendored packages
   vendor/                      # (gitignored) manually vendored non-dune packages
 ```
@@ -168,10 +171,11 @@ for reference and for manual application if needed.
 
 ## Known limitations
 
-- **coqc runtime**: The coqc binary builds (600+ ML files — exercises the
-  OCaml compiler), but can't type-check `.v` files.  Rocq needs `dune install`
-  + findlib + compiled stdlib (`.vo` files) + plugins (`.cmxs`) to run.
-  The BUILD is the benchmark, not the runtime.
+- **Rocq symlink**: The setup script creates a symlink at
+  `<parent_of_monorepo>/install/default/lib/rocq-runtime` pointing at
+  `_rocq_prefix/`.  This is needed because dune's generated `.vo` compilation
+  rules use relative paths that resolve outside the monorepo.
+  `make clean-all` removes this symlink.
 
 - **js_of_ocaml**: Parked.  Needs findlib at runtime to locate `stdlib`
   package.  Also constrained to OCaml < 5.5.
