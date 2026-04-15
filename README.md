@@ -1,210 +1,211 @@
 # macro-benches
 
-Monorepo build of OCaml macrobenchmarks for cross-runtime comparison.
-Benchmark tool sources and all their dependencies are vendored via
-[opam-monorepo](https://github.com/tarides/opam-monorepo) into a single
-dune workspace, ensuring **identical source code** across all runtimes.
+DaCapo-style OCaml macrobenchmark suite for cross-runtime comparison.
+All benchmark tool sources and dependencies are vendored via
+[opam-monorepo](https://github.com/tarides/opam-monorepo), ensuring
+**identical source code** across all runtimes.  The only variable is
+the compiler.
 
-The compiler is still built via opam switches (using `opam compiler`).
-Only the benchmark tool build changes: `dune build` replaces `opam install`.
+## Benchmarks
+
+14 tools, 26 benchmark programs, 11 categories.  Target runtime: 5-20s
+per benchmark (DaCapo sweet spot).
+
+| Benchmark | Category | Programs | ~Runtime | Notes |
+|-----------|----------|----------|----------|-------|
+| **menhir** | Text processing | 3 (ocamly, sql, sysver) | 0.4-20s | |
+| **cpdf** | Text/media | 4 (merge, blacktext, scale, squeeze) | 1-9s | |
+| **alt-ergo** | SMT solver | 3 (fill, yyll, unsat_smt2) | 0.02-8s | |
+| **coq/rocq** | Proof assistant | 2 (basicsyntax, abstractinterpretation) | ~0s | Build is the workload (see notes) |
+| **ahrefs-devkit** | GC stress | 4 (htmlstream, stre, network, gzip) | 1-25s | |
+| **irmin** | Databases | 1 (mem_rw) | 12s | |
+| **ocamlformat** | Build tools | 1 (format 16k-line file) | 5s | |
+| **decompress** | Compression | 1 (zlib compress/decompress) | 5s | |
+| **eio** | Concurrency | 1 (fiber stream 20M items) | 6s | OCaml ≥ 5.2 |
+| **sedlex** | Text processing | 1 (tokenize 700k lines) | 5.5s | |
+| **yojson** | Data formats | 1 (parse+serialize 1000x) | 5.5s | |
+| **zarith** | Numerics | 1 (15000 digits of pi) | 7s | |
+| **owl** | ML/Numerics | 1 (matrix/graph computation) | 2.5s | OpenBLAS |
+| **js_of_ocaml** | Compilers | — (parked) | — | findlib runtime dep + ocaml < 5.5 |
+
+### Runtime compatibility
+
+| Runtime | Working benchmarks |
+|---------|-------------------|
+| **OCaml 5.4.1** | All 13 active tools (23 programs) |
+| **OCaml trunk (5.6)** | All 13 active tools — ppxlib+lwt upgraded from git |
+| **OxCaml** | menhir only (others: locality type errors) |
+
+## Quick start
+
+### Prerequisites
+
+```bash
+# System libraries
+sudo apt install libgmp-dev libevent-dev libcurl4-openssl-dev \
+                 libpcre3-dev zlib1g-dev libopenblas-dev
+
+# opam 2.3+ (check: opam --version)
+# An opam switch with dune + ocamlfind (created automatically if needed)
+```
+
+### Setup
+
+```bash
+cd ~/macro-benches
+make setup          # or: bash scripts/setup-monorepo.sh
+```
+
+This runs 9 steps: pulls 88 vendored packages, applies 10 patches,
+generates rocq config/dunestrap files, and test-builds all binaries.
+Takes ~10 minutes on first run; subsequent runs skip completed steps.
+
+The setup is **idempotent** — safe to run multiple times without `make clean`.
+
+### Run benchmarks
+
+```bash
+cd ~/running-ng
+export RUNNING_MACRO_BENCH_DIR=~/macro-benches
+CONFIG_FILE=src/running/config/macrobenchmarks_monorepo.yml \
+  bash run_ocaml_bench_gc_sweep.sh
+```
+
+### Clean and rebuild
+
+```bash
+make clean          # Remove build artifacts (keeps vendored sources)
+make clean-all      # Remove everything (duniverse/ + vendor/ + _build/)
+make setup          # Re-populate from lock file
+```
 
 ## How it works
 
-1. **Lock dependencies once** -- `opam monorepo lock` resolves all transitive
-   deps and writes a `.opam.locked` file (committed to git).
-2. **Run setup script** -- `scripts/setup-monorepo.sh` populates `duniverse/`
-   and `vendor/` (gitignored), applies all required patches, and runs a test
-   build.  One-time step, takes ~10 minutes.
-3. **Build with any compiler** -- `dune build` compiles everything from local
-   source.  The runtime compiler (5.4.1, trunk, OxCaml) is on PATH; dune uses
-   it automatically.  Each runtime gets its own `_build-<runtime>/` directory.
+1. **Lock dependencies once** — `opam monorepo lock` resolves all transitive
+   deps and writes `macro-benches.opam.locked` (committed to git).
+2. **Pull vendored sources** — `opam monorepo pull` downloads everything into
+   `duniverse/` from the lock file.  No solver, no opam install.
+3. **Apply patches** — `setup-monorepo.sh` fixes version incompatibilities
+   (ppxlib for 5.6, lwt for 5.6, owl C bug, etc.).
+4. **Build with any compiler** — `dune build` compiles from local source.
+   Each runtime gets its own `_build-<runtime>/` directory for isolation.
 
 ## Directory layout
 
 ```text
 macro-benches/
-  dune-project                # package declarations for opam-monorepo
-  dune                        # (vendored_dirs duniverse vendor)
-  dune-workspace              # default context, release profile
-  macro-benches.opam.locked   # lock file (committed to git)
-  sources.yml                 # pinned versions reference
-  *.opam.template             # opam-monorepo config (opam-provided, repos)
-  benchmarks/                 # build scripts + input files for running-ng
-    menhir/                   # menhir.build.sh + .mly input files
-    cpdf/                     # cpdf.build.sh + .pdf input files
-    alt-ergo/                 # alt-ergo.build.sh + .why input files
-    coq/                      # coq.build.sh + .v input files
-    ahrefs-devkit/            # ahrefs-devkit.build.sh + benchmark .ml files
+  dune-project                 # package declarations for opam-monorepo
+  dune                         # (vendored_dirs duniverse vendor)
+  dune-workspace               # default context, release profile
+  Makefile                     # setup / clean / clean-all targets
+  macro-benches.opam.locked    # lock file (88 packages, committed to git)
+  *.opam.template              # opam-monorepo config (opam-provided, repos)
+
+  benchmarks/                  # build scripts + input files
+    menhir/                    # .mly grammar files
+    cpdf/                      # .pdf test files
+    alt-ergo/                  # .why + .smt2 input files
+    coq/                       # .v theory files
+    ahrefs-devkit/             # benchmark .ml source files
+    irmin/                     # irmin_mem_rw.ml
+    ocamlformat/               # workload.ml + workload_5x.ml
+    decompress/                # test_decompress.ml
+    eio/                       # eio_bench.ml
+    sedlex/                    # sedlex_bench.ml
+    yojson/                    # ydump_repeat.ml + sample.json
+    zarith/                    # zarith_pi.ml
+    owl/                       # owl_gc.ml
+    js_of_ocaml/               # (parked)
+
   scripts/
-    setup-monorepo.sh         # full setup from scratch (re-vendor + re-patch)
-    vendor-cpdf.sh            # manual vendor for cpdf/camlpdf (non-dune)
-    vendor-coq.sh             # manual vendor for zarith (non-dune)
-    vendor-devkit-deps.sh     # manual vendor for libevent/ocurl (non-dune)
-  dune-overlays/
-    camlpdf/                  # hand-written dune files (upstream uses Makefile)
-    cpdf-source/              # hand-written dune files (upstream uses Makefile)
-    zarith/                   # hand-written dune files (upstream uses configure)
-    libevent/                 # hand-written dune files (upstream uses configure)
-    ocurl/                    # hand-written dune files (upstream uses configure)
-  duniverse/                  # (gitignored) vendored sources from opam-monorepo
-    menhir/                   # menhir parser generator
-    rocq/                     # Rocq proof assistant (formerly Coq)
-    alt-ergo/                 # alt-ergo SMT solver
-    devkit/                   # ahrefs-devkit library
-    ppxlib/ ppx_deriving/     # PPX ecosystem (alt-ergo deps)
-    dolmen/ ocplib-simplex/   # alt-ergo deps
-    lwt/                      # lwt async library
-    lib-findlib/              # findlib library (rocq dep)
-    ...                       # ~50 packages total
-  vendor/                     # (gitignored) manually vendored non-dune packages
-    camlpdf/                  # camlpdf + dune overlay
-    cpdf-source/              # cpdf + dune overlay
-    zarith/                   # zarith + dune overlay
-    libevent/                 # libevent OCaml bindings + dune overlay
-```
+    setup-monorepo.sh          # full setup: pull + patch + build
+    vendor-cpdf.sh             # manual vendor for cpdf/camlpdf
+    vendor-coq.sh              # manual vendor for zarith
+    vendor-devkit-deps.sh      # manual vendor for libevent/ocurl
 
-## Quick start
+  dune-overlays/               # hand-written dune files for non-dune packages
+    camlpdf/                   # upstream uses OCamlMakefile
+    cpdf-source/               # upstream uses OCamlMakefile
+    zarith/                    # upstream uses configure/make
+    libevent/                  # upstream uses Makefile
+    ocurl/                     # upstream uses autoconf (config.h pre-generated)
 
-### System dependencies
-
-Install these before building:
-
-```bash
-sudo apt install libgmp-dev libevent-dev libcurl4-openssl-dev libpcre3-dev zlib1g-dev
-```
-
-### First-time setup
-
-```bash
-cd ~/macro-benches
-bash scripts/setup-monorepo.sh
-```
-
-This populates `duniverse/` and `vendor/`, applies all patches, generates
-rocq's config/dunestrap files, and runs a test build (~10 minutes).
-
-### Running benchmarks via running-ng
-
-```bash
-cd ~/running-ng
-RUNNING_MACRO_BENCH_DIR=~/macro-benches \
-CONFIG_FILE=src/running/config/macrobenchmarks_monorepo.yml \
-  bash run_ocaml_bench_gc_sweep.sh
-```
-
-The config defines three runtimes (OCaml 5.4.1, trunk, OxCaml trunk).
-running-ng builds each compiler, then calls the build scripts which
-run `dune build` in the monorepo with that compiler on PATH.
-
-### Manual test build
-
-To verify the build works with the tools switch compiler:
-
-```bash
-cd ~/macro-benches
-PATH="$HOME/.opam/running-ng-tools/bin:$PATH" dune build \
-  duniverse/menhir/src/stage2/main.exe \
-  vendor/cpdf-source/cpdfcommandrun.exe \
-  duniverse/alt-ergo/src/bin/text/Main_text.exe \
-  duniverse/rocq/topbin/coqc_bin.exe \
-  benchmarks/ahrefs-devkit/htmlStream_bench.exe \
-  --profile release
+  duniverse/                   # (gitignored) ~88 vendored packages
+  vendor/                      # (gitignored) manually vendored non-dune packages
 ```
 
 ## Build scripts
 
-Each benchmark has a build script in `benchmarks/<tool>/<tool>.build.sh`.
-The script receives these env vars from running-ng:
+Each benchmark has `benchmarks/<tool>/<tool>.build.sh`.  Environment
+variables from running-ng:
 
 | Variable | Description |
 |----------|-------------|
 | `RUNNING_OCAML_OUTPUT` | Path where the built binary must go |
-| `RUNNING_OCAML_BENCH_DIR` | Benchmark directory (where input files live) |
+| `RUNNING_OCAML_BENCH_DIR` | Benchmark directory |
 | `RUNNING_OCAML_RUNTIME_NAME` | Runtime name (e.g. `ocaml-5.4.1`) |
 
-The script runs `dune build --root <monorepo> --build-dir _build-<runtime>`
-to build with the runtime's compiler, then copies the binary to
-`$RUNNING_OCAML_OUTPUT`.
-
-## Current benchmarks
-
-| Benchmark | Version | Binary target | Status |
-|-----------|---------|---------------|--------|
-| menhir | 20250912 | `duniverse/menhir/src/stage2/main.exe` | Working |
-| cpdf | 2.8.1 | `vendor/cpdf-source/cpdfcommandrun.exe` | Working |
-| alt-ergo | 2.6.2 | `duniverse/alt-ergo/src/bin/text/Main_text.exe` | Working |
-| coqc | Rocq 9.2 | `duniverse/rocq/topbin/coqc_bin.exe` | Working |
-| ahrefs-devkit | latest | `benchmarks/ahrefs-devkit/*.exe` | Working |
-
-## Rebuilding from scratch
-
-If you need to re-vendor everything (e.g. after updating the lock file):
-
-```bash
-rm -rf duniverse/ vendor/
-bash scripts/setup-monorepo.sh
-```
+All build scripts sanitize the opam environment (`unset OPAM_SWITCH_PREFIX`
+etc.) to prevent cross-runtime `.cmi` contamination.
 
 ## Vendored source patches
 
-These patches are applied automatically by `scripts/setup-monorepo.sh`.
-They are documented here for reference.
+Applied automatically by `scripts/setup-monorepo.sh`.  Documented here
+for reference and for manual application if needed.
 
-1. **alt-ergo ppx_blob paths** -- `duniverse/alt-ergo/src/lib/util/theories.ml`:
-   change `[%blob "src/preludes/..."` to `[%blob "duniverse/alt-ergo/src/preludes/..."`
-   (ppx_blob resolves paths from workspace root, not package root)
+| # | Target | What | Why |
+|---|--------|------|-----|
+| 1 | `duniverse/alt-ergo/.../theories.ml` | Fix ppx_blob paths | ppx_blob resolves from workspace root |
+| 2 | `duniverse/alt-ergo/.../text/dune` | Rewrite dune file | Remove public_name/package (vendored exec) |
+| 3 | `duniverse/dune_/dune-project` | `3.22` → `3.21`, rm test/ | dune 3.22 features not in installed dune |
+| 4 | `duniverse/ppxlib/` | Replace with git main | Adds Ast_506 for OCaml 5.6 trunk |
+| 5 | `duniverse/lwt/` | Replace with git main | Fixes socketaddr.h for OCaml 5.6 |
+| 6 | `duniverse/devkit/lwt_engines.ml` | Add `engine_id` type + method | lwt 6.1.1 added virtual `id` method |
+| 7 | `vendor/libevent/libevent.ml` | Add `~persist`, `~signal` labels | OCaml 5.x strict label matching |
+| 8 | `duniverse/js_of_ocaml/.../dune` | Remove public_name | Vendored executable (parked) |
+| 9 | `duniverse/ocamlformat/.../dune` | Remove public_name | Vendored executable |
+| 10 | `duniverse/owl/.../exponpow.c` | Fix `std_gaussian_rvs` calls | Upstream C bug: function takes no args |
 
-2. **alt-ergo public_name** -- `duniverse/alt-ergo/src/bin/text/dune`:
-   remove `(public_name alt-ergo)` and `(package alt-ergo)` from the
-   `Main_text` executable stanza (vendored executables with public_name
-   don't build by default)
+## Known limitations
 
-3. **dune_ version** -- `duniverse/dune_/dune-project`: change `3.22` to `3.21`
-   and remove `duniverse/dune_/test/` (uses dune 3.22 features)
+- **coqc runtime**: The coqc binary builds (600+ ML files — exercises the
+  OCaml compiler), but can't type-check `.v` files.  Rocq needs `dune install`
+  + findlib + compiled stdlib (`.vo` files) + plugins (`.cmxs`) to run.
+  The BUILD is the benchmark, not the runtime.
 
-4. **ppxlib 5.6 support** -- replace `duniverse/ppxlib/` with the main branch
-   from https://github.com/ocaml-ppx/ppxlib (commit 37cda2c or later).
-   The locked version (0.38.0) only supports up to OCaml 5.5; the main branch
-   adds Ast_506 for trunk (5.6.0+dev).
+- **js_of_ocaml**: Parked.  Needs findlib at runtime to locate `stdlib`
+  package.  Also constrained to OCaml < 5.5.
 
-5. **lwt 5.6 support** -- replace `duniverse/lwt/` with the latest from git.
-   The locked version (6.1.0) has C stubs incompatible with OCaml 5.6's
-   renamed `socketaddr.h` macros; 6.1.1+ fixes this.
+- **OxCaml**: Only menhir works.  Other tools fail due to locality type
+  annotation errors in vendored ecosystem packages (lwt, camlpdf, etc.).
 
-6. **devkit lwt 6.x compat** -- `duniverse/devkit/lwt_engines.ml`:
-   add `type Lwt_engine.engine_id += Engine_id__libevent` before the class
-   and `method id = Engine_id__libevent` inside it (lwt 6.x added the
-   `id` virtual method to `Lwt_engine.abstract`).
-
-7. **libevent label fix** -- `vendor/libevent/libevent.ml`:
-   add `~persist` and `~signal` labels to `set`, `set_timer`, `set_signal`
-   to match the `.mli` (OCaml 5.x strict label matching).
+- **Trunk (5.6) support**: Depends on ppxlib and lwt git main branches
+  (patches 4 + 5).  When ppxlib releases a 5.6-compatible version, these
+  patches can be removed and the lock file updated.
 
 ## Updating dependencies
 
 ```bash
-# 1. Re-lock (uses opam solver to find new compatible versions)
-OPAMSWITCH=running-ng-tools /usr/local/bin/opam monorepo lock
-
-# 2. Rebuild from scratch
-rm -rf duniverse/ vendor/
-bash scripts/setup-monorepo.sh
-
-# 3. Commit the updated sources
-git add duniverse/ vendor/
+# 1. Modify dune-project if adding/removing packages
+# 2. Re-lock
+OPAMSWITCH=running-ng-tools opam monorepo lock
+# 3. Rebuild from scratch
+make clean-all
+make setup
+# 4. Commit the updated lock file
+git add macro-benches.opam.locked dune-project *.opam
 git commit -m "Update vendored dependencies"
 ```
 
-## Notes
+## Adding a new benchmark
 
-- **OCaml >= 5.4 required** -- the vendored `ocaml-compiler-libs` uses the
-  `Compunit` constructor introduced in OCaml 5.2.
-- **System deps** -- `libgmp-dev` (zarith), `libevent-dev` (devkit),
-  `libcurl4-openssl-dev` (devkit), `libpcre3-dev` (devkit),
-  `zlib1g-dev` (camlzip).
-- **Rocq dunestrap** -- `scripts/setup-monorepo.sh` generates the
-  dunestrap dune files (`theories/Corelib/dune`, `theories/Ltac2/dune`)
-  and config fallback files (`config/coq_config.ml`, etc.).  Generation
-  needs `ocamlfind` and `zarith` installed in the tools switch.
-- **`OCAMLPATH`** -- rocq's build tools use findlib at runtime.  The build
-  script sets `OCAMLPATH` to include the switch's lib directories.
+1. Add a `(package ...)` declaration in `dune-project`
+2. Create an `.opam.template` if non-dune deps need `x-opam-monorepo-opam-provided`
+3. Re-lock: `opam monorepo lock`
+4. Create `benchmarks/<tool>/` with:
+   - `<tool>.build.sh` — build script (see existing ones for template)
+   - `dune` — if the benchmark is custom `.ml` code compiled in the workspace
+   - Input files (`.mly`, `.smt2`, `.json`, etc.)
+5. Add to `running-ng/src/running/config/macrobenchmarks_monorepo.yml`
+6. Add to the test build list in `scripts/setup-monorepo.sh`
+7. Test: `make clean-all && make setup`
