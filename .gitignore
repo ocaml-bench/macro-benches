@@ -6,6 +6,9 @@ _build-*/
 duniverse/
 vendor/
 
+# Rocq local install (for coqc stdlib/plugins)
+_rocq_prefix/
+
 # Benchmark binaries
 *-ocaml-*
 *-oxcaml-*

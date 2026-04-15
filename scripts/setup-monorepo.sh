@@ -261,6 +261,38 @@ else
   cp "_build/default/$ROCQ_DIR/ltac2_dune" "$ROCQ_DIR/theories/Ltac2/dune"
   echo "  Dunestrap files installed."
 fi
+
+# Install rocq-runtime + rocq-core into a local prefix so coqc can
+# find its stdlib (.vo files), plugins, and META at runtime.
+ROCQ_PREFIX="$MONOREPO_DIR/_rocq_prefix"
+if [ -f "$ROCQ_PREFIX/rocq/lib/coq/theories/Init/Prelude.vo" ]; then
+  echo "  Rocq already installed to _rocq_prefix/. Skipping."
+else
+  echo "  Installing rocq-runtime + rocq-core to _rocq_prefix/..."
+  export PATH="$TOOLS_BIN:$PATH"
+  export OCAMLPATH="$("$_OPAM" var prefix --switch="$TOOLS_SWITCH")/lib:$("$_OPAM" var prefix --switch="$TOOLS_SWITCH")/lib/ocaml"
+
+  # Create symlink for the install directory that dunestrap dune rules reference
+  # (they use %{workspace_root}/_build/../../install/default/lib/rocq-runtime/)
+  INSTALL_LINK="$(dirname "$(dirname "$MONOREPO_DIR")")/install/default/lib"
+  mkdir -p "$(dirname "$INSTALL_LINK")"
+
+  # Build and install rocq-runtime
+  dune build duniverse/rocq/rocq-runtime.install --profile release
+  DESTDIR="$ROCQ_PREFIX" dune install rocq-runtime --prefix /rocq --profile release
+
+  # Symlink for .vo compilation deps
+  if [ ! -L "$INSTALL_LINK/rocq-runtime" ]; then
+    mkdir -p "$INSTALL_LINK"
+    ln -sfn "$ROCQ_PREFIX/rocq/lib/rocq-runtime" "$INSTALL_LINK/rocq-runtime"
+  fi
+
+  # Build and install rocq-core (theories / .vo files)
+  dune build duniverse/rocq/rocq-core.install --profile release
+  DESTDIR="$ROCQ_PREFIX" dune install rocq-core --prefix /rocq --profile release
+
+  echo "  Rocq installed to _rocq_prefix/."
+fi
 echo ""
 
 # ---- Test build ----
