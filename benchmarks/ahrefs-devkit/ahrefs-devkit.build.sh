@@ -36,8 +36,28 @@ dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
   --profile release \
   "benchmarks/ahrefs-devkit/${EXE}.exe"
 
+REAL_EXE="${BUILD_DIR}/default/benchmarks/ahrefs-devkit/${EXE}.exe"
+
 mkdir -p "$(dirname "${OUT}")"
-cp "${BUILD_DIR}/default/benchmarks/ahrefs-devkit/${EXE}.exe" "${OUT}"
-chmod +x "${OUT}"
+
+# For sub-second benchmarks, wrap with a loop so runtime reaches 5-20s.
+# The first CLI arg sets iteration count (default 1).
+case "${BM_NAME}" in
+  devkit_stre|devkit_gzip|devkit_network)
+    cat > "${OUT}" << WRAPPER
+#!/usr/bin/env bash
+set -euo pipefail
+ITERATIONS="\${1:-1}"
+for _ in \$(seq 1 "\$ITERATIONS"); do
+  "${REAL_EXE}" >/dev/null 2>&1
+done
+WRAPPER
+    chmod +x "${OUT}"
+    ;;
+  *)
+    cp "${REAL_EXE}" "${OUT}"
+    chmod +x "${OUT}"
+    ;;
+esac
 
 echo "${EXE} built: ${OUT}"

@@ -9,6 +9,16 @@ echo "Building owl (monorepo) for runtime: ${RUNTIME_TAG}"
 unset OPAM_SWITCH_PREFIX OCAMLTOP_INCLUDE_PATH CAML_LD_LIBRARY_PATH OCAMLLIB
 export OCAMLPATH=""
 dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" --profile release benchmarks/owl/owl_gc.exe
-cp "${BUILD_DIR}/default/benchmarks/owl/owl_gc.exe" "${OUT}"
+REAL_EXE="${BUILD_DIR}/default/benchmarks/owl/owl_gc.exe"
+# Wrap with a loop — owl_gc runs in ~1s and needs multiple iterations for
+# meaningful signal. First CLI arg sets iteration count (default 1).
+cat > "${OUT}" << WRAPPER
+#!/usr/bin/env bash
+set -euo pipefail
+ITERATIONS="\${1:-1}"
+for _ in \$(seq 1 "\$ITERATIONS"); do
+  "${REAL_EXE}" >/dev/null 2>&1
+done
+WRAPPER
 chmod +x "${OUT}"
 echo "owl built: ${OUT}"
