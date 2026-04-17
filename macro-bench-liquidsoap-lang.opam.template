@@ -1,0 +1,4 @@
+x-opam-monorepo-opam-repositories: [
+  "git+https://github.com/dune-universe/opam-overlays.git"
+  "https://opam.ocaml.org"
+]

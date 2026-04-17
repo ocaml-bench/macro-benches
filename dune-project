@@ -72,6 +72,13 @@
  (depends
   (owl (>= 1.0))))
 
+; liquidsoap-lang: pure OCaml language compiler (no audio/video C deps).
+(package
+ (name macro-bench-liquidsoap-lang)
+ (allow_empty)
+ (depends
+  (liquidsoap-lang (>= 2.4.0))))
+
 ; pplacer is vendored manually (not in opam).  These are its OCaml deps.
 (package
  (name macro-bench-pplacer)

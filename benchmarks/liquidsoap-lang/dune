@@ -1,0 +1,4 @@
+(executable
+ (name liq_bench)
+ (modules liq_bench)
+ (libraries liquidsoap-lang))

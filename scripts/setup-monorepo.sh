@@ -341,6 +341,7 @@ dune build \
   benchmarks/eio/eio_bench.exe \
   benchmarks/sedlex/sedlex_bench.exe \
   vendor/pplacer/tests.exe \
+  benchmarks/liquidsoap-lang/liq_bench.exe \
   --profile release
 
 echo ""
