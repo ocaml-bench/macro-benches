@@ -8,7 +8,7 @@ the compiler.
 
 ## Benchmarks
 
-14 tools, 26 benchmark programs, 11 categories.  Target runtime: 5-20s
+17 tools, 29 benchmark programs, 14 categories.  Target runtime: 5-20s
 per benchmark (DaCapo sweet spot).
 
 | Benchmark | Category | Programs | ~Runtime | Notes |
@@ -26,15 +26,18 @@ per benchmark (DaCapo sweet spot).
 | **yojson** | Data formats | 1 (parse+serialize 1000x) | 5.5s | |
 | **zarith** | Numerics | 1 (15000 digits of pi) | 7s | |
 | **owl** | ML/Numerics | 1 (matrix/graph computation) | 2.5s | OpenBLAS |
+| **pplacer** | Bioinformatics | 1 (224-test phylogenetic suite) | ~10s | GSL, sqlite3 |
+| **dune-bootstrap** | Build tools | 1 (bootstrap dune from source) | ~8s | All runtimes incl. OxCaml |
+| **liquidsoap-lang** | DSL compiler | 1 (parse+typecheck 50k iterations) | ~9s | Jane Street PPX (≥ 5.3) |
 | **js_of_ocaml** | Compilers | — (parked) | — | findlib runtime dep + ocaml < 5.5 |
 
 ### Runtime compatibility
 
 | Runtime | Working benchmarks |
 |---------|-------------------|
-| **OCaml 5.4.1** | All 13 active tools (23 programs) |
-| **OCaml trunk (5.6)** | All 13 active tools — ppxlib+lwt upgraded from git |
-| **OxCaml** | menhir only (others: locality type errors) |
+| **OCaml 5.4.1** | All 16 active tools (28 programs) |
+| **OCaml trunk (5.6)** | All 16 active tools — ppxlib+lwt upgraded from git |
+| **OxCaml** | menhir + dune-bootstrap (others: locality type errors) |
 
 ## Quick start
 
@@ -43,7 +46,8 @@ per benchmark (DaCapo sweet spot).
 ```bash
 # System libraries
 sudo apt install libgmp-dev libevent-dev libcurl4-openssl-dev \
-                 libpcre3-dev zlib1g-dev libopenblas-dev
+                 libpcre3-dev zlib1g-dev libopenblas-dev \
+                 libgsl-dev libsqlite3-dev
 
 # opam 2.3+ (check: opam --version)
 # An opam switch with dune + ocamlfind (created automatically if needed)
@@ -56,9 +60,10 @@ cd ~/macro-benches
 make setup          # or: bash scripts/setup-monorepo.sh
 ```
 
-This runs 9 steps: pulls 88 vendored packages, applies 10 patches,
-generates rocq config/dunestrap files, and test-builds all binaries.
-Takes ~10 minutes on first run; subsequent runs skip completed steps.
+This runs 9 steps: pulls ~110 vendored packages, applies 12 patches,
+vendors pplacer+mcl, generates rocq config/dunestrap files, and
+test-builds all binaries.  Takes ~10 minutes on first run; subsequent
+runs skip completed steps.
 
 The setup is **idempotent** — safe to run multiple times without `make clean`.
 
@@ -86,10 +91,12 @@ make setup          # Re-populate from lock file
 2. **Pull vendored sources** — `opam monorepo pull` downloads everything into
    `duniverse/` from the lock file.  No solver, no opam install.
 3. **Apply patches** — `setup-monorepo.sh` fixes version incompatibilities
-   (ppxlib for 5.6, lwt for 5.6, owl C bug, etc.).
-4. **Install Rocq locally** — `dune install rocq-runtime rocq-core` into
+   (ppxlib for 5.6, lwt for 5.6, owl C bug, batteries Gc.stat, etc.).
+4. **Vendor non-opam packages** — pplacer+mcl are cloned from GitHub and
+   mcl's C libraries are built via autotools.
+5. **Install Rocq locally** — `dune install rocq-runtime rocq-core` into
    `_rocq_prefix/` so coqc can find its stdlib and plugins at runtime.
-5. **Build with any compiler** — `dune build` compiles from local source.
+6. **Build with any compiler** — `dune build` compiles from local source.
    Each runtime gets its own `_build-<runtime>/` directory for isolation.
 
 ## Directory layout
@@ -100,7 +107,7 @@ macro-benches/
   dune                         # (vendored_dirs duniverse vendor)
   dune-workspace               # default context, release profile
   Makefile                     # setup / clean / clean-all targets
-  macro-benches.opam.locked    # lock file (88 packages, committed to git)
+  macro-benches.opam.locked    # lock file (~110 packages, committed to git)
   *.opam.template              # opam-monorepo config (opam-provided, repos)
 
   benchmarks/                  # build scripts + input files
@@ -117,6 +124,9 @@ macro-benches/
     yojson/                    # ydump_repeat.ml + sample.json
     zarith/                    # zarith_pi.ml
     owl/                       # owl_gc.ml
+    pplacer/                   # pplacer test suite wrapper
+    dune-bootstrap/            # dune self-hosting bootstrap
+    liquidsoap-lang/           # liq_bench.ml (parser+typechecker)
     js_of_ocaml/               # (parked)
 
   scripts/
@@ -124,6 +134,7 @@ macro-benches/
     vendor-cpdf.sh             # manual vendor for cpdf/camlpdf
     vendor-coq.sh              # manual vendor for zarith
     vendor-devkit-deps.sh      # manual vendor for libevent/ocurl
+    vendor-pplacer.sh          # manual vendor for pplacer+mcl
 
   dune-overlays/               # hand-written dune files for non-dune packages
     camlpdf/                   # upstream uses OCamlMakefile
@@ -133,7 +144,7 @@ macro-benches/
     ocurl/                     # upstream uses autoconf (config.h pre-generated)
 
   _rocq_prefix/                # (gitignored) local Rocq install for coqc runtime
-  duniverse/                   # (gitignored) ~88 vendored packages
+  duniverse/                   # (gitignored) ~110 vendored packages
   vendor/                      # (gitignored) manually vendored non-dune packages
 ```
 
@@ -168,6 +179,8 @@ for reference and for manual application if needed.
 | 8 | `duniverse/js_of_ocaml/.../dune` | Remove public_name | Vendored executable (parked) |
 | 9 | `duniverse/ocamlformat/.../dune` | Remove public_name | Vendored executable |
 | 10 | `duniverse/owl/.../exponpow.c` | Fix `std_gaussian_rvs` calls | Upstream C bug: function takes no args |
+| 11 | `duniverse/batteries-included/.../batGc.mli` | Add `live_stacks_words` field | OCaml 5.6 added field to `Gc.stat` |
+| 12 | `vendor/pplacer/mcl/caml/caml_mcl.c` | Add `#include <stdint.h>` | OCaml 5.6 trunk headers need it |
 
 ## Known limitations
 
@@ -180,12 +193,21 @@ for reference and for manual application if needed.
 - **js_of_ocaml**: Parked.  Needs findlib at runtime to locate `stdlib`
   package.  Also constrained to OCaml < 5.5.
 
-- **OxCaml**: Only menhir works.  Other tools fail due to locality type
-  annotation errors in vendored ecosystem packages (lwt, camlpdf, etc.).
+- **melange**: Parked.  Requires `(using melange 0.1)` dune extension to
+  compile OCaml→JS; can't benchmark standalone.
+
+- **Frama-C**: Parked.  EVA analysis plugin doesn't build as a `.cmxs`
+  in the vendored context due to dune-site plugin loading limitations.
+
+- **OxCaml**: Only menhir and dune-bootstrap work.  Other tools fail due
+  to locality type annotation errors in vendored ecosystem packages.
 
 - **Trunk (5.6) support**: Depends on ppxlib and lwt git main branches
   (patches 4 + 5).  When ppxlib releases a 5.6-compatible version, these
   patches can be removed and the lock file updated.
+
+- **pplacer**: Vendored manually (not in opam).  Requires `libgsl-dev`
+  and `libsqlite3-dev` system packages.
 
 ## Updating dependencies
 
