@@ -13,6 +13,13 @@ _rocq_prefix/
 *-ocaml-*
 *-oxcaml-*
 
+# Coq compilation artifacts (produced by running the coq benchmarks)
+benchmarks/coq/*.vo
+benchmarks/coq/*.vos
+benchmarks/coq/*.vok
+benchmarks/coq/*.glob
+benchmarks/coq/.*.aux
+
 # Editor / OS
 *~
 .DS_Store
