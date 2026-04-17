@@ -8,8 +8,8 @@ the compiler.
 
 ## Benchmarks
 
-17 tools, 29 benchmark programs, 14 categories.  Target runtime: 5-20s
-per benchmark (DaCapo sweet spot).
+16 active tools, 26 benchmark programs, 14 categories.  Target runtime:
+5-20s per benchmark (DaCapo sweet spot).
 
 | Benchmark | Category | Programs | ~Runtime | Notes |
 |-----------|----------|----------|----------|-------|
@@ -35,9 +35,10 @@ per benchmark (DaCapo sweet spot).
 
 | Runtime | Working benchmarks |
 |---------|-------------------|
-| **OCaml 5.4.1** | All 16 active tools (28 programs) |
+| **OCaml 5.4.1** | All 16 active tools (26 programs) |
 | **OCaml trunk (5.6)** | All 16 active tools — ppxlib+lwt upgraded from git |
-| **OxCaml** | menhir + dune-bootstrap (others: locality type errors) |
+| **OxCaml** | menhir (3), dune-bootstrap, test_decompress, zarith_pi (6 programs) |
+| **OCaml 5.4.1 ± fp ± flambda** | All 16 active tools (used by `fp_flambda_macrobenchmarks.yml`) |
 
 ## Quick start
 
@@ -69,10 +70,23 @@ The setup is **idempotent** — safe to run multiple times without `make clean`.
 
 ### Run benchmarks
 
+Running-ng ships two configs that consume this monorepo:
+
+| Config | What it does | Invocations |
+|---|---|---|
+| `macrobenchmarks_monorepo.yml` | Cross-runtime comparison (5.4.1, trunk, OxCaml) at default GC | 1 |
+| `fp_flambda_macrobenchmarks.yml` | Frame pointers × flambda 2×2 sweep (4 variants of 5.4.1) | 3 |
+
 ```bash
 cd ~/running-ng
 export RUNNING_MACRO_BENCH_DIR=~/macro-benches
+
+# Default cross-runtime comparison:
 CONFIG_FILE=src/running/config/macrobenchmarks_monorepo.yml \
+  bash run_ocaml_bench_gc_sweep.sh
+
+# Frame pointers × flambda (3 invocations):
+CONFIG_FILE=src/running/config/fp_flambda_macrobenchmarks.yml \
   bash run_ocaml_bench_gc_sweep.sh
 ```
 
