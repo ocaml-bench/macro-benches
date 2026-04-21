@@ -236,16 +236,24 @@ else
   echo "  [10] owl: not vendored. Skipping."
 fi
 
-# Patch 11: batteries Gc.stat — add live_stacks_words for OCaml 5.6 trunk
+# Patch 11: batteries Gc.stat — live_stacks_words gate.  Upstream batteries
+# gates it at ##V>=5.6##, but the field actually landed in OCaml 5.5 (e.g.
+# 5.5.0-beta1 == ocaml/ocaml commit d8bb46c3).  Relax the gate to 5.5 so
+# batteries compiles against 5.5.x runtimes too.
 BATGC_MLI="duniverse/batteries-included/src/batGc.mli"
-if [ -f "$BATGC_MLI" ] && ! grep -q 'live_stacks_words' "$BATGC_MLI" 2>/dev/null; then
-  sed -i '/##V>=4.12## forced_major_collections: int;/{
-    N;N;N
-    a##V>=5.6## live_stacks_words: int;\n##V>=5.6## (** Total space allocated outside of the OCaml heap for stack fragments.\n##V>=5.6##     @since 5.6.0 *)
-  }' "$BATGC_MLI"
-  echo "  [11] batteries Gc.stat: added live_stacks_words for OCaml 5.6."
-elif [ -f "$BATGC_MLI" ]; then
-  echo "  [11] batteries Gc.stat: already patched."
+if [ -f "$BATGC_MLI" ]; then
+  if grep -q '##V>=5\.6## live_stacks_words' "$BATGC_MLI"; then
+    sed -i -E '/live_stacks_words|Total space allocated outside of the OCaml heap|@since 5\.[56]\.0 \*\)/ s/##V>=5\.6##/##V>=5.5##/' "$BATGC_MLI"
+    echo "  [11] batteries Gc.stat: relaxed live_stacks_words gate to ##V>=5.5##."
+  elif ! grep -q 'live_stacks_words' "$BATGC_MLI"; then
+    sed -i '/##V>=4.12## forced_major_collections: int;/{
+      N;N;N
+      a##V>=5.5## live_stacks_words: int;\n##V>=5.5## (** Total space allocated outside of the OCaml heap for stack fragments.\n##V>=5.5##     @since 5.5.0 *)
+    }' "$BATGC_MLI"
+    echo "  [11] batteries Gc.stat: added live_stacks_words (##V>=5.5##)."
+  else
+    echo "  [11] batteries Gc.stat: already patched."
+  fi
 else
   echo "  [11] batteries: not vendored. Skipping."
 fi
