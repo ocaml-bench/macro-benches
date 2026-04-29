@@ -224,9 +224,28 @@ does N iterations of work; olly observes the full benchmark.
 
 In use by:
 
-| Benchmark | Env var | Notes |
+| Benchmark | Env var / arg | Notes |
 |---|---|---|
-| `pplacer_testsuite` | `PPLACER_TEST_LOOP` | OUnit test runner; uses env var to avoid clashing with OUnit's own argv parsing |
+| `pplacer_testsuite` | `PPLACER_TEST_LOOP` env var | OUnit test runner; uses env var to avoid clashing with OUnit's own argv parsing |
+| `owl_gc` | `Sys.argv.(1)` | Plain OCaml main; argv is unused otherwise |
+
+**Ring-size interaction.** A single OCaml process accumulating events
+across N iterations needs more `runtime_events` ring than N separate
+processes (each with their own ring). For allocation-heavy benchmarks
+(`owl_gc` in particular), large iteration counts can overflow the
+ring and cause olly to report lost events plus a corrupted
+`wall_time`. The current convention is `re-25` (32 MB ring) for the
+in-process-loop benchmarks; bump to `re-26` (64 MB) or higher if a
+new benchmark hits the limit. Empirical sizing table for `owl_gc`:
+
+| arg | wall (s) | overflow at `re-23` (8 MB) | overflow at `re-25` (32 MB) |
+|---|---|---|---|
+| 1 | 2.6 | no | no |
+| 2 | 5.3 | no | no |
+| 3 | 7.9 | no | no |
+| 4 | 10.6 | no | no |
+| 5 | 13.3 | yes — corrupted wall_time | no |
+| 6 | 15.8 | yes | no — current setting |
 
 When porting another benchmark to this pattern:
 

@@ -96,9 +96,21 @@ let n = Array.length icdms
 
 let gw_dmat = Mat.zeros n n
 
+(* In-process iteration loop: Sys.argv.(1) controls how many full passes
+   over the matrix-pair grid the benchmark performs, all in one OCaml
+   process so olly observes the whole run.  Default 1 keeps the binary
+   useful as a standalone executable.  See macro-benches README
+   §"Iteration counts" for the pattern. *)
+let loop =
+  if Array.length Sys.argv > 1
+  then try int_of_string Sys.argv.(1) with _ -> 1
+  else 1
+
 let () =
-  for i=0 to n - 1 do
-    for j = i + 1 to n - 1 do
-      gw_by_index gw_dmat i j ()
+  for _ = 1 to loop do
+    for i = 0 to n - 1 do
+      for j = i + 1 to n - 1 do
+        gw_by_index gw_dmat i j ()
+      done
     done
   done
