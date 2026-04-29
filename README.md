@@ -178,50 +178,396 @@ etc.) to prevent cross-runtime `.cmi` contamination.
 
 ## Benchmark characteristics
 
-What each benchmark exercises in the OCaml runtime — useful for
-narrowing down which feature a regression touched. If `eio_fiber_stream`
-regresses but `coqc_corelib_stress` doesn't, suspect changes to the
-effect handler or fiber scheduler. If `owl_gc` regresses but
-`devkit_gzip` doesn't, suspect the FFI / Bigarray path. Etc.
+What each benchmark exercises in the OCaml runtime, what its
+allocation profile looks like in practice, and what kinds of runtime
+change would most likely show up as a regression on it. Use this to
+narrow down a regression: if `eio_fiber_stream` moves but
+`coqc_corelib_stress` doesn't, the change is unlikely to be in the
+minor-GC fast path (which `coqc` would catch) and more likely in the
+effect handler / fiber scheduler.
 
-| Benchmark | Workload | GC profile | Notable runtime features |
-|---|---|---|---|
-| `coqc_corelib_stress` | Coq kernel reduction on unary `nat` (`fib`, `sum_to`, `ack`, `make_tree`) | minor+major saturation (~94% GC) | constructor allocation per `S`; constitutional GC stress |
-| `alt_ergo_fill` | Alt-Ergo SMT solving on bitwise integer reasoning (`fill_x100.why`, 100 replicated goals) | high-medium (~40% GC) | closures, hashtables, native parser frontend |
-| `alt_ergo_yyll` | Alt-Ergo SMT solving on a larger native input (`yyll.why`) | medium (~6%) | closures, hashtables |
-| `alt_ergo_unsat_smt2` | Alt-Ergo on `unsat.smt2` with `--timelimit 15` (Dolmen frontend) | medium (~7%) | SMT-LIB parser, theory backend |
-| `cpdf_merge` / `cpdf_blacktext` / `cpdf_scale` / `cpdf_squeeze` | CamlPDF PDF manipulation on a 32 MB reference PDF | medium (~20-40%) | buffer/string allocation, parsing, file I/O |
-| `coqc_basicsyntax` *(if added)* | Coq kernel — smaller, syntax-only stress | (n/a in current run) | similar to corelib_stress at smaller scale |
-| `devkit_htmlstream` | ahrefs-devkit HTML stream parser stress | medium (~3%) | string buffers, multi-generational retention pattern |
-| `devkit_stre` | ahrefs-devkit string operations (split, slice, regex, concat) — 8 sub-benches | low-medium (~5%) | `Stre` library, hashtable churn, small-string allocation |
-| `devkit_gzip` | ahrefs-devkit gzip stress via zlib bindings | very low (~1%) — **compute-bound** | C bindings (zlib), buffer reuse |
-| `devkit_network` | ahrefs-devkit IPv4 / CIDR parsing + sorting | low (~5%) | small-int allocation, hashtable lookups |
-| `dune_bootstrap` | Bootstraps `dune` from source (`ocaml boot/bootstrap.ml`) | observed ~0% — **subprocess-based** | spawns `ocamlc` children; parent observability is meaningless. Wall time = compiler throughput |
-| `eio_fiber_stream` | 4 producers / 4 consumers, 60M items via `Eio.Stream` | medium (~10%) | **OCaml 5 effects**, Eio fiber scheduler, deep_try_with handlers |
-| `irmin_mem_rw` | Irmin in-memory KV store, repeated set/get | medium (~11%) | persistent data structures, **Lwt** cooperative threading, Git-like commit graph |
-| `liq_parse_typecheck` | Liquidsoap parser + typechecker on 50000 iterations | medium (~22%) | AST allocation, type inference (closures + mutation), Jane Street PPX |
-| `menhir_ocamly` | Menhir parser-generator on `ocaml.mly` with `--canonical` | medium (~20%) | canonical LR(1) automaton construction (~2.7 GB RSS); huge state-table allocation |
-| `menhir_sql_parser` | Menhir on `sql-parser.mly` (smaller grammar, `-v -t`) | medium | LALR construction + verbose dump |
-| `menhir_sysver` | Menhir on `sysver.mly` (12k lines, `--table`) | medium-high (~33%) | table-driven LR(1), large grammar |
-| `ocamlformat_rocq` | OCamlformat formatting a 16k-line `.ml` workload | medium (~30%) | AST traversal, pretty-printing, heavy string concatenation |
-| `owl_gc` | Owl Bigarray Gromov-Wasserstein matrix-pair distances | medium (~50%) | **Bigarray** off-heap; OpenBLAS C bindings; float-heavy compute |
-| `pplacer_testsuite` | pplacer phylogenetic test suite (224 OUnit tests in-process) | medium-high (~70%) | GSL bindings (numerical), sqlite3 bindings, tree manipulation |
-| `sedlex_tokenize` | Sedlex Unicode-aware lexer on a 700k-line generated stream | high (~40%) | PPX-generated DFA tables; lots of `String` / `Buffer` allocation |
-| `test_decompress` | Pure-OCaml zlib decompression (`Decompress` library) | low (~2%) | **Bigstring** buffers (off-heap-ish), stream processing |
-| `ydump_repeat` | Yojson parse + serialize a 13 KB JSON file 1000× | low (~5%) | recursive variant types, string allocation, `In_channel` |
-| `zarith_pi` | Compute π to 15000 digits via Machin-like formula | medium (~27%) | **Zarith / GMP bindings**; arbitrary-precision integer arithmetic |
+### Allocation profiles — shorthand
 
-**Notes on coverage gaps.** No current benchmark exercises:
+These tags appear throughout. They reflect the *measured* dataset
+profile (`obelisk-2026-04-21` baseline, post-calibration).
 
-- `Ephemeron` (weak references with key-value semantics)
-- `Weak` arrays
-- `Marshal` / `Hashtbl.hash` on graph data
-- Multi-domain parallelism via `Domainslib` (eio uses one domain even though Eio supports more)
-- Custom `Gc.alarm` callbacks
-- `Gc.compact` interaction with finalisers
+- **minor-saturation** — almost all wall time in minor GC; tiny live set.  
+  *Sensitive to:* minor heap size (`s=`), allocation fast path, frame pointers (`-fp`).
+- **promotion-heavy** — high fraction of allocations survive the minor heap (`promoted_pct ≥ 10%`, often `major_collections / minor_collections ≥ 25%`).  
+  *Sensitive to:* minor-to-major copy, major-heap pacing (`o=`), mark/sweep latency.
+- **major-heavy / sustained working set** — large live set across iterations.  
+  *Sensitive to:* major-GC algorithm, compaction.
+- **off-heap (Bigarray / Bigstring / GMP)** — bulk data outside the OCaml heap.  
+  *Sensitive to:* FFI overhead, finalisation, stub-call cost.
+- **compute-bound** — < 5% GC overhead; numbers move with codegen quality, not GC.  
+  *Sensitive to:* flambda passes, prefetch, register allocation, branch prediction.
+- **subprocess-bound** — wall time = waiting on child processes; parent runtime is idle.  
+  *Sensitive to:* compiler binary perf, file I/O. Olly observability is meaningless.
 
-If a runtime change touches one of those areas, the existing suite
-won't catch it — those are candidates for new benchmarks.
+---
+
+### Compiler throughput / external work
+
+#### `dune_bootstrap` — `ocaml boot/bootstrap.ml`
+
+**What it does.** Reads `boot/bootstrap.ml` in the dune monorepo, which uses `Sys.command` to drive several `ocamlc` invocations and finally `exec`s the resulting `.duneboot.exe` (which then compiles dune itself in another OCaml process). Wall time is the end-to-end bootstrap of dune from source.
+
+**Profile.** subprocess-bound. The parent ocaml process we measure does almost nothing — 11 minor / 5 major collections in 55s. `gc_overhead = 0.0%` is correct but uninformative.
+
+**Diagnostic value.** Wall time is a real-world compiler-throughput metric (~100 KLOC compile). Regression here without movement on any other benchmark almost certainly means **`ocamlc` codegen, link, or startup got slower** — runtime changes won't move it. Conversely, it's blind to allocation-path changes (it'll happily report "no regression" while the runtime regressed, because the parent doesn't allocate).
+
+---
+
+### OCaml 5 effects / fiber scheduling
+
+#### `eio_fiber_stream` — Eio.Stream producer/consumer
+
+**What it does.** Spawns 4 producer fibers and 4 consumer fibers. Each producer pushes 15 million tuples `(int, int, String.make 64 c)` onto a bounded `Eio.Stream` (capacity 1024); each consumer pops them. Total: 60 M items, ≈ 3.6 GB of fresh 64-byte strings allocated and discarded. Single domain.
+
+**Profile.** Promotion-heavy: 5145 minor / 1386 major (~27% major:minor); promoted_pct ≈ 10%. Wall ≈ 6s. The fiber-yield pattern around the bounded stream means each push/pop touches the scheduler.
+
+**OCaml features.**
+- **Effects** (OCaml 5 only). Eio's primitives — `Eio.Stream.add`/`take`, `Eio.Fiber.both`/`all`, `Eio_main.run` — are implemented with `Effect.perform` and deep `try_with` handlers. The benchmark exercises them indirectly but at high volume.
+- **Fiber stack** allocation/reuse — each `Fiber.both` creates two fiber stacks; fast scheduler depends on stack-pool reuse.
+- **Atomic operations** for the stream's bounded queue.
+
+**Diagnostic value.** This is the *only* benchmark in the suite that would move on:
+- Effect-handler internals (`runtime/runtime_effects.c`, deep_try_with implementation).
+- Fiber stack allocator changes.
+- Eio's scheduler internals (which depend on `Atomic`).
+
+Regression here without correlated movement on any allocation-heavy benchmark (`coqc`, `liq`, `sedlex`) → suspect effects/fibers. Movement on this *and* every promotion-heavy bench → suspect minor-to-major copy path. Won't run on OCaml < 5.2.
+
+---
+
+### GC stress — minor-saturation
+
+#### `coqc_corelib_stress` — Coq kernel reduction on unary `nat`
+
+**What it does.** Type-checks `coq_corelib_stress.v`, which forces the Coq kernel to reduce four expressions: `fib 23`, `sum_to 1000`, `ack 3 8`, `tree_size (make_tree 13)`. All operate on Coq's unary-Peano `nat` representation (`O | S nat`) — every `S` constructor is an allocation.
+
+**Profile.** Minor-saturation at extreme: ~94% gc_overhead is **constitutional**, not pathological. ~6 k minor / 8 major collections per ~52s wall on this machine. Mutator time is single-digit seconds; the rest is GC. Tested on shrunk inputs (the original `fib 25, ack 3 10, ...` pushed wall to 715s and 4.4 GB RSS — same character, just bigger).
+
+**OCaml features.**
+- **Minor-GC fast path** — heap-pointer bump for every `S`.
+- **Constructor allocation** — every reduction step allocates one block.
+- **Match compilation** — kernel reduction is essentially a `match` interpreter over `nat`.
+- Major GC barely engaged (the live set is small even though throughput is huge).
+
+**Diagnostic value.** This is the canonical *minor-allocator-stress* benchmark. If it regresses but allocation-light benchmarks don't, the problem is in:
+- The minor-allocator fast path (`caml_alloc_small`-equivalent).
+- Constructor block initialisation.
+- The young-pointer write barrier.
+
+Conversely, it's *insensitive* to major-GC changes (almost no major work happens). A change that fixes a major-GC bug shouldn't move `coqc` at all — if it does, suspect a side-effect.
+
+#### `menhir_ocamly` — canonical LR(1) on the OCaml grammar
+
+**What it does.** Menhir constructs the **canonical** LR(1) automaton (not LALR) for `ocaml.mly` (3006 lines). Canonical LR(1) keeps every distinct `(state, lookahead)` pair instead of merging them — the state table is enormous for OCaml's grammar.
+
+**Profile.** Wall ≈ 33s, gc_overhead ≈ 20%, **RSS ≈ 2.7 GB** — the state table is genuinely that large. ~17 k minor / 27 major collections (minor-saturation pattern; the 2.7 GB lives across the whole run).
+
+**OCaml features.**
+- **Hashtbl** at scale (state-keyed lookups).
+- **Polymorphic `compare`** (used by `Set.Make` and Hashtbl on structured keys).
+- **Large-array allocation** for the state table.
+- AST/IR allocation for the grammar.
+
+**Diagnostic value.** Sensitive to large-table generation perf and `compare` codegen. The other two menhir benchmarks (`sql_parser`, `sysver`) test smaller scales of similar work — co-movement across all three menhir benchmarks isolates "menhir-specific" issues from "OCaml-specific" issues.
+
+---
+
+### GC stress — promotion-heavy
+
+#### `liq_parse_typecheck` — Liquidsoap parser + typechecker
+
+**What it does.** Parses + typechecks the same ~80-line Liquidsoap script `iterations` times (default 50000). Each iteration constructs a fresh AST, then `Liquidsoap_lang.Runtime.type_term` traverses it doing type inference.
+
+**Profile.** **Extreme promotion**: 26 k minor / **12.7 k major** collections (≈ 48 % major:minor — among the highest in the suite). gc_overhead ≈ 22%, wall ≈ 26s. Each AST is built fresh, immediately type-checked while it's still alive, then drops out of scope.
+
+**OCaml features.**
+- **AST as recursive variants** — heavy small-block allocation.
+- **Closures & first-class functions** — Liquidsoap's runtime has `fun (x) -> ...`-style values.
+- **Mutation-during-inference** — typechecker uses unification (`ref` cells in type variables).
+- **Jane Street ppxlib** (build-time PPX). Affects only build, not runtime.
+
+**Diagnostic value.** AST-with-type-inference is a *very common* OCaml workload pattern (compiler tooling, DSLs, language servers). Movement here without movement on `ocamlformat_rocq` (similar shape) → suspect liquidsoap-specific. Movement on both → suspect AST allocation patterns or `Hashtbl` perf. Heavy promotion makes it specifically sensitive to **minor-to-major copy** code paths.
+
+#### `ydump_repeat` — yojson parse + serialize
+
+**What it does.** Reads a 670 KB JSON file and 1000× parses it (`Yojson.Safe.from_string`) then serialises it back (`Yojson.Safe.to_string`). The parsed AST is the recursive variant `[ \`Assoc of (string * t) list | \`List of t list | ... ]`.
+
+**Profile.** ≈ 5.5s, gc_overhead 4.5%, but **65 % major:minor ratio** (1654 major / 2541 minor) — every iteration's AST persists long enough to promote.
+
+**OCaml features.**
+- **Recursive polymorphic variants** — variants are blocks; deep nesting means deep promotion chains.
+- **String allocation** for keys and string-typed values.
+- **In_channel / String I/O** (only at startup; per-iteration cost is parse+serialise).
+
+**Diagnostic value.** Recursive variant + promotion is the JSON-shaped workload. Pairs naturally with `liq_parse_typecheck` (also AST-shaped). Movement together → AST/promotion path. Movement here only → yojson-specific.
+
+#### `test_decompress` — pure-OCaml zlib
+
+**What it does.** Decompresses 32 KB of compressed data 64 times using the `Decompress` library (no C — pure OCaml zlib implementation built on `Bigstring` buffers).
+
+**Profile.** Wall ≈ 5s, gc_overhead 2.4% — looks compute-bound at first glance, but the major:minor ratio is 50% (1379 / 2731). The Bigstring buffers are reused across iterations (allocated once), but the per-chunk decompression state (small blocks) gets promoted each round.
+
+**OCaml features.**
+- **Bigstring** (`Bigstringaf`) — off-heap buffers used for the I/O bigarrays. Their headers live on the OCaml heap.
+- **State machines** in pure OCaml — `De.Lz77.make_window`, `De.Queue.create`, etc. — small-block allocation per chunk.
+
+**Diagnostic value.** Movement here without correlated `owl_gc` movement → not a Bigarray problem (since both use Bigarray). Movement on both → Bigarray finalisation or stub overhead. Movement here without movement on `liq` → not promotion in general; suspect Bigstring header allocation specifically.
+
+#### `pplacer_testsuite` — phylogenetic OUnit tests
+
+**What it does.** Runs 224 OUnit tests through the pplacer phylogenetics library `N` times in-process via `PPLACER_TEST_LOOP`. Tests construct phylogenetic trees, run statistical/numerical computations through `gsl`, and persist intermediate state via sqlite3.
+
+**Profile.** Wall ≈ 13s at arg=5, gc_overhead 70% (in the upper tier), 70 MB RSS. Allocation pattern: 1985 minor / 712 major per iteration (≈ 36 % major:minor — heavy promotion).
+
+**OCaml features.**
+- **gsl** bindings (numerical — exp_priors, gaussian, etc., done in C).
+- **sqlite3** bindings (in-memory for tests).
+- **Tree/node allocation** in pure OCaml — phylogenetic trees are recursive types.
+- **Polymorphic `compare`** on tree-structured data (lots of testing).
+
+**Diagnostic value.** Mix of FFI + tree-allocation. Co-movement with `owl_gc` → FFI or numerical-codegen path. Co-movement with `liq` (but not `owl_gc`) → tree/AST allocation. Sole movement → suspect gsl or sqlite3 wrapper specifically.
+
+---
+
+### FFI / off-heap memory
+
+#### `owl_gc` — Bigarray Gromov-Wasserstein distances
+
+**What it does.** Generates 100 random 100×100 `Bigarray.Array2` matrices, then for each (i, j) pair computes `Gw.gw_uniform a_i a_j` — a frobenius-product / matrix-multiply cascade over the OCaml `Owl.Mat` API (which dispatches to OpenBLAS via C). 5000 pair calls per iteration.
+
+**Profile.** Wall ≈ 16s at arg=6 (`re-25` ring), gc_overhead **50%**, RSS 151 MB. Striking: `minor_collections == major_collections` (62970 each per 6 iterations) — every minor collection accompanies a major step. That's a Bigarray-finalisation-driven pattern: each `Mat.dot` allocates a bigarray header on the OCaml heap whose finaliser frees the off-heap data.
+
+**OCaml features.**
+- **Bigarray** (`Array2`, `Genarray`) — bulk float data lives off the OCaml heap; a small block on the heap holds the header + finaliser.
+- **Custom-block finalisation** — Bigarray's `finalize` callback is what releases the off-heap memory.
+- **OpenBLAS** stub calls per `Mat.dot` (matrix multiply), `contract2` (Frobenius product). C call overhead per call.
+- **No closures of note** — straight imperative loops over int indices.
+
+**Diagnostic value.** This is the *Bigarray-and-FFI* canary. If it regresses but `coqc_corelib_stress` doesn't, the runtime's allocation fast path is fine — suspect:
+- Bigarray finaliser performance (we're allocating thousands of finalised blocks per second).
+- Stub-call overhead — OpenBLAS calls happen in the inner loop.
+- `Custom_operations` table dispatch.
+- Owl's wrapper layer between OCaml and BLAS.
+
+#### `zarith_pi` — π via spigot algorithm with GMP
+
+**What it does.** Streaming spigot algorithm (Gibbons 2004) computing `Z.t` arbitrary-precision π to 15000 digits. Every arithmetic operation (`+ * /`) creates a new `Z.t` (a custom block with a GMP `mpz_t` inside).
+
+**Profile.** Wall ≈ 8s, gc_overhead 27%, but extraordinary collection counts: **102 k minor / 66 k major** — by far the highest in the suite. The mass of small `Z.t` allocations comes from GMP boxing/unboxing.
+
+**OCaml features.**
+- **Zarith / GMP** stub calls — every `Z.add`, `Z.mul`, etc. is a stub call into libgmp.
+- **Custom blocks** — `Z.t` is a custom block with GMP-aware finaliser, comparison, hash, marshal/unmarshal callbacks.
+- **Tail recursion** — the algorithm is structured as `digit k z n row col` recursion.
+
+**Diagnostic value.** Sensitive to:
+- Custom-block allocation/finalisation overhead — the *fastest-allocating* benchmark in the suite, all custom blocks.
+- GMP stub-call overhead.
+- Tail-call optimisation (every `digit` call is in tail position).
+
+Movement here without corresponding `owl_gc` movement → suspect custom-block path specifically (`zarith` uses them, `owl_gc` uses Bigarray). Movement on both → general FFI overhead.
+
+#### `devkit_gzip` — zlib via C bindings
+
+**What it does.** 8 sub-benches around `Gzip_io` (zlib via Devkit's C bindings): small-buffer compression storms, large-block compression, streaming patterns, header processing.
+
+**Profile.** **Compute-bound** — gc_overhead 1%, wall ≈ 10s, RSS 18 MB. Despite being labelled "GC stress" in the source, the actual GC pressure is minimal because zlib does the work in C with reused `Bytes` buffers.
+
+**OCaml features.**
+- **zlib C bindings** (via the `Devkit.Gzip_io` module).
+- **`IO.input_string` / `IO.output_string`** wrappers from extlib — the stub interface lives here.
+- **`Bytes` buffer reuse** — the source explicitly recycles buffers to avoid allocation churn.
+
+**Diagnostic value.** GC changes shouldn't move this. Compiler-codegen changes (flambda especially) might — the inner loops of bench bodies are tight `for i = 1 to N do ... done` over `Bytes` mutation, which is exactly the kind of code flambda optimises. Movement here → suspect codegen / FFI. The 47% wall regression we observed in earlier datasets between OCaml versions on this benchmark is therefore a *real compute regression* in the new compiler, not GC.
+
+---
+
+### String / Buffer allocation
+
+#### `sedlex_tokenize` — Unicode lexer on generated input
+
+**What it does.** Generates a 700 000-line pseudo-code string in memory (≈ 50 MB), then runs a Sedlex DFA tokeniser over it producing a token list. Sedlex's regex declarations are PPX-expanded into a state-table-driven match.
+
+**Profile.** Wall ≈ 5s, gc_overhead 40%, 2554 minor / 10 major. High minor pressure but virtually no major work — the token list is the only persistent state and even that is short-lived.
+
+**OCaml features.**
+- **PPX-generated DFA** — Sedlex emits a giant nested `match` expression / lookup table.
+- **`String` allocation** — every `IDENT _` / `NUMBER _` / `STRING _` token wraps a substring of the input.
+- **`Sedlexing.Utf8.from_string`** wrapper — UTF-8 decoding logic.
+- **`List.length` / `List.iter`** at the end — single linear pass.
+
+**Diagnostic value.** Sensitive to:
+- `String.sub` / sub-string allocation cost.
+- `match`-compilation perf for DFA-shaped match expressions.
+- PPX-emitted code patterns.
+
+Pairs with `devkit_stre` (also string-heavy) — co-movement points at the string allocator; sole movement points at PPX-emitted DFA shape.
+
+#### `devkit_stre` — string operations stress
+
+**What it does.** 8 sub-benches over `Devkit.Stre` (string utilities): split storm with `nsplitc`, substring slicing with `Stre.slice`, pattern operations on multi-line text with email/phone regex-style processing, concatenation chains with `^`, enum-based string ops via `ExtList.Enum`, mixed-size allocations into a `Hashtbl`, buffered string building, transformation chains with sliced rebuilds.
+
+**Profile.** Wall ≈ 14s, gc_overhead 5.5%. `7744 minor / 3012 major` — a notable major:minor ratio (~39%), though the sub-benches explicitly retain prefixes of their `retained_*` lists modulo prime numbers to stress generational behaviour.
+
+**OCaml features.**
+- **`String.sub`, `String.concat`, `String.uppercase_ascii`** — the OCaml stdlib paths.
+- **`Stre.nsplitc`, `Stre.slice`, `Stre.from_to`** — Devkit's string library.
+- **`Hashtbl`** with int and string keys (in `bench_mixed_size_allocations` and `bench_transformation_chains`).
+- **`ExtList.Enum`** — lazy enumerations from extlib.
+
+**Diagnostic value.** Generational pressure with intentional retention. Movement here with no movement on `coqc` → suspect minor-to-major *promotion path* (rather than minor allocation). Movement with `sedlex_tokenize` → string-allocation path generally.
+
+#### `ocamlformat_rocq` — formatting a 16k-line Rocq file
+
+**What it does.** Runs `ocamlformat --impl workload_5x.ml -o /dev/null` on a 663 KB / 16 610-line OCaml file (extracted from the Rocq prover source). Parses to AST, runs OCamlformat's pretty-printing pipeline, writes formatted output.
+
+**Profile.** Wall ≈ 5s, gc_overhead 30%, 2906 minor / 22 major. Minor-heavy with light promotion — most allocation is short-lived `Format` boxes.
+
+**OCaml features.**
+- **`Format` module** — `pp_*` printers, `box`, `hov`, `cut`. Heavy `String.concat` / `Buffer.add_*`.
+- **OCaml AST** (`Parsetree.structure`) construction during parsing.
+- **OCamlformat's "AST_transform" passes** — multiple AST traversals (normalising, attribute handling, etc.).
+
+**Diagnostic value.** Co-moves with `liq_parse_typecheck` (both AST-shaped) and with `sedlex_tokenize` (both heavy `Buffer`/`Format` users). Movement here alone → OCamlformat-specific (its Ast_transform pipeline).
+
+#### `cpdf_*` — PDF manipulation (4 variants)
+
+**What they do.** Each invokes `cpdf` (CamlPDF wrapper) on a 32 MB reference PDF (`PDFReference16.pdf_toobig`). Variants:
+- **`cpdf_merge`** — merges the PDF with itself, output to `/dev/null`.
+- **`cpdf_blacktext`** — converts all text to black.
+- **`cpdf_scale`** — scales pages to A4 landscape and 2-up layout.
+- **`cpdf_squeeze`** — re-compresses object streams.
+
+**Profile.** Walls vary: merge 5.6s, blacktext 6.8s, squeeze 9.1s, scale 35.7s. All medium gc_overhead (20–40%), low minor-collection counts (~1k–9k), low major (~30–50). I/O matters — the 32 MB input is read at startup.
+
+**OCaml features.**
+- **CamlPDF / cpdf-source** — both vendored from upstream OCamlMakefile-based packages (overlaid with hand-written dune files; see Patches §). Pure OCaml, no FFI.
+- **`Bytes` mutation** — cpdf manipulates byte-level PDF objects.
+- **File I/O** at startup (the `pdf_toobig` is genuinely too big — reading it is non-trivial).
+
+**Diagnostic value.** Pure-OCaml byte-level processing. Movement here without movement on Bigarray-using benchmarks → not FFI; suspect `Bytes` allocation/mutation paths or `compare`/match codegen for PDF object types. `cpdf_scale` is conspicuously longer than the other three (35s vs 5–9s) — its workload is genuinely more compute-heavy (page geometry transformation).
+
+---
+
+### I/O and persistent data
+
+#### `irmin_mem_rw` — Lwt + Irmin in-memory KV store
+
+**What it does.** Creates an Irmin in-memory store, then runs three phases: write 3000 keys → read all 3000 keys → 20000 mixed read/write ops with 80% read. Each value is a 100-byte string; each commit creates a new tree node (Irmin is a Git-like persistent store).
+
+**Profile.** Wall ≈ 12s, gc_overhead 11%, 6840 minor / 136 major. Moderate everywhere.
+
+**OCaml features.**
+- **Lwt** (`Lwt.bind`, `Lwt_main.run`, `Lwt.return`) — cooperative threading via promises. Every store op returns `'a Lwt.t`.
+- **Persistent immutable hash-tree** — Irmin's storage. Every `set` creates a new tree along the path.
+- **Hashtbl-style operations** internally on string keys.
+- **`Unix.gettimeofday`** for commit timestamps.
+
+**Diagnostic value.** This is the one Lwt benchmark. Co-movement with `eio_fiber_stream` → suspect general scheduler / continuation perf. Movement on this *not* on eio → Lwt-specific (likely `Lwt.bind` codegen). Pairs with `liq_parse_typecheck` only via the persistent-data-structure angle.
+
+#### `devkit_htmlstream` — HTML stream parsing
+
+**What it does.** Generates large HTML inputs (1–5 MB each) into a `Buffer` then parses with `HtmlStream.parse` (Devkit's streaming HTML parser). Multiple sub-benchmarks: small text storm, attribute-list pressure, large block allocations, malformed-tag handling, etc. Some retain a prime-number-modulo subset of parsed text in a list (multi-generational retention).
+
+**Profile.** Wall ≈ 25s, gc_overhead 3.3%, 3537 minor / 150 major.
+
+**OCaml features.**
+- **`Buffer.add_string` / `Buffer.contents`** — heavy buffered HTML construction.
+- **`HtmlStream` parser** state machine.
+- **Multi-generational retention pattern** — `if !counter mod 7 = 0 || ...` retain semantics push some allocations into the major heap.
+
+**Diagnostic value.** Pairs with `sedlex_tokenize` (both Buffer-heavy). Movement here without `sedlex_tokenize` → HtmlStream-specific. Movement together → Buffer allocator.
+
+#### `devkit_network` — IPv4 / CIDR parsing
+
+**What it does.** 8 sub-benches over `Devkit.Network`: IPv4 address parsing (10 000 IPs per pass, ragel-based parser internally), CIDR calculations with bitwise ops, range operations, mixed-format parsing, NAT-table operations on a `Hashtbl`, IP sorting, broadcast calculations, complex network ops with CIDR matching.
+
+**Profile.** Wall ≈ 17s, gc_overhead 4.5%, 10 409 minor / 74 major. Minor-heavy, almost no promotion.
+
+**OCaml features.**
+- **`Devkit.Network`** — ragel-generated IPv4/CIDR parser (the comments mention this).
+- **Int32 boxing** — IPv4 addresses are 32-bit; OCaml boxes int32 unless on a 64-bit platform with the value fitting in `int`.
+- **`Hashtbl`** for the NAT-table sub-bench.
+- **`compare` / `<`** on packed integers (for sorting).
+
+**Diagnostic value.** Movement here is a signal for `Int32` / boxed-int handling, `compare` codegen on small integers, or hashtable perf. Doesn't have FFI (the Network library is pure OCaml).
+
+#### `alt_ergo_yyll` and `alt_ergo_unsat_smt2`
+
+**What they do.** Both run alt-ergo on `.why` / `.smt2` problems: yyll.why (larger native input), unsat.smt2 (Dolmen frontend, with `--timelimit 15`).
+
+**Profile.** yyll: ~19s wall, 6.4% gc_overhead, 7509 minor / 18 major. unsat_smt2: ~15s wall, 7.4% gc_overhead, 12 428 minor / 42 major. Both compute-bound on the SMT theory backend.
+
+**OCaml features.**
+- **Native `.why` parser frontend** (yyll) vs **Dolmen `.smt2` frontend** (unsat).
+- **Theory backends** — DPLL+T, congruence-closure, integer arithmetic, bitvector — most of the work is here.
+- **`Hashtbl`** at scale for term-hashing.
+
+**Diagnostic value.** Three alt-ergo benchmarks (`fill`, `yyll`, `unsat_smt2`) that all move together → suspect alt-ergo's theory backends. Movement on only `unsat_smt2` → Dolmen frontend. Movement on `fill` and `yyll` but not `unsat_smt2` → native frontend.
+
+#### `menhir_sql_parser` and `menhir_sysver`
+
+**What they do.** Generate parsers from `sql-parser.mly` (5846 lines, with `keywords.mly`, `--base sql-parser`) and `sysver.mly` (12 735 lines, `--table` table-driven LR(1)).
+
+**Profile.** sql_parser: ~3.3s, gc_overhead 29%, smaller scale. sysver: ~20s, gc_overhead 33%, 8854 minor / 50 major. Both medium, minor-heavy.
+
+**Diagnostic value.** Together with `menhir_ocamly` they form a triple: ocamly uses `--canonical`, sql_parser uses LALR + `-v -t`, sysver uses `--table`. Movement on all three → menhir-internal regression. Movement on a subset → algorithm-specific. Sysver's larger scale (12k-line grammar) most stresses Hashtbl growth.
+
+---
+
+### Quick-reference cross-table
+
+| Benchmark | wall (s) | gc% | Allocation profile | Strongest signal for |
+|---|---|---|---|---|
+| `coqc_corelib_stress` | 52 | 94 | minor-saturation | minor-GC fast path |
+| `eio_fiber_stream` | 6 | 10 | promotion-heavy | OCaml 5 effects, fiber scheduler |
+| `irmin_mem_rw` | 12 | 11 | medium | Lwt, persistent hash-tree |
+| `liq_parse_typecheck` | 26 | 22 | promotion-heavy (48%) | AST + minor-to-major copy |
+| `ydump_repeat` | 5.5 | 4.5 | promotion-heavy (65%) | recursive variants, JSON tree |
+| `test_decompress` | 5 | 2.4 | promotion-heavy + Bigstring | Bigstring header allocation |
+| `pplacer_testsuite` | 13 | 70 | major-heavy (FFI) | gsl/sqlite3, tree allocation |
+| `owl_gc` | 16 | 50 | off-heap (Bigarray) | Bigarray finalisation, OpenBLAS stubs |
+| `zarith_pi` | 8 | 27 | off-heap (GMP custom blocks) | custom-block path, GMP stubs |
+| `devkit_gzip` | 10 | 1 | compute-bound | codegen, zlib stubs |
+| `devkit_stre` | 14 | 5.5 | minor + retention | string allocator, generational copy |
+| `devkit_network` | 17 | 4.5 | minor (Int32) | int32 boxing, Hashtbl |
+| `devkit_htmlstream` | 25 | 3.3 | minor + retention | Buffer allocator |
+| `sedlex_tokenize` | 5 | 40 | minor-saturation | string allocation, PPX DFA |
+| `ocamlformat_rocq` | 5 | 30 | minor + AST | Format module, AST allocation |
+| `cpdf_merge` / `_blacktext` / `_squeeze` | 6–9 | 20–40 | minor + Bytes | Bytes mutation, codegen |
+| `cpdf_scale` | 36 | 19 | minor (compute) | codegen of geometry transforms |
+| `alt_ergo_fill` | 14 | 40 | promotion-medium | SMT theory backends |
+| `alt_ergo_yyll` | 19 | 6 | minor (compute) | native frontend, theory backends |
+| `alt_ergo_unsat_smt2` | 15 | 7 | minor (compute) | Dolmen frontend, theory backends |
+| `menhir_ocamly` | 33 | 20 | minor (canonical LR) | Hashtbl scale, large arrays |
+| `menhir_sql_parser` | 3.3 | 29 | minor (LALR + verbose) | menhir internals |
+| `menhir_sysver` | 20 | 33 | minor (table) | Hashtbl growth |
+| `dune_bootstrap` | 55 | 0 | subprocess-bound | `ocamlc` codegen / link / startup |
+
+### Coverage gaps — what NO benchmark exercises
+
+A regression in any of these areas would **not** be caught by the
+current suite:
+
+- **`Ephemeron`** — weak-ref key-value tables (used by hash-consing, GADT registries, memoisation caches).
+- **`Weak` arrays** — used by hash-consing libraries directly. No benchmark loads or churns a weak-array.
+- **`Marshal`** round-trips on large graphs — would surface if marshal format / structural hashing changed.
+- **Multi-domain parallelism** via `Domainslib` or direct `Domain.spawn`. Eio uses a single domain in our config; nothing distributes work across multiple domains. **No load on inter-domain GC, no domain-local minor heaps under contention.**
+- **`Gc.alarm` / `Gc.create_alarm`** user callbacks — if the alarm machinery changed, no benchmark would notice.
+- **`Gc.compact` interaction with finalisers** — owl_gc has finalisers but never forces compaction.
+- **Hot inner-loop float computation** isolating flambda's effect — owl_gc is closest but defers to BLAS, so flambda has nothing to optimise. A pure-OCaml numerical kernel (`Array.iter`, no allocation in the inner loop) would catch flambda regressions cleanly.
+- **`Sys.set_signal` / signal-handler invocation** in tight loops.
+- **`Bigarray` slicing and reshape** — owl_gc creates and uses Array2 but doesn't exercise slicing-heavy patterns.
+- **Polling-points / safe-point** density — no benchmark stresses the cooperative-cancellation path that depends on poll insertion.
+
+These are candidates for future benchmarks. If a runtime change
+touches one of those areas, the current suite won't catch it — flag
+the gap explicitly when proposing the change.
 
 ## Iteration counts (in-process loops)
 
