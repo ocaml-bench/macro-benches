@@ -268,6 +268,56 @@ elif [ -f "$MCL_CAML" ]; then
 else
   echo "  [12] mcl: not vendored. Skipping."
 fi
+
+# Patch 13: pplacer tests.ml — add PPLACER_TEST_LOOP env var so the test
+# suite can be repeated N times in one OCaml process. Lets olly observe
+# the full benchmark without spawning N children. See macro-benches
+# README §"Iteration counts" for the pattern.
+PPLACER_TESTS_ML="vendor/pplacer/tests/tests.ml"
+if [ -f "$PPLACER_TESTS_ML" ] && ! grep -q 'PPLACER_TEST_LOOP' "$PPLACER_TESTS_ML" 2>/dev/null; then
+  cat > "$PPLACER_TESTS_ML" << 'TESTS_ML_EOF'
+open Ppatteries
+open OUnit
+
+let suite = "all tests" >::: [
+  "guppy" >::: Test_all_guppy.suite;
+  "pplacer" >::: Test_all_pplacer.suite;
+  "rppr" >::: Test_all_rppr.suite;
+  "json" >::: Test_json.suite;
+]
+
+(* PPLACER_TEST_LOOP env var (default 1): run the test suite N times in
+   one process so olly observes the full benchmark.  Uses an env var
+   (not Sys.argv) to avoid colliding with OUnit's own argv parsing
+   (-only-test, -verbose, etc.).  See macro-benches README §"Iteration
+   counts" for context.
+
+   Correctness check only on the first iteration — at least one test
+   (guppy:gaussian:coastal.v.upwelling) leaks state between runs and
+   reports a false failure on repeats.  We exit non-zero if the first
+   iteration fails; subsequent iterations are purely for wall-time
+   scaling. *)
+let _ =
+  verbosity := 0;
+  let loop = try int_of_string (Sys.getenv "PPLACER_TEST_LOOP") with _ -> 1 in
+  if loop <= 1 then
+    let _ = run_test_tt_main suite in ()
+  else begin
+    let results = run_test_tt suite in
+    let any_fail = List.exists
+      (function RFailure _ | RError _ -> true | _ -> false) results in
+    if any_fail then exit 1;
+    for _ = 2 to loop do
+      let _ = run_test_tt suite in ()
+    done
+  end
+TESTS_ML_EOF
+  echo "  [13] pplacer tests.ml: added PPLACER_TEST_LOOP loop."
+elif [ -f "$PPLACER_TESTS_ML" ]; then
+  echo "  [13] pplacer tests.ml: already patched."
+else
+  echo "  [13] pplacer: not vendored. Skipping."
+fi
 echo ""
 
 # ---- Generate rocq config + dunestrap ----

@@ -25,15 +25,18 @@ PPLACER_SRC="${MONOREPO_DIR}/vendor/pplacer"
 
 # Create a wrapper script that runs the test suite from the correct
 # directory (tests reference ./tests/data/ relative paths).
+#
+# The first arg is the in-process iteration count, passed through to
+# tests.exe via the PPLACER_TEST_LOOP env var. This keeps the benchmark
+# a single observable OCaml process (good for olly) while letting us
+# scale wall time by repeating the suite in-process. See macro-benches
+# README §"Iteration counts" for context.
 mkdir -p "$(dirname "${OUT}")"
 cat > "${OUT}" << WRAPPER
 #!/usr/bin/env bash
 set -euo pipefail
-ITERATIONS="\${1:-8}"
 cd "${PPLACER_SRC}"
-for i in \$(seq 1 "\$ITERATIONS"); do
-  "${TESTS_EXE}" >/dev/null 2>&1
-done
+PPLACER_TEST_LOOP="\${1:-1}" exec "${TESTS_EXE}"
 WRAPPER
 chmod +x "${OUT}"
 

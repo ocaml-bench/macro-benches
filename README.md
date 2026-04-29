@@ -176,6 +176,76 @@ variables from running-ng:
 All build scripts sanitize the opam environment (`unset OPAM_SWITCH_PREFIX`
 etc.) to prevent cross-runtime `.cmi` contamination.
 
+## Iteration counts (in-process loops)
+
+A few benchmarks have per-invocation work that's too short to measure
+reliably — startup overhead dominates and observability tools (olly,
+perf) lose precision.  Two patterns are in use:
+
+**Shell-loop wrapper** (legacy, *broken for olly*).  Some build scripts
+generate a wrapper that runs the binary `N` times in a shell loop:
+
+```bash
+for _ in $(seq 1 "$ITERATIONS"); do
+  "${REAL_EXE}" >/dev/null 2>&1
+done
+```
+
+This works for wall-time aggregation but **breaks olly's runtime_events
+attach model**: olly sees a single OCaml process at a time. With short
+per-child work (e.g. `devkit_stre`) the events files may stack in
+`/tmp` and olly aggregates them; with longer per-child work
+(`pplacer_testsuite` at ~3.5 s/child) olly attaches to the first child
+only and reports its lifetime, missing the other N−1 invocations
+silently.  Affected benchmarks: `devkit_stre`, `devkit_gzip`,
+`devkit_network`, `owl_gc`.
+
+**Env-var in-process loop** (recommended).  The OCaml entry point reads
+an env var and runs the work N times inside the same process.  The
+wrapper script just sets the env var and `exec`s the binary — no shell
+loop:
+
+```ocaml
+(* tests.ml *)
+let loop = try int_of_string (Sys.getenv "PPLACER_TEST_LOOP") with _ -> 1 in
+for _ = 1 to (loop - 1) do
+  let _ = run_test_tt suite in ()
+done;
+run_test_tt_main suite
+```
+
+```bash
+# pplacer.build.sh wrapper
+PPLACER_TEST_LOOP="${1:-1}" exec "${TESTS_EXE}"
+```
+
+The YAML's positional arg becomes the loop count; one OCaml process
+does N iterations of work; olly observes the full benchmark.
+
+In use by:
+
+| Benchmark | Env var | Notes |
+|---|---|---|
+| `pplacer_testsuite` | `PPLACER_TEST_LOOP` | OUnit test runner; uses env var to avoid clashing with OUnit's own argv parsing |
+
+When porting another benchmark to this pattern:
+
+1. Wrap the OCaml entry point with the env-var loop (default 1).
+2. If the benchmark CLI is otherwise untouched (e.g. it doesn't take
+   any args), `Sys.argv.(1)` is fine instead of an env var.  Use an
+   env var when the entry point already parses argv (OUnit, alt-ergo,
+   etc.).
+3. Update the build script's wrapper to drop the shell `for` loop and
+   just `exec` the binary, passing the count through as the env var.
+4. Update `running-ng/src/running/config/macrobenchmarks_base.yml`'s
+   `args:` to be the loop count rather than an external iteration
+   count.
+5. Document the new env var in the table above.
+
+If the OCaml entry point is upstream code (vendored from another
+project), record the patch in `scripts/setup-monorepo.sh` so it
+survives a re-vendor.
+
 ## Vendored source patches
 
 Applied automatically by `scripts/setup-monorepo.sh`.  Documented here
@@ -195,6 +265,7 @@ for reference and for manual application if needed.
 | 10 | `duniverse/owl/.../exponpow.c` | Fix `std_gaussian_rvs` calls | Upstream C bug: function takes no args |
 | 11 | `duniverse/batteries-included/.../batGc.mli` | Add `live_stacks_words` field | OCaml 5.6 added field to `Gc.stat` |
 | 12 | `vendor/pplacer/mcl/caml/caml_mcl.c` | Add `#include <stdint.h>` | OCaml 5.6 trunk headers need it |
+| 13 | `vendor/pplacer/tests/tests.ml` | Add `PPLACER_TEST_LOOP` env-var loop | Run the test suite N times in one process so olly observes the full benchmark — see §"Iteration counts" |
 
 ## Known limitations
 
