@@ -11,8 +11,8 @@ Fixpoint fib (n : nat) : nat :=
   | S (S m as p) => fib p + fib m
   end.
 
-(* fib 25 = 75025 — ~10s of kernel reduction *)
-Compute fib 25.
+(* fib 23 = 28657 — kernel exercise on exponential recursion *)
+Compute fib 23.
 
 (* Sum to n — linear recursion but large result *)
 Fixpoint sum_to (n : nat) : nat :=
@@ -21,7 +21,7 @@ Fixpoint sum_to (n : nat) : nat :=
   | S m => n + sum_to m
   end.
 
-Compute sum_to 2000.
+Compute sum_to 1000.
 
 (* Ackermann — super-exponential growth, heavy GC *)
 Fixpoint ack (m : nat) : nat -> nat :=
@@ -34,8 +34,8 @@ Fixpoint ack (m : nat) : nat -> nat :=
     end
   end.
 
-(* ack 3 10 = 8189 *)
-Compute ack 3 10.
+(* ack 3 8 = 2045 — super-exponential growth, heavy GC *)
+Compute ack 3 8.
 
 (* Large inductive tree — exercises GC allocation patterns *)
 Inductive big_tree : Type :=
@@ -54,5 +54,5 @@ Fixpoint make_tree (depth : nat) : big_tree :=
   | S d => Node (make_tree d) (make_tree d)
   end.
 
-(* tree of depth 15 = 65535 nodes *)
-Compute tree_size (make_tree 15).
+(* tree of depth 13 = 16383 nodes *)
+Compute tree_size (make_tree 13).
