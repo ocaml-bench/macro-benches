@@ -40,17 +40,19 @@ REAL_EXE="${BUILD_DIR}/default/benchmarks/ahrefs-devkit/${EXE}.exe"
 
 mkdir -p "$(dirname "${OUT}")"
 
-# For sub-second benchmarks, wrap with a loop so runtime reaches 5-20s.
-# The first CLI arg sets iteration count (default 1).
+# For sub-second benchmarks, an in-process iteration loop scales wall time
+# inside a single OCaml process (so olly observes the full run). The .ml
+# entry points read Sys.argv.(1) as the loop count; the wrapper just exec's
+# the binary with the arg passed through. See ~/macro-benches/README.md
+# §"Iteration counts" for the pattern.
+#
+# devkit_htmlstream is large enough on its own and uses the binary directly.
 case "${BM_NAME}" in
   devkit_stre|devkit_gzip|devkit_network)
     cat > "${OUT}" << WRAPPER
 #!/usr/bin/env bash
 set -euo pipefail
-ITERATIONS="\${1:-1}"
-for _ in \$(seq 1 "\$ITERATIONS"); do
-  "${REAL_EXE}" >/dev/null 2>&1
-done
+exec "${REAL_EXE}" "\${1:-1}"
 WRAPPER
     chmod +x "${OUT}"
     ;;

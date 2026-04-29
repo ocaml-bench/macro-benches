@@ -343,13 +343,25 @@ let bench_compression_pipelines () =
         final_results := ExtList.List.take 20 !final_results)
   done
 
+(* In-process iteration loop: Sys.argv.(1) controls how many full passes
+   over the 8 internal benchmarks are run, all in one OCaml process so
+   olly observes the whole run.  Default 1 keeps the binary useful as a
+   standalone executable.  See macro-benches README §"Iteration counts"
+   for the pattern. *)
+let loop =
+  if Array.length Sys.argv > 1
+  then try int_of_string Sys.argv.(1) with _ -> 1
+  else 1
+
 (* Main benchmark suite runner *)
 let () =
-  bench_small_buffer_storm ();
-  bench_large_block_compression ();
-  bench_streaming_operations ();
-  bench_mixed_size_patterns ();
-  bench_concurrent_style ();
-  bench_headers_metadata ();
-  bench_buffer_recycling ();
-  bench_compression_pipelines ()
+  for _ = 1 to loop do
+    bench_small_buffer_storm ();
+    bench_large_block_compression ();
+    bench_streaming_operations ();
+    bench_mixed_size_patterns ();
+    bench_concurrent_style ();
+    bench_headers_metadata ();
+    bench_buffer_recycling ();
+    bench_compression_pipelines ()
+  done

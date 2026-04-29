@@ -228,6 +228,9 @@ In use by:
 |---|---|---|
 | `pplacer_testsuite` | `PPLACER_TEST_LOOP` env var | OUnit test runner; uses env var to avoid clashing with OUnit's own argv parsing |
 | `owl_gc` | `Sys.argv.(1)` | Plain OCaml main; argv is unused otherwise |
+| `devkit_stre` | `Sys.argv.(1)` | Plain OCaml main; loops the 8 sub-benches (split, slicing, pattern ops, etc.) |
+| `devkit_gzip` | `Sys.argv.(1)` | Same shape as stre. gc_overhead ≈ 1% — compute-bound |
+| `devkit_network` | `Sys.argv.(1)` | Same shape as stre. ipv4/cidr parsing benchmarks |
 
 **Ring-size interaction.** A single OCaml process accumulating events
 across N iterations needs more `runtime_events` ring than N separate
