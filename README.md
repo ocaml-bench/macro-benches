@@ -176,6 +176,53 @@ variables from running-ng:
 All build scripts sanitize the opam environment (`unset OPAM_SWITCH_PREFIX`
 etc.) to prevent cross-runtime `.cmi` contamination.
 
+## Benchmark characteristics
+
+What each benchmark exercises in the OCaml runtime — useful for
+narrowing down which feature a regression touched. If `eio_fiber_stream`
+regresses but `coqc_corelib_stress` doesn't, suspect changes to the
+effect handler or fiber scheduler. If `owl_gc` regresses but
+`devkit_gzip` doesn't, suspect the FFI / Bigarray path. Etc.
+
+| Benchmark | Workload | GC profile | Notable runtime features |
+|---|---|---|---|
+| `coqc_corelib_stress` | Coq kernel reduction on unary `nat` (`fib`, `sum_to`, `ack`, `make_tree`) | minor+major saturation (~94% GC) | constructor allocation per `S`; constitutional GC stress |
+| `alt_ergo_fill` | Alt-Ergo SMT solving on bitwise integer reasoning (`fill_x100.why`, 100 replicated goals) | high-medium (~40% GC) | closures, hashtables, native parser frontend |
+| `alt_ergo_yyll` | Alt-Ergo SMT solving on a larger native input (`yyll.why`) | medium (~6%) | closures, hashtables |
+| `alt_ergo_unsat_smt2` | Alt-Ergo on `unsat.smt2` with `--timelimit 15` (Dolmen frontend) | medium (~7%) | SMT-LIB parser, theory backend |
+| `cpdf_merge` / `cpdf_blacktext` / `cpdf_scale` / `cpdf_squeeze` | CamlPDF PDF manipulation on a 32 MB reference PDF | medium (~20-40%) | buffer/string allocation, parsing, file I/O |
+| `coqc_basicsyntax` *(if added)* | Coq kernel — smaller, syntax-only stress | (n/a in current run) | similar to corelib_stress at smaller scale |
+| `devkit_htmlstream` | ahrefs-devkit HTML stream parser stress | medium (~3%) | string buffers, multi-generational retention pattern |
+| `devkit_stre` | ahrefs-devkit string operations (split, slice, regex, concat) — 8 sub-benches | low-medium (~5%) | `Stre` library, hashtable churn, small-string allocation |
+| `devkit_gzip` | ahrefs-devkit gzip stress via zlib bindings | very low (~1%) — **compute-bound** | C bindings (zlib), buffer reuse |
+| `devkit_network` | ahrefs-devkit IPv4 / CIDR parsing + sorting | low (~5%) | small-int allocation, hashtable lookups |
+| `dune_bootstrap` | Bootstraps `dune` from source (`ocaml boot/bootstrap.ml`) | observed ~0% — **subprocess-based** | spawns `ocamlc` children; parent observability is meaningless. Wall time = compiler throughput |
+| `eio_fiber_stream` | 4 producers / 4 consumers, 60M items via `Eio.Stream` | medium (~10%) | **OCaml 5 effects**, Eio fiber scheduler, deep_try_with handlers |
+| `irmin_mem_rw` | Irmin in-memory KV store, repeated set/get | medium (~11%) | persistent data structures, **Lwt** cooperative threading, Git-like commit graph |
+| `liq_parse_typecheck` | Liquidsoap parser + typechecker on 50000 iterations | medium (~22%) | AST allocation, type inference (closures + mutation), Jane Street PPX |
+| `menhir_ocamly` | Menhir parser-generator on `ocaml.mly` with `--canonical` | medium (~20%) | canonical LR(1) automaton construction (~2.7 GB RSS); huge state-table allocation |
+| `menhir_sql_parser` | Menhir on `sql-parser.mly` (smaller grammar, `-v -t`) | medium | LALR construction + verbose dump |
+| `menhir_sysver` | Menhir on `sysver.mly` (12k lines, `--table`) | medium-high (~33%) | table-driven LR(1), large grammar |
+| `ocamlformat_rocq` | OCamlformat formatting a 16k-line `.ml` workload | medium (~30%) | AST traversal, pretty-printing, heavy string concatenation |
+| `owl_gc` | Owl Bigarray Gromov-Wasserstein matrix-pair distances | medium (~50%) | **Bigarray** off-heap; OpenBLAS C bindings; float-heavy compute |
+| `pplacer_testsuite` | pplacer phylogenetic test suite (224 OUnit tests in-process) | medium-high (~70%) | GSL bindings (numerical), sqlite3 bindings, tree manipulation |
+| `sedlex_tokenize` | Sedlex Unicode-aware lexer on a 700k-line generated stream | high (~40%) | PPX-generated DFA tables; lots of `String` / `Buffer` allocation |
+| `test_decompress` | Pure-OCaml zlib decompression (`Decompress` library) | low (~2%) | **Bigstring** buffers (off-heap-ish), stream processing |
+| `ydump_repeat` | Yojson parse + serialize a 13 KB JSON file 1000× | low (~5%) | recursive variant types, string allocation, `In_channel` |
+| `zarith_pi` | Compute π to 15000 digits via Machin-like formula | medium (~27%) | **Zarith / GMP bindings**; arbitrary-precision integer arithmetic |
+
+**Notes on coverage gaps.** No current benchmark exercises:
+
+- `Ephemeron` (weak references with key-value semantics)
+- `Weak` arrays
+- `Marshal` / `Hashtbl.hash` on graph data
+- Multi-domain parallelism via `Domainslib` (eio uses one domain even though Eio supports more)
+- Custom `Gc.alarm` callbacks
+- `Gc.compact` interaction with finalisers
+
+If a runtime change touches one of those areas, the existing suite
+won't catch it — those are candidates for new benchmarks.
+
 ## Iteration counts (in-process loops)
 
 A few benchmarks have per-invocation work that's too short to measure

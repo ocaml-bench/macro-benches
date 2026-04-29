@@ -23,3 +23,6 @@ benchmarks/coq/.*.aux
 # Editor / OS
 *~
 .DS_Store
+
+# Generated alt-ergo benchmark inputs (built by alt-ergo.build.sh)
+benchmarks/alt-ergo/fill_x*.why
