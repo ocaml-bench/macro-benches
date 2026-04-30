@@ -106,22 +106,40 @@ else
 fi
 
 # ----------------------------------------------------------------------
-# 3. Emit the wrapper script.
+# 3. Stage a renamed copy of ocamlc.opt.
+#
+# running-ng's pid_is_benchmark filter rejects any /proc/<pid>/exe whose
+# basename is in BUILD_TOOLS (which includes "ocamlc" / "ocamlc.opt") — a
+# guard for transient compiler subprocesses inside *other* benchmarks'
+# wrappers. Here ocamlc IS the benchmark, so we hardlink (or copy) the
+# real ocamlc.opt to a uniquely-named binary so /proc/<pid>/exe basename
+# is `ocamlc_self_compile_bin-<RUNTIME_TAG>` and runtime-events attach
+# succeeds. The hardlink avoids a 16 MB copy when the destination is on
+# the same filesystem.
+# ----------------------------------------------------------------------
+OCAMLC_REAL="$(readlink -f "${OCAMLC}")"  # follow ocamlc → ocamlc.opt
+STAGED_OCAMLC="${BENCH_DIR}/ocamlc_self_compile_bin-${RUNTIME_TAG}"
+ln -f "${OCAMLC_REAL}" "${STAGED_OCAMLC}" 2>/dev/null \
+  || cp -f "${OCAMLC_REAL}" "${STAGED_OCAMLC}"
+echo "  staged ocamlc binary: ${STAGED_OCAMLC}"
+
+# ----------------------------------------------------------------------
+# 4. Emit the wrapper script.
 #
 # At run time:
-#   - cd to a fresh temp dir so the produced .cmi/.cmo go somewhere
-#     scratchable (and don't pollute the source tree across runs).
-#   - Invoke the variant's ocamlc on the workload. Bytecode compile,
-#     no -O3 (which would do nothing for ocamlc anyway).
+#   - Output .cmi/.cmo to a wrapper-owned scratch dir via -o (so the
+#     source tree stays clean), but DO NOT cd — the OCaml process must
+#     keep running-ng's cwd so OCAML_RUNTIME_EVENTS_DIR resolution and
+#     anything else relative to cwd behave as running-ng expects.
+#   - exec the staged (renamed) ocamlc binary.
 # ----------------------------------------------------------------------
 mkdir -p "$(dirname "${OUT}")"
 cat > "${OUT}" << WRAPPER
 #!/usr/bin/env bash
 set -euo pipefail
-TMPDIR="\$(mktemp -d -t ocamlc_self_compile.XXXXXX)"
-trap 'rm -rf "\$TMPDIR"' EXIT
-cd "\$TMPDIR"
-exec "${OCAMLC}" -c "${WORKLOAD}"
+WORK_TMPDIR="\$(mktemp -d -t ocamlc_self_compile.XXXXXX)"
+trap 'rm -rf "\$WORK_TMPDIR"' EXIT
+exec "${STAGED_OCAMLC}" -c "${WORKLOAD}" -o "\$WORK_TMPDIR/out.cmo"
 WRAPPER
 chmod +x "${OUT}"
 
