@@ -26,3 +26,6 @@ benchmarks/coq/.*.aux
 
 # Generated alt-ergo benchmark inputs (built by alt-ergo.build.sh)
 benchmarks/alt-ergo/fill_x*.why
+
+# Generated input for ocamlc_self_compile benchmark
+benchmarks/ocamlc-self-compile/inputs/compile_workload.ml

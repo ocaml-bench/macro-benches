@@ -8,37 +8,38 @@ the compiler.
 
 ## Benchmarks
 
-16 active tools, 26 benchmark programs, 14 categories.  Target runtime:
+17 active tools, 27 benchmark programs, 15 categories.  Target runtime:
 5-20s per benchmark (DaCapo sweet spot).
 
 | Benchmark | Category | Programs | ~Runtime | Notes |
 |-----------|----------|----------|----------|-------|
-| **menhir** | Text processing | 3 (ocamly, sql, sysver) | 0.4-20s | |
-| **cpdf** | Text/media | 4 (merge, blacktext, scale, squeeze) | 1-9s | |
-| **alt-ergo** | SMT solver | 3 (fill, yyll, unsat_smt2) | 0.02-8s | |
-| **coq/rocq** | Proof assistant | 1 (corelib_stress) | 44s | fib, ack, tree construction; 5.5GB RSS |
-| **ahrefs-devkit** | GC stress | 4 (htmlstream, stre, network, gzip) | 1-25s | |
+| **menhir** | Text processing | 3 (ocamly, sql, sysver) | 3-33s | ocamly uses `--canonical` |
+| **cpdf** | Text/media | 4 (merge, blacktext, scale, squeeze) | 5-36s | |
+| **alt-ergo** | SMT solver | 3 (fill, yyll, unsat_smt2) | 14-19s | fill uses `fill_x100.why` |
+| **coq/rocq** | Proof assistant | 1 (corelib_stress) | 52s | fib, ack, tree construction; 1.1GB RSS |
+| **ahrefs-devkit** | GC stress | 4 (htmlstream, stre, network, gzip) | 10-25s | in-process iter loop |
 | **irmin** | Databases | 1 (mem_rw) | 12s | |
 | **ocamlformat** | Build tools | 1 (format 16k-line file) | 5s | |
 | **decompress** | Compression | 1 (zlib compress/decompress) | 5s | |
-| **eio** | Concurrency | 1 (fiber stream 20M items) | 6s | OCaml ≥ 5.2 |
+| **eio** | Concurrency | 1 (fiber stream 60M items) | 6s | OCaml ≥ 5.2 |
 | **sedlex** | Text processing | 1 (tokenize 700k lines) | 5.5s | |
 | **yojson** | Data formats | 1 (parse+serialize 1000x) | 5.5s | |
 | **zarith** | Numerics | 1 (15000 digits of pi) | 7s | |
-| **owl** | ML/Numerics | 1 (matrix/graph computation) | 2.5s | OpenBLAS |
-| **pplacer** | Bioinformatics | 1 (224-test phylogenetic suite) | ~10s | GSL, sqlite3 |
-| **dune-bootstrap** | Build tools | 1 (bootstrap dune from source) | ~8s | All runtimes incl. OxCaml |
-| **liquidsoap-lang** | DSL compiler | 1 (parse+typecheck 50k iterations) | ~9s | Jane Street PPX (≥ 5.3) |
+| **owl** | ML/Numerics | 1 (matrix/graph computation) | 16s | OpenBLAS, in-process iter loop |
+| **pplacer** | Bioinformatics | 1 (224-test phylogenetic suite) | 17s | GSL, sqlite3, env-var iter loop |
+| **dune-bootstrap** | Build tools | 1 (bootstrap dune from source) | 55s | end-to-end; subprocess-bound |
+| **ocamlc-self-compile** | Build tools | 1 (`ocamlc` on 400k-line workload) | 8.6s | single-process; closes Ephemeron + Marshal gaps |
+| **liquidsoap-lang** | DSL compiler | 1 (parse+typecheck 50k iterations) | 26s | Jane Street PPX (≥ 5.3) |
 | **js_of_ocaml** | Compilers | — (parked) | — | findlib runtime dep + ocaml < 5.5 |
 
 ### Runtime compatibility
 
 | Runtime | Working benchmarks |
 |---------|-------------------|
-| **OCaml 5.4.1** | All 16 active tools (26 programs) |
-| **OCaml trunk (5.6)** | All 16 active tools — ppxlib+lwt upgraded from git |
+| **OCaml 5.4.1** | All 17 active tools (27 programs) |
+| **OCaml trunk (5.6)** | All 17 active tools — ppxlib+lwt upgraded from git |
 | **OxCaml** | menhir (3), dune-bootstrap, test_decompress, zarith_pi (6 programs) |
-| **OCaml 5.4.1 ± fp ± flambda** | All 16 active tools (used by `fp_flambda_macrobenchmarks.yml`) |
+| **OCaml 5.4.1 ± fp ± flambda** | All 17 active tools (used by `fp_flambda_macrobenchmarks.yml`) |
 
 ## Quick start
 
@@ -140,6 +141,7 @@ macro-benches/
     owl/                       # owl_gc.ml
     pplacer/                   # pplacer test suite wrapper
     dune-bootstrap/            # dune self-hosting bootstrap
+    ocamlc-self-compile/       # ocamlc on 400k-line generated workload
     liquidsoap-lang/           # liq_bench.ml (parser+typechecker)
     js_of_ocaml/               # (parked)
 
@@ -215,6 +217,31 @@ profile (`obelisk-2026-04-21` baseline, post-calibration).
 **Profile.** subprocess-bound. The parent ocaml process we measure does almost nothing — 11 minor / 5 major collections in 55s. `gc_overhead = 0.0%` is correct but uninformative.
 
 **Diagnostic value.** Wall time is a real-world compiler-throughput metric (~100 KLOC compile). Regression here without movement on any other benchmark almost certainly means **`ocamlc` codegen, link, or startup got slower** — runtime changes won't move it. Conversely, it's blind to allocation-path changes (it'll happily report "no regression" while the runtime regressed, because the parent doesn't allocate).
+
+#### `ocamlc_self_compile` — variant's own ocamlc on a generated workload
+
+**What it does.** Concatenates the 20 classic OCaml-testsuite benchmark files (boyer, nucleic, raytrace, kb, fft, fannkuch_redux, …) from `js_of_ocaml/benchmarks/sources/ml/`, wraps each in a unique module, and replicates the whole set 30× — generating ~400 k lines of real, compiler-stress OCaml code. Then invokes the **variant's own `ocamlc`** (bytecode compiler — *not* `ocamlopt`) on that file. Single observable OCaml process.
+
+**Profile.** wall ≈ 8.6s on `5.4.1/baseline`, gc_overhead 33%, **4384 minor / 16 major collections, 1.0 GB RSS, promoted_pct 12.5%**. Cross-variant spread is small (8.3–10.0s, ~20%) because the workload is uniform.
+
+**OCaml features.**
+- **Ephemeron tables** in `typing/btype.ml` — used for type hash-consing. This is the canonical real-world ephemeron workload.
+- **Hashtbl** at scale — environment lookups, scope tables, term-hashing.
+- **AST allocation** — `Parsetree.structure` blocks per top-level item; lots of small `Location.loc` wrappers.
+- **`Format` module** for diagnostic printing (lazily — most warnings don't fire).
+- **`Marshal`** — every successful compilation writes a `.cmi` (the typed signature). The serialised structure includes hashed type names.
+- **Polymorphic `compare` on AST nodes** (used by some passes for canonicalisation).
+
+**Why `ocamlc` (bytecode) and not `ocamlopt` (native).** With `ocamlopt`, flambda variants run *additional* compiler passes (the flambda IR optimisation pipeline) — so cross-variant deltas conflate "runtime perf" with "flambda does extra work". With `ocamlc`, the same pipeline runs everywhere, so cross-variant deltas reflect runtime performance only. (In our 4× 5.4.1 measurement: ocamlc spread is 1.39–1.51s, ≈ 8%; ocamlopt spread is 3.09–6.41s, ≈ 2×.)
+
+**Diagnostic value.** Strongest single signal in the suite for:
+- **Ephemeron** code paths (`caml_ephe_*`).
+- **Marshal** serialisation.
+- **Hashtbl** scaling under realistic key/value sizes.
+
+Pairs with `liq_parse_typecheck` (also AST-shaped). Movement on ocamlc_self_compile but not liq → likely Ephemeron or Marshal specifically. Movement on both → general AST-allocation path. Movement on `coqc_corelib_stress` *and* `ocamlc_self_compile` → minor-allocator fast path.
+
+Complements `dune_bootstrap`: that one measures end-to-end compiler experience as users feel it (with subprocess overhead and all); this one isolates compiler internals in a single observable process.
 
 ---
 
@@ -548,19 +575,20 @@ Pairs with `devkit_stre` (also string-heavy) — co-movement points at the strin
 | `menhir_sql_parser` | 3.3 | 29 | minor (LALR + verbose) | menhir internals |
 | `menhir_sysver` | 20 | 33 | minor (table) | Hashtbl growth |
 | `dune_bootstrap` | 55 | 0 | subprocess-bound | `ocamlc` codegen / link / startup |
+| `ocamlc_self_compile` | 8.6 | 33 | minor-heavy + Ephemeron | Ephemeron tables, Marshal (.cmi), Hashtbl, AST allocation |
 
 ### Coverage gaps — what NO benchmark exercises
 
 A regression in any of these areas would **not** be caught by the
 current suite:
 
-- **`Ephemeron`** — weak-ref key-value tables (used by hash-consing, GADT registries, memoisation caches).
+- ~~**`Ephemeron`**~~ — covered by `ocamlc_self_compile` (the OCaml typer's hash-consing tables).
+- ~~**`Marshal`**~~ — covered by `ocamlc_self_compile` (`.cmi` writing).
 - **`Weak` arrays** — used by hash-consing libraries directly. No benchmark loads or churns a weak-array.
-- **`Marshal`** round-trips on large graphs — would surface if marshal format / structural hashing changed.
-- **Multi-domain parallelism** via `Domainslib` or direct `Domain.spawn`. Eio uses a single domain in our config; nothing distributes work across multiple domains. **No load on inter-domain GC, no domain-local minor heaps under contention.**
+- **Multi-domain parallelism** via `Domainslib` or direct `Domain.spawn`. Eio uses a single domain in our config; nothing distributes work across multiple domains. **No load on inter-domain GC, no domain-local minor heaps under contention.** Phase 2 of the coverage-gaps plan in running-ng (Sandmark imports) would close this.
 - **`Gc.alarm` / `Gc.create_alarm`** user callbacks — if the alarm machinery changed, no benchmark would notice.
 - **`Gc.compact` interaction with finalisers** — owl_gc has finalisers but never forces compaction.
-- **Hot inner-loop float computation** isolating flambda's effect — owl_gc is closest but defers to BLAS, so flambda has nothing to optimise. A pure-OCaml numerical kernel (`Array.iter`, no allocation in the inner loop) would catch flambda regressions cleanly.
+- **Hot inner-loop float computation** isolating flambda's effect — owl_gc is closest but defers to BLAS, so flambda has nothing to optimise. A pure-OCaml numerical kernel (`Array.iter`, no allocation in the inner loop) would catch flambda regressions cleanly. Phase 2 candidate (raytracer / nbody from Sandmark).
 - **`Sys.set_signal` / signal-handler invocation** in tight loops.
 - **`Bigarray` slicing and reshape** — owl_gc creates and uses Array2 but doesn't exercise slicing-heavy patterns.
 - **Polling-points / safe-point** density — no benchmark stresses the cooperative-cancellation path that depends on poll insertion.
