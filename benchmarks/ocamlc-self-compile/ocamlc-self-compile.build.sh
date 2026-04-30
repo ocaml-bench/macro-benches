@@ -123,6 +123,16 @@ ln -f "${OCAMLC_REAL}" "${STAGED_OCAMLC}" 2>/dev/null \
   || cp -f "${OCAMLC_REAL}" "${STAGED_OCAMLC}"
 echo "  staged ocamlc binary: ${STAGED_OCAMLC}"
 
+# Capture the switch's stdlib path. Some OCaml builds (e.g. 5.5-beta
+# d8bb46c) resolve stdlib *relative to argv[0]*, so executing the staged
+# (hardlinked) binary from outside the switch's bin/ directory makes
+# `ocamlc -where` point at a non-existent dir and the compile fails with
+# "Unbound module Stdlib". Older builds (e.g. 5.4.1) hardcode the
+# absolute path at configure time and don't need this. Setting
+# OCAMLLIB explicitly is correct on both.
+OCAMLLIB_DIR="$(${OCAMLC} -where)"
+echo "  OCAMLLIB pin:         ${OCAMLLIB_DIR}"
+
 # ----------------------------------------------------------------------
 # 4. Emit the wrapper script.
 #
@@ -131,6 +141,7 @@ echo "  staged ocamlc binary: ${STAGED_OCAMLC}"
 #     source tree stays clean), but DO NOT cd — the OCaml process must
 #     keep running-ng's cwd so OCAML_RUNTIME_EVENTS_DIR resolution and
 #     anything else relative to cwd behave as running-ng expects.
+#   - Pin OCAMLLIB so the relocated binary still finds its stdlib.
 #   - exec the staged (renamed) ocamlc binary.
 # ----------------------------------------------------------------------
 mkdir -p "$(dirname "${OUT}")"
@@ -139,6 +150,7 @@ cat > "${OUT}" << WRAPPER
 set -euo pipefail
 WORK_TMPDIR="\$(mktemp -d -t ocamlc_self_compile.XXXXXX)"
 trap 'rm -rf "\$WORK_TMPDIR"' EXIT
+export OCAMLLIB="${OCAMLLIB_DIR}"
 exec "${STAGED_OCAMLC}" -c "${WORKLOAD}" -o "\$WORK_TMPDIR/out.cmo"
 WRAPPER
 chmod +x "${OUT}"
