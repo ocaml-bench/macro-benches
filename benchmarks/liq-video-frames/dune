@@ -1,0 +1,4 @@
+(executable
+ (name liq_video_frames)
+ (modules liq_video_frames)
+ (libraries bigarray))
