@@ -4,6 +4,57 @@ Backlog of follow-up benchmarking work. Append entries with date, owner
 (if known), and enough context that someone other than the author can
 pick it up.
 
+## Investigate `merlin` as a domains-using benchmark — 2026-05-04 (Mon)
+
+**Why.** Supervisor suggested merlin as an example of a benchmark that
+uses domains for typechecking — IDE servicing requests in parallel via
+multiple typer domains. If real, it would be the first benchmark in
+the suite that genuinely exercises OCaml 5's domain machinery (current
+suite has `eio_fiber_stream` for fiber scheduling but nothing that
+exercises shared-heap / cross-domain GC).
+
+**What we know so far (initial scan, 2026-05-01).**
+- Merlin's `main` branch has **no** `Domain.spawn` / `Domainslib` /
+  `Atomic.` / `Mutex.` references — the released merlin is single-
+  threaded.
+- There is an active multi-PR effort to add domains:
+  - **#1890 "Typer domain"** — open PR, base `main`. The headline
+    work for this feature.
+  - **#1959 / #1958 "Merlin domains Rebased"** — closed (presumably
+    superseded).
+  - **#1920 "Introduce typer interruption"** — closed.
+  - **#1908 / #1909 "Upstream lyrm in merlin domains"** — closed.
+- Naming pattern (`merlin-domains` branch) suggests Tarides /
+  upstream-merlin team are working on this. Worth asking the
+  supervisor who's driving it and whether there's a stable branch
+  intended for downstream consumption yet.
+
+**Next steps when picking this up.**
+1. Read the current state of #1890 — is it close to merging? Is there
+   a downstream-consumable branch / fork? What's the workload shape
+   of the typechecking parallelism (one domain per request, or per
+   file, or work-stealing pool)?
+2. Check if there's a reproducible benchmark script in the PR or
+   linked from it. Look at #1967 ("Some bench using `cram` and
+   `time`") — that's a sibling closed PR that might have benchmark
+   harness work.
+3. If yes to a stable branch + benchmark workload → vendor it like
+   other benchmarks (see README §"Adding a new benchmark"). The
+   workload would probably be: load a project, fire N typecheck
+   requests across M domains, measure throughput + RSS + GC stats.
+4. If no stable branch yet → add a placeholder note in the README
+   coverage gaps section, revisit when upstream lands.
+
+**Open questions for supervisor.**
+- Is there a specific branch / fork they have in mind?
+- Are they expecting us to use the stock merlin protocol, or run
+  the typer with a synthetic driver?
+- What's the comparison they care about — same-runtime
+  domain-count scaling, or domains-on vs domains-off?
+
+**Status.** Filed 2026-05-01, scheduled to dig in 2026-05-04 (Mon).
+
+
 ## GC-parameter sweep on `liq_video_frames` and related — 2026-05-01
 
 **Why.** Our cross-runtime matrix uses a single OCAMLRUNPARAM (`re-25,md-2`,
