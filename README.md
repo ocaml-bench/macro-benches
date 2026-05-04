@@ -31,7 +31,7 @@ the compiler.
 | **ocamlc-self-compile** | Build tools | 1 (`ocamlc` on 400k-line workload) | 8.6s | single-process; closes Ephemeron + Marshal gaps |
 | **liquidsoap-lang** | DSL compiler | 1 (parse+typecheck 50k iterations) | 26s | Jane Street PPX (≥ 5.3) |
 | **liq-video-frames** | GC pacer / off-heap | 1 (10k 1280×720 Bigarray frames) | 20s | Probes [#13123](https://github.com/ocaml/ocaml/issues/13123) — RSS-focused |
-| **merlin** | IDE / domains+effects | 1 (7 cram queries × N) | 16s | merlin-domains branch; OCaml ≥ 5.5 only |
+| **merlin** | IDE / domains+effects | 1 (7 cram queries × N) | 16s | merlin-domains branch; **DISABLED — upstream race** |
 | **js_of_ocaml** | Compilers | — (parked) | — | findlib runtime dep + ocaml < 5.5 |
 
 ### Runtime compatibility
@@ -292,7 +292,7 @@ What it does **not** catch:
 - N>2 domain heap contention — only main vs 1 worker. For "many domains marking concurrently", we still need a Sandmark `parallel_binarytrees` import (TODO.md).
 - Work-stealing scheduler patterns — merlin uses a single dedicated worker, not a pool.
 
-**Runtime requirement.** OCaml 5.5+ only. The merlin-domains branch ships its own copy of OCaml's typer at `src/ocaml/typing/`, targeted at OCaml 5.5. On 5.4.1 and earlier the vendored typer trips an internal assertion in `types.ml` because typer-internal data-structure invariants differ across compiler versions. Running on 5.4 produces a Fatal error in the typer, not a meaningful benchmark result.
+**Runtime requirement.** Currently disabled. The merlin-domains branch has a non-deterministic race in the typer-domain handoff that fires `Types.rev_log → Invalid -> assert false` at N≥2 iterations of the cram-bench workload. The race fires on **both** 5.4.1 (almost every run) and d8bb46c / 5.5-beta (~50% of N=2 runs in our trials). Initially we suspected an OCaml-version ABI mismatch — the bundled typer is synced from upstream/ocaml_503/ — but the same assertion fires on 5.5-beta, so it's a merlin-domains bug, not a version issue. Source kept; suite entry in `running-ng/.../macrobenchmarks_base.yml` is set to `[]` (empty programs). Full repro + analysis in [`benchmarks/merlin/UPSTREAM_BUG.md`](benchmarks/merlin/UPSTREAM_BUG.md). Re-enable when upstream fixes [#1890](https://github.com/ocaml/merlin/pull/1890).
 
 ---
 
@@ -633,7 +633,7 @@ current suite:
 - ~~**`Ephemeron`**~~ — covered by `ocamlc_self_compile` (the OCaml typer's hash-consing tables).
 - ~~**`Marshal`**~~ — covered by `ocamlc_self_compile` (`.cmi` writing).
 - **`Weak` arrays** — used by hash-consing libraries directly. No benchmark loads or churns a weak-array.
-- ~~**Multi-domain parallelism** via direct `Domain.spawn`~~ — partially covered by `merlin_bench` (main + 1 typer domain, with effects-driven partial-typing and cancellation). Still missing: **N>2 domain shared-heap contention** (work-stealing pools, many-domain marking), **`Domainslib`-style work distribution**. The TODO.md entry on `infer` / Sandmark imports tracks this.
+- **Multi-domain parallelism** via direct `Domain.spawn`. The `merlin_bench` driver was meant to cover this (main + 1 typer domain with effects), but is currently **disabled** because of an upstream race in merlin-domains (see [`benchmarks/merlin/UPSTREAM_BUG.md`](benchmarks/merlin/UPSTREAM_BUG.md)). Once that lands, this gap reopens partially closed; **N>2 domain contention** and **`Domainslib`-style work distribution** still tracked in TODO.md.
 - **`Gc.alarm` / `Gc.create_alarm`** user callbacks — if the alarm machinery changed, no benchmark would notice.
 - **`Gc.compact` interaction with finalisers** — owl_gc has finalisers but never forces compaction.
 - **Hot inner-loop float computation** isolating flambda's effect — owl_gc is closest but defers to BLAS, so flambda has nothing to optimise. A pure-OCaml numerical kernel (`Array.iter`, no allocation in the inner loop) would catch flambda regressions cleanly. Phase 2 candidate (raytracer / nbody from Sandmark).
