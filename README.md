@@ -31,6 +31,7 @@ the compiler.
 | **ocamlc-self-compile** | Build tools | 1 (`ocamlc` on 400k-line workload) | 8.6s | single-process; closes Ephemeron + Marshal gaps |
 | **liquidsoap-lang** | DSL compiler | 1 (parse+typecheck 50k iterations) | 26s | Jane Street PPX (≥ 5.3) |
 | **liq-video-frames** | GC pacer / off-heap | 1 (10k 1280×720 Bigarray frames) | 20s | Probes [#13123](https://github.com/ocaml/ocaml/issues/13123) — RSS-focused |
+| **merlin** | IDE / domains+effects | 1 (7 cram queries × N) | 16s | merlin-domains branch; OCaml ≥ 5.5 only |
 | **js_of_ocaml** | Compilers | — (parked) | — | findlib runtime dep + ocaml < 5.5 |
 
 ### Runtime compatibility
@@ -265,6 +266,33 @@ Complements `dune_bootstrap`: that one measures end-to-end compiler experience a
 - Eio's scheduler internals (which depend on `Atomic`).
 
 Regression here without correlated movement on any allocation-heavy benchmark (`coqc`, `liq`, `sedlex`) → suspect effects/fibers. Movement on this *and* every promotion-heavy bench → suspect minor-to-major copy path. Won't run on OCaml < 5.2.
+
+#### `merlin_bench` — merlin-domains parallel typer
+
+**What it does.** Runs the 7 IDE queries from merlin's own cram bench (`tests/test-dirs/server-tests/bench.t/run.t`) against a 51 319-line synthetic file (mocked Yojson/Jsonrpc/LSP modules), in-process, for N iterations: `construct`, three `complete-prefix` (lines 109 / 51152 / 51319), three `case-analysis` (50796 ×2 + 51318). The two consecutive case-analyses at the same position test the typer cache + partial-typing handoff.
+
+The wrapper exec's a single OCaml binary that does the same `Domain.spawn @@ Mpipeline.domain_typer` dance `ocamlmerlin_server` does in `single` and `server` mode — so we exercise the production code path inside one observable PID. Two domains exactly: main + typer.
+
+**Profile.** Wall ≈ 16s at arg=4, gc_overhead ≈ 24%, RSS ≈ 1 GB. Every iteration triggers cross-domain GC marking as the typer publishes pipeline results back to main — the only suite member that exercises shared-heap synchronization between two real domains.
+
+**OCaml features.**
+- **`Domain.spawn` / `Domain.join`** — the typer worker.
+- **Effects** for the partial-typing / cancellation control flow (the typer can be aborted mid-run when a new request arrives).
+- **`Atomic`** state for the cancellation flag and the shared message channel (`Domain_msg.t`).
+- **Cross-domain GC marking** — pipeline results promoted on the typer domain end up reachable from main.
+- A real-world OCaml typer workload — covers `Env`, `Typecore`, `Typeclass`, ephemeron-backed type variable tables, `Marshal` (the typer's caching layer).
+
+**Diagnostic value.** This is the *only* benchmark that exercises a 2-domain steady-state workload with non-trivial cross-domain communication. What it catches:
+- Changes in `Domain.spawn` / `Domain.join` cost (creation/teardown is once per run, but matters at small N).
+- Cross-domain GC marking and synchronization (the major-heap pacer's behaviour under 2 producers).
+- Atomic / Shared / message-passing primitives under realistic load.
+- Effects-handler internals, similar to `eio_fiber_stream` but in a different shape (typer cancellation vs fiber yields).
+
+What it does **not** catch:
+- N>2 domain heap contention — only main vs 1 worker. For "many domains marking concurrently", we still need a Sandmark `parallel_binarytrees` import (TODO.md).
+- Work-stealing scheduler patterns — merlin uses a single dedicated worker, not a pool.
+
+**Runtime requirement.** OCaml 5.5+ only. The merlin-domains branch ships its own copy of OCaml's typer at `src/ocaml/typing/`, targeted at OCaml 5.5. On 5.4.1 and earlier the vendored typer trips an internal assertion in `types.ml` because typer-internal data-structure invariants differ across compiler versions. Running on 5.4 produces a Fatal error in the typer, not a meaningful benchmark result.
 
 ---
 
@@ -605,7 +633,7 @@ current suite:
 - ~~**`Ephemeron`**~~ — covered by `ocamlc_self_compile` (the OCaml typer's hash-consing tables).
 - ~~**`Marshal`**~~ — covered by `ocamlc_self_compile` (`.cmi` writing).
 - **`Weak` arrays** — used by hash-consing libraries directly. No benchmark loads or churns a weak-array.
-- **Multi-domain parallelism** via `Domainslib` or direct `Domain.spawn`. Eio uses a single domain in our config; nothing distributes work across multiple domains. **No load on inter-domain GC, no domain-local minor heaps under contention.** Phase 2 of the coverage-gaps plan in running-ng (Sandmark imports) would close this.
+- ~~**Multi-domain parallelism** via direct `Domain.spawn`~~ — partially covered by `merlin_bench` (main + 1 typer domain, with effects-driven partial-typing and cancellation). Still missing: **N>2 domain shared-heap contention** (work-stealing pools, many-domain marking), **`Domainslib`-style work distribution**. The TODO.md entry on `infer` / Sandmark imports tracks this.
 - **`Gc.alarm` / `Gc.create_alarm`** user callbacks — if the alarm machinery changed, no benchmark would notice.
 - **`Gc.compact` interaction with finalisers** — owl_gc has finalisers but never forces compaction.
 - **Hot inner-loop float computation** isolating flambda's effect — owl_gc is closest but defers to BLAS, so flambda has nothing to optimise. A pure-OCaml numerical kernel (`Array.iter`, no allocation in the inner loop) would catch flambda regressions cleanly. Phase 2 candidate (raytracer / nbody from Sandmark).

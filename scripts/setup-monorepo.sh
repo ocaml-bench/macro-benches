@@ -47,6 +47,34 @@ else
 fi
 echo ""
 
+# ---- Vendor merlin (merlin-domains branch, not in opam-monorepo lockfile) ----
+echo "[2.1/9] Vendoring merlin (merlin-domains branch)..."
+if [ -d duniverse/merlin ] && [ -f duniverse/merlin/dune-project ]; then
+  echo "  duniverse/merlin/ already populated. Skipping clone."
+else
+  git clone --depth 1 -b merlin-domains \
+    https://github.com/ocaml/merlin.git duniverse/merlin
+  echo "  Cloned."
+fi
+# Patch gen_config.ml: the upstream merlin-domains branch only enumerates
+# OCaml versions up to 5.3 in its variant type, so 5.4.1 / 5.5-beta / trunk
+# all fail to compile. Extend the variant list to cover them. Idempotent:
+# only patches if the new tags aren't already present.
+if [ -f duniverse/merlin/src/config/gen_config.ml ] && \
+   ! grep -q "OCaml_5_4_0" duniverse/merlin/src/config/gen_config.ml; then
+  echo "  Patching merlin gen_config.ml for OCaml >= 5.4..."
+  python3 - <<'PY'
+import re
+p = "duniverse/merlin/src/config/gen_config.ml"
+s = open(p).read()
+old = "`OCaml_5_3_0  ] = %s"
+new = "`OCaml_5_3_0  | `OCaml_5_4_0  | `OCaml_5_5_0  | `OCaml_5_6_0\n  ] = %s"
+assert old in s, "expected pattern not found in gen_config.ml"
+open(p, "w").write(s.replace(old, new, 1))
+PY
+fi
+echo ""
+
 # ---- Patch dune_ version (3.22 → 3.21) ----
 echo "[3/9] Patching duniverse/dune_/dune-project (lang dune 3.22 → 3.21)..."
 if grep -q 'lang dune 3.22' duniverse/dune_/dune-project 2>/dev/null; then

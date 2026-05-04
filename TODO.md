@@ -4,6 +4,33 @@ Backlog of follow-up benchmarking work. Append entries with date, owner
 (if known), and enough context that someone other than the author can
 pick it up.
 
+## N>2 domain stress benchmark — possibly via `infer` — 2026-05-04 (Mon)
+
+**Why.** Once merlin-domains is in (covers main + 1 typer domain),
+the suite still won't have anything that exercises:
+- N>2 domain shared-heap GC under contention
+- Work-stealing scheduler load (Domainslib)
+- Many-domain CAS / fence storms
+
+These were originally going to be filled by Sandmark Phase 2 imports
+(`parallel_binarytrees`, `raytracer`). User has a separate idea
+involving Meta's `infer` static analyzer, which uses domains
+internally for parallel analysis.
+
+**Open questions for picking this up.**
+- Is `infer` opam-installable / dune-buildable from the OCaml side?
+  (Last check it had a Java/SBT-driven build for parts of it. The
+   actual analyzer cores are OCaml.)
+- If too heavy: build a **synthetic benchmark that mimics infer's
+  domain-pattern**. Need to know what that pattern is — likely a
+  work-stealing pool fed function summaries, with a shared index of
+  results.
+- Compare cost: vendoring real infer (full deps) vs writing the
+  synthetic (~200 lines).
+
+**Status.** Filed 2026-05-01, parked behind merlin-domains.
+
+
 ## Investigate `merlin` as a domains-using benchmark — 2026-05-04 (Mon)
 
 **Why.** Supervisor suggested merlin as an example of a benchmark that

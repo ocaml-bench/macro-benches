@@ -1,0 +1,10 @@
+(executable
+ (name merlin_bench)
+ (modules merlin_bench)
+ (flags :standard -open Merlin_utils -open Ocaml_utils)
+ (libraries
+  merlin-lib.kernel
+  merlin-lib.commands
+  merlin-lib.query_protocol
+  merlin-lib.ocaml_utils
+  merlin-lib.utils))
