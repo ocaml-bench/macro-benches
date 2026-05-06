@@ -4,6 +4,60 @@ Backlog of follow-up benchmarking work. Append entries with date, owner
 (if known), and enough context that someone other than the author can
 pick it up.
 
+## Investigate `ocamlc_self_compile` allocation regression on d8b — 2026-05-06 (Wed)
+
+**Why.** `ocamlc_self_compile` regresses ~+8% wall on d8b across all flag
+combos but only drops −5% RSS, while sibling RSS-winners (`cpdf_*`,
+`menhir_sysver`) drop 20-40% RSS for a similar wall cost. Looking at
+olly stats from the 2026-05-03 monolith N=3 run, the cause looks
+qualitatively different from the pacer-trade story we see elsewhere:
+
+| metric (5.4 → d8b)       | 5.4      | d8b      | Δ        |
+|---|---|---|---|
+| total alloc (minor heap) | 8.57 GB  | 9.90 GB  | **+15.5%** |
+| minor collections        | 4384     | 5066     | +15.6%   |
+| major collections        | 16       | 12       | −25%     |
+| promoted bytes           | 1093 MB  | 1133 MB  | +3.6%    |
+| max_rss                  | 1017 MiB | 967 MiB  | −4.9%    |
+
+Same input (`compile_workload.ml`, 400k lines, deterministic),
+different runtimes — d8b allocates 1.3 GB more for the same compile.
+This is the workload itself (ocamlc + the compiler-libs / stdlib it
+links against) allocating differently between versions, not the
+pacer collecting more aggressively. By contrast `cpdf_merge`'s total
+allocation is exactly identical across versions (2.08 GB both) and
+only RSS moves — that's the canonical pacer story. RSS doesn't drop
+much here because the live set (parsetree forest + ephemeron tables
+the typer holds until compile finishes) is roughly the same in both
+versions; the pacer has nothing to shrink below that floor.
+
+**Hypotheses.**
+- `typing/btype.ml` ephemeron-backed type hash-consing — canonical
+  real-world ephemeron workload in this bench; cache table size or
+  bucket policy may have shifted.
+- Stdlib growth — d8b's stdlib has more modules/types than 5.4, so
+  ocamlc has to typecheck more external type info per compile.
+- `Marshal` — `.cmi` writing at end of compilation; serialisation
+  buffer behaviour may have changed.
+- Hashtbl resize policy or per-entry allocation overhead.
+
+**Next steps when picking this up.**
+1. Run with `OCAMLRUNPARAM=v=0x400` and inspect the per-cycle GC log
+   to see *when* during the compile the extra allocation lands
+   (parse vs typecheck vs marshal). That alone narrows the source.
+2. Reduce `compile_workload.ml` to one module (1/30th the input)
+   and re-measure. If the +15% scales linearly it's per-AST-node;
+   if it stays a fixed offset it's startup / stdlib loading.
+3. If still ambiguous, statmemprof a single invocation under each
+   version and diff the source-location attribution.
+4. Once narrowed, bisect the 5.4 → d8b range to find the commit that
+   introduced the allocation increase. Likely candidates: touches
+   in `typing/`, `utils/`, or stdlib additions.
+
+**Status.** Not started. Filed 2026-05-06. Surfaced while preparing
+the fp×flambda meeting summary; not blocking that meeting.
+
+
 ## N>2 domain stress benchmark — possibly via `infer` — 2026-05-04 (Mon)
 
 **Why.** Once merlin-domains is in (covers main + 1 typer domain),
