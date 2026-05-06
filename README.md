@@ -38,9 +38,11 @@ the compiler.
 | Runtime | Working benchmarks |
 |---------|-------------------|
 | **OCaml 5.4.1** | All 18 active tools (28 programs) |
+| **OCaml d8bb46c (5.5-beta)** | All 18 active tools |
 | **OCaml trunk (5.6)** | All 18 active tools — ppxlib+lwt upgraded from git |
 | **OxCaml** | menhir (3), test_decompress, zarith_pi (5 programs) |
 | **OCaml 5.4.1 ± fp ± flambda** | All 18 active tools (used by `fp_flambda_macrobenchmarks.yml`) |
+| **OCaml d8bb46c ± fp ± flambda** | All 18 active tools (used by `fp_flambda_macrobenchmarks.yml`) |
 
 ## Quick start
 
@@ -63,7 +65,7 @@ cd ~/macro-benches
 make setup          # or: bash scripts/setup-monorepo.sh
 ```
 
-This runs 9 steps: pulls ~110 vendored packages, applies 12 patches,
+This runs 9 steps: pulls ~110 vendored packages, applies 13 patches,
 vendors pplacer+mcl, generates rocq config/dunestrap files, and
 test-builds all binaries.  Takes ~10 minutes on first run; subsequent
 runs skip completed steps.
@@ -143,14 +145,18 @@ macro-benches/
     pplacer/                   # pplacer test suite wrapper
     ocamlc-self-compile/       # ocamlc on 400k-line generated workload
     liquidsoap-lang/           # liq_bench.ml (parser+typechecker)
+    liq-video-frames/          # 1280x720 Bigarray frames (RSS probe)
+    merlin/                    # merlin-domains typer (currently disabled)
     js_of_ocaml/               # jsoo on ocamlc.byte → JS
 
   scripts/
     setup-monorepo.sh          # full setup: pull + patch + build
     vendor-cpdf.sh             # manual vendor for cpdf/camlpdf
-    vendor-coq.sh              # manual vendor for zarith
+    vendor-coq.sh              # manual vendor for rocq + zarith
     vendor-devkit-deps.sh      # manual vendor for libevent/ocurl
     vendor-pplacer.sh          # manual vendor for pplacer+mcl
+    vendor-menhir.sh           # manual vendor for menhir
+    vendor-alt-ergo.sh         # manual vendor for alt-ergo + deps
 
   dune-overlays/               # hand-written dune files for non-dune packages
     camlpdf/                   # upstream uses OCamlMakefile
