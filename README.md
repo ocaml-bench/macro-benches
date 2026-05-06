@@ -8,7 +8,7 @@ the compiler.
 
 ## Benchmarks
 
-18 active tools, 28 benchmark programs, 16 categories.  Target runtime:
+17 active tools, 27 benchmark programs, 16 categories.  Target runtime:
 5-20s per benchmark (DaCapo sweet spot).
 
 | Benchmark | Category | Programs | ~Runtime | Notes |
@@ -27,7 +27,6 @@ the compiler.
 | **zarith** | Numerics | 1 (15000 digits of pi) | 7s | |
 | **owl** | ML/Numerics | 1 (matrix/graph computation) | 16s | OpenBLAS, in-process iter loop |
 | **pplacer** | Bioinformatics | 1 (224-test phylogenetic suite) | 17s | GSL, sqlite3, env-var iter loop |
-| **dune-bootstrap** | Build tools | 1 (bootstrap dune from source) | 55s | end-to-end; subprocess-bound |
 | **ocamlc-self-compile** | Build tools | 1 (`ocamlc` on 400k-line workload) | 8.6s | single-process; closes Ephemeron + Marshal gaps |
 | **liquidsoap-lang** | DSL compiler | 1 (parse+typecheck 50k iterations) | 26s | Jane Street PPX (≥ 5.3) |
 | **liq-video-frames** | GC pacer / off-heap | 1 (10k 1280×720 Bigarray frames) | 20s | Probes [#13123](https://github.com/ocaml/ocaml/issues/13123) — RSS-focused |
@@ -38,10 +37,10 @@ the compiler.
 
 | Runtime | Working benchmarks |
 |---------|-------------------|
-| **OCaml 5.4.1** | All 18 active tools (28 programs) |
-| **OCaml trunk (5.6)** | All 18 active tools — ppxlib+lwt upgraded from git |
-| **OxCaml** | menhir (3), dune-bootstrap, test_decompress, zarith_pi (6 programs) |
-| **OCaml 5.4.1 ± fp ± flambda** | All 18 active tools (used by `fp_flambda_macrobenchmarks.yml`) |
+| **OCaml 5.4.1** | All 17 active tools (27 programs) |
+| **OCaml trunk (5.6)** | All 17 active tools — ppxlib+lwt upgraded from git |
+| **OxCaml** | menhir (3), test_decompress, zarith_pi (5 programs) |
+| **OCaml 5.4.1 ± fp ± flambda** | All 17 active tools (used by `fp_flambda_macrobenchmarks.yml`) |
 
 ## Quick start
 
@@ -142,7 +141,6 @@ macro-benches/
     zarith/                    # zarith_pi.ml
     owl/                       # owl_gc.ml
     pplacer/                   # pplacer test suite wrapper
-    dune-bootstrap/            # dune self-hosting bootstrap
     ocamlc-self-compile/       # ocamlc on 400k-line generated workload
     liquidsoap-lang/           # liq_bench.ml (parser+typechecker)
     js_of_ocaml/               # (parked)
@@ -212,14 +210,6 @@ profile (`obelisk-2026-04-21` baseline, post-calibration).
 
 ### Compiler throughput / external work
 
-#### `dune_bootstrap` — `ocaml boot/bootstrap.ml`
-
-**What it does.** Reads `boot/bootstrap.ml` in the dune monorepo, which uses `Sys.command` to drive several `ocamlc` invocations and finally `exec`s the resulting `.duneboot.exe` (which then compiles dune itself in another OCaml process). Wall time is the end-to-end bootstrap of dune from source.
-
-**Profile.** subprocess-bound. The parent ocaml process we measure does almost nothing — 11 minor / 5 major collections in 55s. `gc_overhead = 0.0%` is correct but uninformative.
-
-**Diagnostic value.** Wall time is a real-world compiler-throughput metric (~100 KLOC compile). Regression here without movement on any other benchmark almost certainly means **`ocamlc` codegen, link, or startup got slower** — runtime changes won't move it. Conversely, it's blind to allocation-path changes (it'll happily report "no regression" while the runtime regressed, because the parent doesn't allocate).
-
 #### `ocamlc_self_compile` — variant's own ocamlc on a generated workload
 
 **What it does.** Concatenates the 20 classic OCaml-testsuite benchmark files (boyer, nucleic, raytrace, kb, fft, fannkuch_redux, …) from `js_of_ocaml/benchmarks/sources/ml/`, wraps each in a unique module, and replicates the whole set 30× — generating ~400 k lines of real, compiler-stress OCaml code. Then invokes the **variant's own `ocamlc`** (bytecode compiler — *not* `ocamlopt`) on that file. Single observable OCaml process.
@@ -242,8 +232,6 @@ profile (`obelisk-2026-04-21` baseline, post-calibration).
 - **Hashtbl** scaling under realistic key/value sizes.
 
 Pairs with `liq_parse_typecheck` (also AST-shaped). Movement on ocamlc_self_compile but not liq → likely Ephemeron or Marshal specifically. Movement on both → general AST-allocation path. Movement on `coqc_corelib_stress` *and* `ocamlc_self_compile` → minor-allocator fast path.
-
-Complements `dune_bootstrap`: that one measures end-to-end compiler experience as users feel it (with subprocess overhead and all); this one isolates compiler internals in a single observable process.
 
 ---
 
@@ -622,7 +610,6 @@ Pairs with `devkit_stre` (also string-heavy) — co-movement points at the strin
 | `menhir_ocamly` | 33 | 20 | minor (canonical LR) | Hashtbl scale, large arrays |
 | `menhir_sql_parser` | 3.3 | 29 | minor (LALR + verbose) | menhir internals |
 | `menhir_sysver` | 20 | 33 | minor (table) | Hashtbl growth |
-| `dune_bootstrap` | 55 | 0 | subprocess-bound | `ocamlc` codegen / link / startup |
 | `ocamlc_self_compile` | 8.6 | 33 | minor-heavy + Ephemeron | Ephemeron tables, Marshal (.cmi), Hashtbl, AST allocation |
 
 ### Coverage gaps — what NO benchmark exercises
@@ -776,8 +763,9 @@ for reference and for manual application if needed.
 - **Frama-C**: Parked.  EVA analysis plugin doesn't build as a `.cmxs`
   in the vendored context due to dune-site plugin loading limitations.
 
-- **OxCaml**: Only menhir and dune-bootstrap work.  Other tools fail due
-  to locality type annotation errors in vendored ecosystem packages.
+- **OxCaml**: Only menhir, test_decompress, and zarith_pi work.  Other
+  tools fail due to locality type annotation errors in vendored
+  ecosystem packages.
 
 - **Trunk (5.6) support**: Depends on ppxlib and lwt git main branches
   (patches 4 + 5).  When ppxlib releases a 5.6-compatible version, these
