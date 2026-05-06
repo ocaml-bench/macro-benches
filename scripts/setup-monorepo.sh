@@ -75,6 +75,38 @@ PY
 fi
 echo ""
 
+# ---- Vendor js_of_ocaml (ocaml-5.6 branch, not in opam-monorepo lockfile) ----
+# The opam-monorepo pull would give us js_of_ocaml 6.2.0 which rejects
+# OCaml >= 5.5 outright (explicit failwith in compiler/lib/magic_number.ml).
+# The `ocaml-5.6` branch (PR #2227) extends the upper bound to < 5.7 and
+# adds the bytecode-magic + WASM/JS runtime support for OCaml 5.6,
+# covering 5.4.1, 5.5-beta, and trunk in our matrix.
+echo "[2.2/9] Vendoring js_of_ocaml (ocaml-5.6 branch)..."
+if [ -d duniverse/js_of_ocaml ] && \
+   [ -f duniverse/js_of_ocaml/dune-project ] && \
+   grep -q '\[ 5; 7 \] >= 0' duniverse/js_of_ocaml/compiler/lib/magic_number.ml 2>/dev/null; then
+  echo "  duniverse/js_of_ocaml/ already on ocaml-5.6 branch. Skipping."
+else
+  rm -rf duniverse/js_of_ocaml
+  git clone --depth 1 -b ocaml-5.6 \
+    https://github.com/ocsigen/js_of_ocaml.git duniverse/js_of_ocaml
+  echo "  Cloned."
+fi
+
+# Cmdliner upgrade: jsoo's recent code uses Cmdliner.Arg.Completion, which
+# was added in Cmdliner 2.0. opam-monorepo gives us 1.3.0; replace with 2.1.0.
+echo "[2.3/9] Vendoring cmdliner v2.1.0..."
+if [ -d duniverse/cmdliner ] && \
+   grep -q "version: \"2\." duniverse/cmdliner/cmdliner.opam 2>/dev/null; then
+  echo "  duniverse/cmdliner/ already at >= 2.x. Skipping."
+else
+  rm -rf duniverse/cmdliner
+  git clone --depth 1 -b v2.1.0 \
+    https://github.com/dbuenzli/cmdliner.git duniverse/cmdliner
+  echo "  Cloned."
+fi
+echo ""
+
 # ---- Patch dune_ version (3.22 → 3.21) ----
 echo "[3/9] Patching duniverse/dune_/dune-project (lang dune 3.22 → 3.21)..."
 if grep -q 'lang dune 3.22' duniverse/dune_/dune-project 2>/dev/null; then

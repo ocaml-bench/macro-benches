@@ -8,7 +8,7 @@ the compiler.
 
 ## Benchmarks
 
-17 active tools, 27 benchmark programs, 16 categories.  Target runtime:
+18 active tools, 28 benchmark programs, 17 categories.  Target runtime:
 5-20s per benchmark (DaCapo sweet spot).
 
 | Benchmark | Category | Programs | ~Runtime | Notes |
@@ -31,16 +31,16 @@ the compiler.
 | **liquidsoap-lang** | DSL compiler | 1 (parse+typecheck 50k iterations) | 26s | Jane Street PPX (≥ 5.3) |
 | **liq-video-frames** | GC pacer / off-heap | 1 (10k 1280×720 Bigarray frames) | 20s | Probes [#13123](https://github.com/ocaml/ocaml/issues/13123) — RSS-focused |
 | **merlin** | IDE / domains+effects | 1 (7 cram queries × N) | 16s | merlin-domains branch; **DISABLED — upstream race** |
-| **js_of_ocaml** | Compilers | — (parked) | — | findlib runtime dep + ocaml < 5.5 |
+| **js_of_ocaml** | Compilers | 1 (compile runtime's ocamlc.byte to JS) | 7-9s | jsoo `ocaml-5.6` branch + cmdliner 2.1.0 |
 
 ### Runtime compatibility
 
 | Runtime | Working benchmarks |
 |---------|-------------------|
-| **OCaml 5.4.1** | All 17 active tools (27 programs) |
-| **OCaml trunk (5.6)** | All 17 active tools — ppxlib+lwt upgraded from git |
+| **OCaml 5.4.1** | All 18 active tools (28 programs) |
+| **OCaml trunk (5.6)** | All 18 active tools — ppxlib+lwt upgraded from git |
 | **OxCaml** | menhir (3), test_decompress, zarith_pi (5 programs) |
-| **OCaml 5.4.1 ± fp ± flambda** | All 17 active tools (used by `fp_flambda_macrobenchmarks.yml`) |
+| **OCaml 5.4.1 ± fp ± flambda** | All 18 active tools (used by `fp_flambda_macrobenchmarks.yml`) |
 
 ## Quick start
 
@@ -143,7 +143,7 @@ macro-benches/
     pplacer/                   # pplacer test suite wrapper
     ocamlc-self-compile/       # ocamlc on 400k-line generated workload
     liquidsoap-lang/           # liq_bench.ml (parser+typechecker)
-    js_of_ocaml/               # (parked)
+    js_of_ocaml/               # jsoo on ocamlc.byte → JS
 
   scripts/
     setup-monorepo.sh          # full setup: pull + patch + build
@@ -233,6 +233,26 @@ profile (`obelisk-2026-04-21` baseline, post-calibration).
 
 Pairs with `liq_parse_typecheck` (also AST-shaped). Movement on ocamlc_self_compile but not liq → likely Ephemeron or Marshal specifically. Movement on both → general AST-allocation path. Movement on `coqc_corelib_stress` *and* `ocamlc_self_compile` → minor-allocator fast path.
 
+#### `jsoo` — js_of_ocaml on the runtime's own `ocamlc.byte`
+
+**What it does.** Runs `js_of_ocaml.exe` on the runtime-under-test's own `ocamlc.byte` (~3.5 MB of bytecode shipped in every OCaml switch), translating it to JavaScript. Exercises jsoo's bytecode parser, SSA / IR pipeline, optimisation passes, and JS code generation. Single observable OCaml process.
+
+**Profile.** wall ≈ 7.2s on `5.4.1/baseline`, gc_overhead 33%, 2260 minor / 28 major collections, ≈ 340 MB RSS. Output is ~2.3 MB of generated JavaScript.
+
+**OCaml features.**
+- **Bytecode parsing** — `Parse_bytecode` reads the `.byte` file, decoding instructions, constants, debug info.
+- **SSA construction + dataflow analysis** — jsoo's IR is SSA; building it stresses pointer-heavy data structures (CFG, def-use chains).
+- **Optimisation passes** — dead code elimination, inlining, escape analysis. Each pass walks the program graph.
+- **JS code generation** — string-builder-heavy output writing.
+- **Findlib at runtime** — jsoo resolves `+stdlib/` via Findlib to find runtime stubs. Requires `OCAMLPATH` + `OCAMLFIND_CONF` set in the wrapper (see `jsoo.build.sh`).
+
+**Why jsoo's `ocaml-5.6` branch (PR #2227)?** The released js_of_ocaml 6.2.0 has `assert (Ocaml_version.compare current [5; 5] >= 0); failwith "..."` — it hard-rejects OCaml 5.5+. The `ocaml-5.6` branch relaxes the bound to `< 5.7`, covering 5.4.1, 5.5-beta (d8bb46c), and trunk. Vendored via `setup-monorepo.sh`.
+
+**Why Cmdliner 2.1.0?** jsoo's command-line layer uses `Cmdliner.Arg.Completion`, added in Cmdliner 2.0. opam-monorepo's lockfile gives 1.3.0; setup-monorepo.sh swaps in 2.1.0.
+
+**Diagnostic value.** Compiler-throughput benchmark — pairs naturally with `ocamlc_self_compile` (also processes the runtime's own bytecode/AST). Movement on jsoo *and* `ocamlc_self_compile` → suspect minor-allocator fast path (both heavy on small-block allocation). Movement on jsoo alone → suspect Findlib runtime, jsoo's IR construction, or OCaml's compiler-libs (which jsoo uses for bytecode parsing).
+
+Flambda-built jsoo variants should be slower per-invocation than baseline (more passes per file): a compile-time tax distinct from the runtime-perf signal.
 ---
 
 ### OCaml 5 effects / fiber scheduling
@@ -611,6 +631,7 @@ Pairs with `devkit_stre` (also string-heavy) — co-movement points at the strin
 | `menhir_sql_parser` | 3.3 | 29 | minor (LALR + verbose) | menhir internals |
 | `menhir_sysver` | 20 | 33 | minor (table) | Hashtbl growth |
 | `ocamlc_self_compile` | 8.6 | 33 | minor-heavy + Ephemeron | Ephemeron tables, Marshal (.cmi), Hashtbl, AST allocation |
+| `jsoo` | 7.2 | 33 | minor + IR construction | jsoo bytecode parser, SSA dataflow, JS codegen |
 
 ### Coverage gaps — what NO benchmark exercises
 
@@ -739,7 +760,7 @@ for reference and for manual application if needed.
 | 5 | `duniverse/lwt/` | Replace with git main | Fixes socketaddr.h for OCaml 5.6 |
 | 6 | `duniverse/devkit/lwt_engines.ml` | Add `engine_id` type + method | lwt 6.1.1 added virtual `id` method |
 | 7 | `vendor/libevent/libevent.ml` | Add `~persist`, `~signal` labels | OCaml 5.x strict label matching |
-| 8 | `duniverse/js_of_ocaml/.../dune` | Remove public_name | Vendored executable (parked) |
+| 8 | `duniverse/js_of_ocaml/.../dune` | Remove public_name | Vendored executable |
 | 9 | `duniverse/ocamlformat/.../dune` | Remove public_name | Vendored executable |
 | 10 | `duniverse/owl/.../exponpow.c` | Fix `std_gaussian_rvs` calls | Upstream C bug: function takes no args |
 | 11 | `duniverse/batteries-included/.../batGc.mli` | Add `live_stacks_words` field | OCaml 5.6 added field to `Gc.stat` |
