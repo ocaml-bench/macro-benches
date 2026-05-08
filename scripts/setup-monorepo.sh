@@ -107,6 +107,37 @@ else
 fi
 echo ""
 
+# ---- Vendor lavyek + multicore deps (not in opam-monorepo lockfile) ----
+# lavyek: multicore key-value store (Eio + io_uring + kcas) used as a macro
+# benchmark in benchmarks/lavyek/. The kcas/saturn/etc. ecosystem is not in
+# the lockfile, so we shallow-clone each missing dep into duniverse/. The
+# upstream lavyek root `dune` builds a `test` exe linking ahrocksdb + lmdb
+# (for cross-DB comparison); we override it with `(dirs src)` to build only
+# the lavyek library, since we don't run the C++ comparisons.
+echo "[2.4/9] Vendoring lavyek + multicore deps..."
+_clone_if_missing() {
+  local url="$1" dir="$2" branch="$3"
+  if [ -d "duniverse/$dir" ] && [ -f "duniverse/$dir/dune-project" ]; then
+    echo "  duniverse/$dir/ already populated. Skipping."
+  else
+    rm -rf "duniverse/$dir"
+    git clone --depth 1 -b "$branch" "$url" "duniverse/$dir"
+    rm -rf "duniverse/$dir/.git"
+    echo "  Cloned $dir."
+  fi
+}
+_clone_if_missing https://github.com/tarides/lavyek.git              lavyek               master
+_clone_if_missing https://github.com/ocaml-multicore/kcas.git        kcas                 main
+_clone_if_missing https://github.com/ocaml-multicore/backoff.git     backoff              main
+_clone_if_missing https://github.com/ocaml-multicore/multicore-magic.git multicore-magic  main
+_clone_if_missing https://github.com/ocaml-multicore/thread-table.git    thread-table     main
+_clone_if_missing https://github.com/ocaml-multicore/domain-local-timeout.git domain-local-timeout main
+_clone_if_missing https://github.com/ocaml-ppx/ppx_deriving_yojson.git ppx_deriving_yojson master
+# Override lavyek's root dune (which references ahrocksdb/lmdb) to build src/
+# only. Idempotent: just overwrites with our minimal version.
+echo "(dirs src)" > duniverse/lavyek/dune
+echo ""
+
 # ---- Patch dune_ version (3.22 → 3.21) ----
 echo "[3/9] Patching duniverse/dune_/dune-project (lang dune 3.22 → 3.21)..."
 if grep -q 'lang dune 3.22' duniverse/dune_/dune-project 2>/dev/null; then
@@ -457,6 +488,7 @@ dune build \
   duniverse/ocamlformat/bin/ocamlformat/main.exe \
   benchmarks/decompress/test_decompress.exe \
   benchmarks/eio/eio_bench.exe \
+  benchmarks/lavyek/lavyek_bench.exe \
   benchmarks/sedlex/sedlex_bench.exe \
   vendor/pplacer/tests.exe \
   benchmarks/liquidsoap-lang/liq_bench.exe \
