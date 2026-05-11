@@ -6,6 +6,16 @@ All benchmark tool sources and dependencies are vendored via
 **identical source code** across all runtimes.  The only variable is
 the compiler.
 
+Designed to work two ways:
+
+- **Standalone** — `make setup` once, then build any tool under any
+  opam switch (`dune build -- benchmarks/<name>/<name>.exe`) and run
+  the resulting binary directly.
+- **Orchestrated** — used as the macrobenchmark backend for
+  [running-ng](https://github.com/udesou/running-ng), which manages
+  per-runtime opam switches and drives cross-runtime / flag / GC-param
+  sweeps. See §"Run via running-ng" below.
+
 ## Benchmarks
 
 18 active tools, 28 benchmark programs, 17 categories.  Target runtime:
