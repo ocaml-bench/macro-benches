@@ -182,17 +182,27 @@ macro-benches/
 
 ## Build scripts
 
-Each benchmark has `benchmarks/<tool>/<tool>.build.sh`.  Environment
-variables from running-ng:
+Each benchmark has `benchmarks/<tool>/<tool>.build.sh`. Build scripts
+honor the same env-var contract as [`~/benches/`](https://github.com/udesou/benches),
+so a script behaves identically whether running-ng invokes it or you
+run it by hand:
 
-| Variable | Description |
-|----------|-------------|
-| `RUNNING_OCAML_OUTPUT` | Path where the built binary must go |
-| `RUNNING_OCAML_BENCH_DIR` | Benchmark directory |
-| `RUNNING_OCAML_RUNTIME_NAME` | Runtime name (e.g. `ocaml-5.4.1`) |
+| Variable | Meaning | Fallback when unset |
+|----------|---------|---------------------|
+| `RUNNING_OCAML_BENCH_DIR` | Directory containing this benchmark's sources (`benchmarks/<tool>/`) | The script's own directory (`$(cd "$(dirname "$0")" && pwd)`) |
+| `RUNNING_OCAML_OUTPUT` | Path where the built binary must be written | `${BENCH_DIR}/<tool>-${RUNTIME_NAME}` |
+| `RUNNING_OCAML_RUNTIME_NAME` | Runtime identifier (e.g. `ocaml-5.4.1`) | `runtime` |
+| `RUNNING_MACRO_BENCH_DIR` | Monorepo root (where `dune-project` lives) | Two dirs above the script (`$(cd "$(dirname "$0")/../.." && pwd)`) |
+
+`RUNNING_MACRO_BENCH_DIR` is the only macro-specific addition — sequential
+microbenchmarks under `~/benches/` don't need it because each benchmark
+is its own self-contained dune project, while macro-benches builds every
+tool from one shared monorepo at the repo root.
 
 All build scripts sanitize the opam environment (`unset OPAM_SWITCH_PREFIX`
-etc.) to prevent cross-runtime `.cmi` contamination.
+etc.) to prevent cross-runtime `.cmi` contamination, and isolate per-runtime
+artifacts into `_build-<runtime>/` so concurrent builds for different
+runtimes don't clobber each other.
 
 ## Benchmark characteristics
 

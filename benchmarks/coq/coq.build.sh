@@ -10,7 +10,7 @@ set -euo pipefail
 
 BENCH_DIR="${RUNNING_OCAML_BENCH_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 OUT="${RUNNING_OCAML_OUTPUT:-${BENCH_DIR}/coqc-${RUNNING_OCAML_RUNTIME_NAME:-runtime}}"
-MONOREPO_DIR="${RUNNING_MACRO_MONOREPO_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
+MONOREPO_DIR="${RUNNING_MACRO_BENCH_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
 RUNTIME_TAG="${RUNNING_OCAML_RUNTIME_NAME:-default}"
 BUILD_DIR="${MONOREPO_DIR}/_build-${RUNTIME_TAG//[^a-zA-Z0-9._-]/_}"
 ROCQ_PREFIX="${MONOREPO_DIR}/_rocq_prefix/rocq"
