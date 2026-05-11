@@ -96,11 +96,11 @@ cd ~/running-ng
 export RUNNING_MACRO_BENCH_DIR=~/macro-benches
 
 # Default cross-runtime comparison:
-CONFIG_FILE=src/running/config/macrobenchmarks_monorepo.yml \
+CONFIG_FILE=src/running/config/experiments/macrobenchmarks_monorepo.yml \
   bash run_ocaml_bench_gc_sweep.sh
 
 # Frame pointers × flambda (3 invocations):
-CONFIG_FILE=src/running/config/fp_flambda_macrobenchmarks.yml \
+CONFIG_FILE=src/running/config/experiments/fp_flambda_macrobenchmarks.yml \
   bash run_ocaml_bench_gc_sweep.sh
 ```
 
@@ -183,7 +183,7 @@ macro-benches/
 ## Build scripts
 
 Each benchmark has `benchmarks/<tool>/<tool>.build.sh`. Build scripts
-honor the same env-var contract as [`~/benches/`](https://github.com/udesou/benches) —
+honor the same env-var contract as [`~/benches/`](https://github.com/ocaml-bench/benches) —
 identical names, identical fallbacks, so a script behaves the same way
 whether running-ng invokes it or you run it by hand:
 
@@ -764,7 +764,7 @@ When porting another benchmark to this pattern:
    etc.).
 3. Update the build script's wrapper to drop the shell `for` loop and
    just `exec` the binary, passing the count through as the env var.
-4. Update `running-ng/src/running/config/macrobenchmarks_base.yml`'s
+4. Update `running-ng/src/running/config/base/ocaml/macro_base.yml`'s
    `args:` to be the loop count rather than an external iteration
    count.
 5. Document the new env var in the table above.
@@ -845,6 +845,6 @@ git commit -m "Update vendored dependencies"
    - `<tool>.build.sh` — build script (see existing ones for template)
    - `dune` — if the benchmark is custom `.ml` code compiled in the workspace
    - Input files (`.mly`, `.smt2`, `.json`, etc.)
-5. Add to `running-ng/src/running/config/macrobenchmarks_monorepo.yml`
+5. Add to `running-ng/src/running/config/experiments/macrobenchmarks_monorepo.yml`
 6. Add to the test build list in `scripts/setup-monorepo.sh`
 7. Test: `make clean-all && make setup`
