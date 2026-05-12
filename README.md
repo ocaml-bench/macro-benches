@@ -39,7 +39,7 @@ Designed to work two ways:
 | **pplacer** | Bioinformatics | 1 (224-test phylogenetic suite) | 17s | GSL, sqlite3, env-var iter loop |
 | **ocamlc-self-compile** | Build tools | 1 (`ocamlc` on 400k-line workload) | 8.6s | single-process; closes Ephemeron + Marshal gaps |
 | **liquidsoap-lang** | DSL compiler | 1 (parse+typecheck 50k iterations) | 26s | Jane Street PPX (≥ 5.3) |
-| **liq-video-frames** | GC pacer / off-heap | 1 (10k 1280×720 Bigarray frames) | 20s | Probes [#13123](https://github.com/ocaml/ocaml/issues/13123) — RSS-focused |
+| **liq-video-frames** | GC pacer / off-heap | 4 variants (`full`/`page`/`first`/`none`) × 10k 1280×720 YUV420 frames | 4-20s | Probes [#13123](https://github.com/ocaml/ocaml/issues/13123) + [#14533](https://github.com/ocaml/ocaml/issues/14533) — 3-plane YUV420 Bigarrays per frame (mm-faithful); env knobs `LIQ_POOL`, `LIQ_DW_MB`, `LIQ_CHURN`, `LIQ_PACE_FPS` |
 | **merlin** | IDE / domains+effects | 1 (7 cram queries × N) | 16s | merlin-domains branch; **DISABLED — upstream race** |
 | **js_of_ocaml** | Compilers | 1 (compile runtime's ocamlc.byte to JS) | 7-9s | jsoo `ocaml-5.6` branch + cmdliner 2.1.0 |
 | **lavyek** | Multi-domain KV / Eio + kcas + io_uring | 4 (kv_1d, kv_2d, kv_4d, kv_8d) | 6-25s | OCaml ≥ 5.2; per-domain CPU pinning via `ocaml-processor` |

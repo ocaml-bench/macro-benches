@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# liq-video-frames.build.sh — synthetic memory-footprint benchmark
-# probing the GC pacer's response to a deadweight + streaming-allocation
-# workload (ocaml/ocaml#13123).
+# liq-video-frames.build.sh — synthetic GC-pacer benchmark modelling the
+# liquidsoap video-frame allocation pattern (ocaml/ocaml#13123, #14533).
+# Per-frame: three Bigarrays sized as mm/Image.YUV420.create for 720p.
 set -euo pipefail
 
 BENCH_DIR="${RUNNING_OCAML_BENCH_DIR:-$(cd "$(dirname "$0")" && pwd)}"
@@ -22,9 +22,12 @@ dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
 REAL_EXE="${BUILD_DIR}/default/benchmarks/liq-video-frames/liq_video_frames.exe"
 
 # In-process iteration loop: the OCaml binary reads Sys.argv.(1) as the
-# number of frames to allocate. The wrapper just passes the arg through
-# and exec's — single observable OCaml process, olly sees the whole
-# run. See README §"Iteration counts" for the pattern.
+# number of frames to allocate. The wrappers pass the arg through and
+# exec — single observable OCaml process.
+#
+# Touch variants probe the calibration of the mutator-vs-GC cost mix
+# (see source). Each variant gets its own wrapper so running-ng can
+# treat them as separate programs in a sweep.
 mkdir -p "$(dirname "${OUT}")"
 cat > "${OUT}" << WRAPPER
 #!/usr/bin/env bash
@@ -33,4 +36,16 @@ exec "${REAL_EXE}" "\${1:-1}"
 WRAPPER
 chmod +x "${OUT}"
 
-echo "liq-video-frames built: ${OUT}"
+OUT_BASE="${BENCH_DIR}/liq_video_frames"
+for TOUCH in full page first none; do
+  VARIANT_OUT="${OUT_BASE}_${TOUCH}-${RUNTIME_TAG}"
+  cat > "${VARIANT_OUT}" << WRAPPER
+#!/usr/bin/env bash
+set -euo pipefail
+export LIQ_TOUCH=${TOUCH}
+exec "${REAL_EXE}" "\${1:-1}"
+WRAPPER
+  chmod +x "${VARIANT_OUT}"
+done
+
+echo "liq-video-frames built: ${OUT} (plus 4 LIQ_TOUCH variant wrappers)"
