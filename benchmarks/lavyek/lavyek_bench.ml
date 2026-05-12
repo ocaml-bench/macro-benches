@@ -34,6 +34,30 @@ let key_len = String.length key_prefix + dynamic_key_len
 
 let redundancy = 1
 
+(* Build a stable, deterministic list of physical CPUs (one logical CPU
+   per physical core, picking the smt=0 thread) sorted by core id, so
+   that domain i always lands on the same core across runs. Pinning is
+   what makes 1d/2d/4d/8d wall times comparable run-to-run on noisy
+   machines — without it the kernel migrates domains within whatever
+   mask the parent (taskset/numactl) provided. *)
+let physical_cpus =
+  Processor.Topology.t
+  |> List.filter (fun c -> c.Processor.Cpu.smt = 0)
+  |> List.sort (fun a b -> compare a.Processor.Cpu.core b.Processor.Cpu.core)
+  |> Array.of_list
+
+let () =
+  if Array.length physical_cpus < nb_domains then
+    Printf.eprintf
+      "lavyek_bench: warning: %d physical cores available but %d domains \
+       requested; pinning will wrap modulo cores\n%!"
+      (Array.length physical_cpus) nb_domains
+
+let pin_to_domain_slot id_domain =
+  let n = Array.length physical_cpus in
+  if n > 0 then
+    Processor.Affinity.set_cpus [ physical_cpus.(id_domain mod n) ]
+
 let get_input i =
   assert (i >= 0);
   assert (i < nb);
@@ -58,6 +82,7 @@ let par_iter ~clock ~dmgr ~nb_domains ~sw ~get_input fn =
     Array.init nb_domains @@ fun id_domain ->
     Fiber.fork_promise ~sw @@ fun () ->
     let fn () =
+      pin_to_domain_slot id_domain;
       Atomic.incr started;
       while Atomic.get started < nb_domains do
         Fiber.yield ()

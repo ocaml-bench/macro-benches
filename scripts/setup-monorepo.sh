@@ -133,6 +133,11 @@ _clone_if_missing https://github.com/ocaml-multicore/multicore-magic.git multico
 _clone_if_missing https://github.com/ocaml-multicore/thread-table.git    thread-table     main
 _clone_if_missing https://github.com/ocaml-multicore/domain-local-timeout.git domain-local-timeout main
 _clone_if_missing https://github.com/ocaml-ppx/ppx_deriving_yojson.git ppx_deriving_yojson master
+# ocaml-processor: per-domain CPU affinity via pthread_setaffinity_np. Used by
+# benchmarks/lavyek/lavyek_bench.ml to pin each parallel domain to its own
+# physical core, so wall times of the 1d/2d/4d/8d cells are comparable
+# across runs. Not in opam-monorepo lockfile.
+_clone_if_missing https://github.com/haesbaert/ocaml-processor.git    processor            master
 # Override lavyek's root dune (which references ahrocksdb/lmdb) to build src/
 # only. Idempotent: just overwrites with our minimal version.
 echo "(dirs src)" > duniverse/lavyek/dune

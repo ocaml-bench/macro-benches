@@ -18,8 +18,8 @@ Designed to work two ways:
 
 ## Benchmarks
 
-18 active tools, 28 benchmark programs, 17 categories.  Target runtime:
-5-20s per benchmark (DaCapo sweet spot).
+19 active tools, 32 benchmark programs, 18 categories.  Target runtime:
+5-25s per benchmark (DaCapo sweet spot; lavyek's 1d cell sits at the upper edge).
 
 | Benchmark | Category | Programs | ~Runtime | Notes |
 |-----------|----------|----------|----------|-------|
@@ -42,17 +42,18 @@ Designed to work two ways:
 | **liq-video-frames** | GC pacer / off-heap | 1 (10k 1280×720 Bigarray frames) | 20s | Probes [#13123](https://github.com/ocaml/ocaml/issues/13123) — RSS-focused |
 | **merlin** | IDE / domains+effects | 1 (7 cram queries × N) | 16s | merlin-domains branch; **DISABLED — upstream race** |
 | **js_of_ocaml** | Compilers | 1 (compile runtime's ocamlc.byte to JS) | 7-9s | jsoo `ocaml-5.6` branch + cmdliner 2.1.0 |
+| **lavyek** | Multi-domain KV / Eio + kcas + io_uring | 4 (kv_1d, kv_2d, kv_4d, kv_8d) | 6-25s | OCaml ≥ 5.2; per-domain CPU pinning via `ocaml-processor` |
 
 ### Runtime compatibility
 
 | Runtime | Working benchmarks |
 |---------|-------------------|
-| **OCaml 5.4.1** | All 18 active tools (28 programs) |
-| **OCaml d8bb46c (5.5-beta)** | All 18 active tools |
-| **OCaml trunk (5.6)** | All 18 active tools — ppxlib+lwt upgraded from git |
+| **OCaml 5.4.1** | All 19 active tools (32 programs) |
+| **OCaml d8bb46c (5.5-beta)** | All 19 active tools |
+| **OCaml trunk (5.6)** | All 19 active tools — ppxlib+lwt upgraded from git |
 | **OxCaml** | menhir (3), test_decompress, zarith_pi (5 programs) |
-| **OCaml 5.4.1 ± fp ± flambda** | All 18 active tools (used by `fp_flambda_macrobenchmarks.yml`) |
-| **OCaml d8bb46c ± fp ± flambda** | All 18 active tools (used by `fp_flambda_macrobenchmarks.yml`) |
+| **OCaml 5.4.1 ± fp ± flambda** | All 19 active tools (used by `fp_flambda_macrobenchmarks.yml`) |
+| **OCaml d8bb46c ± fp ± flambda** | All 19 active tools (used by `fp_flambda_macrobenchmarks.yml`) |
 
 ## Quick start
 
@@ -158,6 +159,7 @@ macro-benches/
     liq-video-frames/          # 1280x720 Bigarray frames (RSS probe)
     merlin/                    # merlin-domains typer (currently disabled)
     js_of_ocaml/               # jsoo on ocamlc.byte → JS
+    lavyek/                    # multi-domain Eio + kcas + io_uring KV store
 
   scripts/
     setup-monorepo.sh          # full setup: pull + patch + build
@@ -232,6 +234,8 @@ profile (`obelisk-2026-04-21` baseline, post-calibration).
   *Sensitive to:* flambda passes, prefetch, register allocation, branch prediction.
 - **subprocess-bound** — wall time = waiting on child processes; parent runtime is idle.  
   *Sensitive to:* compiler binary perf, file I/O. Olly observability is meaningless.
+- **I/O + multi-domain** — work distributed across N OCaml domains with per-domain syscall traffic (Eio + io_uring); the curve of wall(N) is what's interesting, not any single cell.  
+  *Sensitive to:* cross-domain GC marking, major-heap pacer with N writers, `Atomic` contention, `pthread_setaffinity_np` honoring, io_uring stub cost.
 
 ---
 
@@ -328,6 +332,33 @@ What it does **not** catch:
 - Work-stealing scheduler patterns — merlin uses a single dedicated worker, not a pool.
 
 **Runtime requirement.** Currently disabled. The merlin-domains branch has a non-deterministic race in the typer-domain handoff that fires `Types.rev_log → Invalid -> assert false` at N≥2 iterations of the cram-bench workload. The race fires on **both** 5.4.1 (almost every run) and d8bb46c / 5.5-beta (~50% of N=2 runs in our trials). Initially we suspected an OCaml-version ABI mismatch — the bundled typer is synced from upstream/ocaml_503/ — but the same assertion fires on 5.5-beta, so it's a merlin-domains bug, not a version issue. Source kept; suite entry in `running-ng/.../macrobenchmarks_base.yml` is set to `[]` (empty programs). Full repro + analysis in [`benchmarks/merlin/UPSTREAM_BUG.md`](benchmarks/merlin/UPSTREAM_BUG.md). Re-enable when upstream fixes [#1890](https://github.com/ocaml/merlin/pull/1890).
+
+#### `lavyek_kv_*` — multi-domain Eio + kcas + io_uring key-value store
+
+**What it does.** Lavyek is a from-scratch multicore KV store: Eio for fiber scheduling, kcas for the lock-free in-memory index, io_uring for the WAL writes (per-domain log file). The DaCapo-style driver in [`benchmarks/lavyek/lavyek_bench.ml`](benchmarks/lavyek/lavyek_bench.ml) runs a fixed-work load: WRITE phase puts `nb` = 10 000 000 (key, value) pairs (24-byte key, 100-byte value), then a READ phase verifies all of them. Work is distributed by a shared `Atomic.fetch_and_add` chunk counter (range = 1 op/chunk at max_fibers=100); each domain runs 100 fibers concurrently. Per-domain WAL files live under `benchmarks/lavyek/wal/lavyek_wal_<N>d/` and are removed on clean exit.
+
+Four cells differ only in the domain count: `lavyek_kv_1d` (1 domain), `2d`, `4d`, `8d`. All cells share the same 10 M-op budget, so wall times reflect **parallel scaling** rather than work-budget differences.
+
+**Profile.** Walls on monolith (Ryzen 9 9950X) with re=22, md=8: 1d ≈ 25s, 2d ≈ 14s, 4d ≈ 8s, 8d ≈ 6s. The 4-domain cell is the calibrated target; the 1d cell is the serial baseline for scaling. Notable: I/O matters (per-domain WAL), so on a slow disk the curves flatten; on tmpfs you see ideal scaling out to 4 domains and diminishing returns at 8d (GC pacer + cross-domain kcas contention).
+
+**CPU pinning (deterministic placement across runs).** Each worker domain calls `Processor.Affinity.set_cpus` (from [`ocaml-processor`](https://github.com/haesbaert/ocaml-processor), vendored in `duniverse/processor/`) as the first action inside `fn ()`, locking itself to physical core `id_domain` (the `smt=0` representative — SMT siblings are deliberately not used). Without this, Linux is free to migrate domains around the inherited CPU mask between time slices, which is the dominant source of run-to-run noise on multi-domain Eio workloads. Verified by reading `/proc/<pid>/task/*/status:Cpus_allowed_list`: each domain (and its GC + per-domain io_uring helper threads, which inherit the pthread mask) sits on a single core for the duration of the run. Two early-startup helper threads (the first global `iou-wrk` and the Eio main-setup thread) spawn before `fn ()` runs and so don't get pinned; the `pin_lavyek` modifier (`taskset -c 0-15`) in [`macro_base.yml`](../running-ng/src/running/config/base/ocaml/macro_base.yml) fences them to physical cores too.
+
+**OCaml features.**
+- **Multi-domain parallelism** via Eio's `Domain_manager.run` (real OS threads, not just fibers). 1d/2d/4d/8d covers the spectrum: single domain (baseline), low parallelism (2), moderate (4), high (8, > NUMA-node-size on many boxes).
+- **Effects** — Eio's `Fiber.fork_promise`, `Fiber.all`, `Fiber.yield`, `Eio.Stream` all go through `Effect.perform` + deep `try_with`. Far more effect traffic than `eio_fiber_stream` (the only other Eio benchmark), spread across multiple domains.
+- **kcas** (lock-free MCAS) — the in-memory index is a kcas-based hash table. Every put/get touches at least one MCAS; cross-domain contention scales with N.
+- **`Atomic.fetch_and_add`** on a shared counter to dispatch chunks — under heavy contention at 8d, this is itself a measurable cost.
+- **io_uring** (via `eio_linux`) for the WAL writes. Each domain creates its own `iou-wrk-*` helper kernel-side thread; per-domain ring size is governed by `OCAMLRUNPARAM` (re=22 → 4 MB ring/domain at md=8).
+- **Per-domain `pthread_setaffinity_np`** (via `ocaml-processor`) — the only benchmark in the suite that exercises this; covers a coverage gap that previously made multi-domain timings non-reproducible.
+
+**Diagnostic value.** This is the suite's only **N>2 multi-domain steady-state** workload — it complements `merlin_bench` (when re-enabled), which is exactly 2 domains. What lavyek catches that nothing else does:
+- **Cross-domain parallel scaling**. Movement on the 1d→8d *curve shape* (not just absolute walls) → suspect the major-heap pacer, cross-domain marking, or stop-the-world handler cost. Wall on 1d alone (without scaling change) → single-domain Eio scheduler / kcas / io_uring path.
+- **`Atomic` contention at high parallelism**. The chunk counter and kcas's internal MCAS both saturate at 8d; movement on 8d alone (1d–4d unchanged) → `Atomic` codegen or memory-barrier insertion regression.
+- **io_uring + Eio scheduler**. The only benchmark with real syscall-heavy I/O on the hot path. Pairs with `eio_fiber_stream` only on the Effects axis — lavyek is otherwise a very different shape (I/O-bound, kcas-bound, multi-domain).
+
+Doesn't catch: Domainslib-style work-stealing pools (lavyek uses a manual atomic counter), pure CPU-bound parallel computation (the I/O is always on the path).
+
+**Runtime requirement.** OCaml ≥ 5.2 (Eio 1.x). Requires `md=8` and a smaller per-domain runtime-events ring (`re=22`) — wired via the lavyek-only `re_par` / `md_par` modifiers in [`macro_base.yml`](../running-ng/src/running/config/base/ocaml/macro_base.yml).
 
 ---
 
@@ -659,6 +690,10 @@ Pairs with `devkit_stre` (also string-heavy) — co-movement points at the strin
 | `menhir_sysver` | 20 | 33 | minor (table) | Hashtbl growth |
 | `ocamlc_self_compile` | 8.6 | 33 | minor-heavy + Ephemeron | Ephemeron tables, Marshal (.cmi), Hashtbl, AST allocation |
 | `jsoo` | 7.2 | 33 | minor + IR construction | jsoo bytecode parser, SSA dataflow, JS codegen |
+| `lavyek_kv_1d` | 25 | — | I/O + kcas + Eio | single-domain Eio scheduler, kcas MCAS, io_uring |
+| `lavyek_kv_2d` | 14 | — | I/O + multi-domain | 2-domain parallel scaling, cross-domain kcas |
+| `lavyek_kv_4d` | 8 | — | I/O + multi-domain | 4-domain parallel scaling (calibrated cell) |
+| `lavyek_kv_8d` | 6 | — | I/O + multi-domain | 8-domain scaling, Atomic contention, GC pacer |
 
 ### Coverage gaps — what NO benchmark exercises
 
@@ -668,7 +703,7 @@ current suite:
 - ~~**`Ephemeron`**~~ — covered by `ocamlc_self_compile` (the OCaml typer's hash-consing tables).
 - ~~**`Marshal`**~~ — covered by `ocamlc_self_compile` (`.cmi` writing).
 - **`Weak` arrays** — used by hash-consing libraries directly. No benchmark loads or churns a weak-array.
-- **Multi-domain parallelism** via direct `Domain.spawn`. The `merlin_bench` driver was meant to cover this (main + 1 typer domain with effects), but is currently **disabled** because of an upstream race in merlin-domains (see [`benchmarks/merlin/UPSTREAM_BUG.md`](benchmarks/merlin/UPSTREAM_BUG.md)). Once that lands, this gap reopens partially closed; **N>2 domain contention** and **`Domainslib`-style work distribution** still tracked in TODO.md.
+- ~~**Multi-domain parallelism**~~ — covered by the `lavyek_kv_{1,2,4,8}d` suite (Eio + kcas + io_uring KV store with 1/2/4/8 worker domains over a fixed 10 M-op budget; per-domain CPU pinning via `ocaml-processor` makes 1d→8d wall scaling reproducible across runs). `merlin_bench` was meant to cover the 2-domain case with effects/cancellation, but is currently **disabled** because of an upstream race (see [`benchmarks/merlin/UPSTREAM_BUG.md`](benchmarks/merlin/UPSTREAM_BUG.md)); when re-enabled it complements lavyek on the cancellation/handoff axis. **`Domainslib`-style work-stealing pools** are still not exercised (lavyek dispatches via a manual `Atomic.fetch_and_add` counter) — tracked in TODO.md.
 - **`Gc.alarm` / `Gc.create_alarm`** user callbacks — if the alarm machinery changed, no benchmark would notice.
 - **`Gc.compact` interaction with finalisers** — owl_gc has finalisers but never forces compaction.
 - **Hot inner-loop float computation** isolating flambda's effect — owl_gc is closest but defers to BLAS, so flambda has nothing to optimise. A pure-OCaml numerical kernel (`Array.iter`, no allocation in the inner loop) would catch flambda regressions cleanly. Phase 2 candidate (raytracer / nbody from Sandmark).
