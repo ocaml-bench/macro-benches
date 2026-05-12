@@ -48,4 +48,20 @@ WRAPPER
   chmod +x "${VARIANT_OUT}"
 done
 
-echo "liq-video-frames built: ${OUT} (plus 4 LIQ_TOUCH variant wrappers)"
+# Pool variant: AVFrame-style refcounted-pool semantics. Reproduces toots'
+# ocaml#14533 free-lunch shape — under M=250, CPU drops significantly with
+# no RSS growth (the shared pool buffer caps committed memory regardless
+# of GC release cadence). LIQ_TOUCH=full preserves the real-pipeline
+# every-pixel-write mutator cost; switching POOL=0→1 isolates the
+# "fresh-malloc per frame" vs "refcounted pool" axis at constant mutator.
+POOL_OUT="${OUT_BASE}_pool-${RUNTIME_TAG}"
+cat > "${POOL_OUT}" << WRAPPER
+#!/usr/bin/env bash
+set -euo pipefail
+export LIQ_POOL=1
+export LIQ_TOUCH=full
+exec "${REAL_EXE}" "\${1:-1}"
+WRAPPER
+chmod +x "${POOL_OUT}"
+
+echo "liq-video-frames built: ${OUT} (plus 4 LIQ_TOUCH + 1 LIQ_POOL variant wrappers)"
