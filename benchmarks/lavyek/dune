@@ -1,4 +1,4 @@
 (executable
  (name lavyek_bench)
  (modules lavyek_bench)
- (libraries lavyek eio_main unix))
+ (libraries lavyek eio_main unix processor))
