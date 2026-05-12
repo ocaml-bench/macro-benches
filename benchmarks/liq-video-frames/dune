@@ -1,4 +1,5 @@
 (executable
  (name liq_video_frames)
  (modules liq_video_frames)
- (libraries bigarray))
+ (foreign_stubs (language c) (names pool_stubs))
+ (libraries bigarray unix))
