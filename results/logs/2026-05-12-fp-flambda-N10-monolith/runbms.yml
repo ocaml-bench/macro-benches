@@ -1,0 +1,472 @@
+benchmarks:
+  macro-alt-ergo-monorepo:
+  - alt_ergo_fill
+  - alt_ergo_yyll
+  - alt_ergo_unsat_smt2
+  macro-coq-monorepo:
+  - coqc_corelib_stress
+  macro-cpdf-monorepo:
+  - cpdf_merge
+  - cpdf_blacktext
+  - cpdf_scale
+  - cpdf_squeeze
+  macro-decompress:
+  - test_decompress
+  macro-devkit:
+  - devkit_htmlstream
+  - devkit_stre
+  - devkit_network
+  - devkit_gzip
+  macro-eio:
+  - eio_fiber_stream
+  macro-irmin:
+  - irmin_mem_rw
+  macro-jsoo:
+  - jsoo
+  macro-lavyek-monorepo:
+  - lavyek_kv_1d
+  - lavyek_kv_2d
+  - lavyek_kv_4d
+  - lavyek_kv_8d
+  macro-liq-video-frames:
+  - liq_video_frames_full
+  - liq_video_frames_page
+  - liq_video_frames_first
+  - liq_video_frames_none
+  - liq_video_frames_pool
+  macro-liquidsoap-lang:
+  - liq_parse_typecheck
+  macro-menhir-monorepo:
+  - menhir_ocamly
+  - menhir_sql_parser
+  - menhir_sysver
+  macro-merlin: []
+  macro-ocamlc-self-compile:
+  - ocamlc_self_compile
+  macro-ocamlformat:
+  - ocamlformat_rocq
+  macro-owl:
+  - owl_gc
+  macro-pplacer:
+  - pplacer_testsuite
+  macro-sedlex:
+  - sedlex_tokenize
+  macro-yojson:
+  - ydump_repeat
+  macro-zarith:
+  - zarith_pi
+comparisons:
+- a: ocaml-5.4.1
+  b:
+  - ocaml-5.4.1-fp
+  - ocaml-5.4.1-flambda
+  - ocaml-5.4.1-fp-flambda
+  label: 5.4.1 flag effects
+- a: ocaml-d8bb46c
+  b:
+  - ocaml-d8bb46c-fp
+  - ocaml-d8bb46c-flambda
+  - ocaml-d8bb46c-fp-flambda
+  label: d8bb46c flag effects
+- a:
+  - ocaml-5.4.1
+  - ocaml-5.4.1-fp
+  - ocaml-5.4.1-flambda
+  - ocaml-5.4.1-fp-flambda
+  b:
+  - ocaml-d8bb46c
+  - ocaml-d8bb46c-fp
+  - ocaml-d8bb46c-flambda
+  - ocaml-d8bb46c-fp-flambda
+  label: version effect (by flag combo)
+compress_logs: false
+configs:
+- ocaml-5.4.1|perf_grp1|re-25|md-2|re_par-22|md_par-8|pin_lavyek
+- ocaml-5.4.1-fp|perf_grp1|re-25|md-2|re_par-22|md_par-8|pin_lavyek
+- ocaml-5.4.1-flambda|perf_grp1|re-25|md-2|re_par-22|md_par-8|pin_lavyek
+- ocaml-5.4.1-fp-flambda|perf_grp1|re-25|md-2|re_par-22|md_par-8|pin_lavyek
+- ocaml-d8bb46c|perf_grp1|re-25|md-2|re_par-22|md_par-8|pin_lavyek
+- ocaml-d8bb46c-fp|perf_grp1|re-25|md-2|re_par-22|md_par-8|pin_lavyek
+- ocaml-d8bb46c-flambda|perf_grp1|re-25|md-2|re_par-22|md_par-8|pin_lavyek
+- ocaml-d8bb46c-fp-flambda|perf_grp1|re-25|md-2|re_par-22|md_par-8|pin_lavyek
+heap_range: 6
+invocations: 10
+minheap_multiplier: 1.0
+modifiers:
+  gc_verbose:
+    type: OCamlRunParam
+    val: v=0x400
+  md:
+    excludes: &id002
+      macro-lavyek-monorepo:
+      - lavyek_kv_1d
+      - lavyek_kv_2d
+      - lavyek_kv_4d
+      - lavyek_kv_8d
+    type: OCamlRunParam
+    val: d={0}
+  md_par:
+    excludes: &id001
+      macro-alt-ergo-monorepo:
+      - alt_ergo_fill
+      - alt_ergo_yyll
+      - alt_ergo_unsat_smt2
+      macro-coq-monorepo:
+      - coqc_corelib_stress
+      macro-cpdf-monorepo:
+      - cpdf_merge
+      - cpdf_blacktext
+      - cpdf_scale
+      - cpdf_squeeze
+      macro-decompress:
+      - test_decompress
+      macro-devkit:
+      - devkit_htmlstream
+      - devkit_stre
+      - devkit_network
+      - devkit_gzip
+      macro-eio:
+      - eio_fiber_stream
+      macro-irmin:
+      - irmin_mem_rw
+      macro-jsoo:
+      - jsoo
+      macro-liq-video-frames:
+      - liq_video_frames_full
+      - liq_video_frames_page
+      - liq_video_frames_first
+      - liq_video_frames_none
+      - liq_video_frames_pool
+      macro-liquidsoap-lang:
+      - liq_parse_typecheck
+      macro-menhir-monorepo:
+      - menhir_ocamly
+      - menhir_sql_parser
+      - menhir_sysver
+      macro-merlin:
+      - merlin_bench
+      macro-ocamlc-self-compile:
+      - ocamlc_self_compile
+      macro-ocamlformat:
+      - ocamlformat_rocq
+      macro-owl:
+      - owl_gc
+      macro-pplacer:
+      - pplacer_testsuite
+      macro-sedlex:
+      - sedlex_tokenize
+      macro-yojson:
+      - ydump_repeat
+      macro-zarith:
+      - zarith_pi
+    type: OCamlRunParam
+    val: d={0}
+  perf_grp1:
+    type: PerfAndOllyAttach
+    val: task-clock,page-faults,cycles,instructions
+  perf_grp2:
+    type: PerfAndOllyAttach
+    val: task-clock,cycles,stalled-cycles-frontend,stalled-cycles-backend
+  perf_grp3:
+    type: PerfAndOllyAttach
+    val: task-clock,cycles,cache-misses,LLC-load-misses,dTLB-load-misses,iTLB-load-misses
+  pin_lavyek:
+    excludes: *id001
+    type: Wrapper
+    val: taskset -c 0-15
+  re:
+    excludes: *id002
+    type: OCamlRunParam
+    val: e={0}
+  re_par:
+    excludes: *id001
+    type: OCamlRunParam
+    val: e={0}
+  time_stats:
+    type: Wrapper
+    val: /usr/bin/time -f "%Uuser %Ssystem %eelapsed %PCPU (%Xavgtext+%Davgdata %Mmaxresident)k"
+plugins:
+  zulip:
+    request:
+      to:
+      - 361443
+      type: private
+    type: Zulip
+remote_host: null
+runtimes:
+  ocaml-5.4.1:
+    type: OCaml
+    version: 5.4.1
+  ocaml-5.4.1-flambda:
+    configure_args:
+    - --enable-flambda
+    type: OCaml
+    version: 5.4.1
+  ocaml-5.4.1-fp:
+    configure_args:
+    - --enable-frame-pointers
+    type: OCaml
+    version: 5.4.1
+  ocaml-5.4.1-fp-flambda:
+    configure_args:
+    - --enable-frame-pointers
+    - --enable-flambda
+    type: OCaml
+    version: 5.4.1
+  ocaml-d8bb46c:
+    commit: d8bb46c39bf5fcafb513a8ba18e667d3f8c2600a
+    type: OCaml
+  ocaml-d8bb46c-flambda:
+    commit: d8bb46c39bf5fcafb513a8ba18e667d3f8c2600a
+    configure_args:
+    - --enable-flambda
+    type: OCaml
+  ocaml-d8bb46c-fp:
+    commit: d8bb46c39bf5fcafb513a8ba18e667d3f8c2600a
+    configure_args:
+    - --enable-frame-pointers
+    type: OCaml
+  ocaml-d8bb46c-fp-flambda:
+    commit: d8bb46c39bf5fcafb513a8ba18e667d3f8c2600a
+    configure_args:
+    - --enable-frame-pointers
+    - --enable-flambda
+    type: OCaml
+spread_factor: 1
+suites:
+  macro-alt-ergo-monorepo:
+    programs:
+      alt_ergo_fill:
+        args: --input native ${RUNNING_MACRO_BENCH_DIR}/benchmarks/alt-ergo/fill_x100.why
+        build_script: alt-ergo.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/alt-ergo
+      alt_ergo_unsat_smt2:
+        args: --timelimit 15 ${RUNNING_MACRO_BENCH_DIR}/benchmarks/alt-ergo/unsat.smt2
+        build_script: alt-ergo.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/alt-ergo
+      alt_ergo_yyll:
+        args: --input native ${RUNNING_MACRO_BENCH_DIR}/benchmarks/alt-ergo/yyll.why
+        build_script: alt-ergo.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/alt-ergo
+    timeout: 300
+    type: OCamlBenchmarkSuite
+  macro-coq-monorepo:
+    programs:
+      coqc_corelib_stress:
+        args: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/coq/coq_corelib_stress.v
+        build_script: coq.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/coq
+    timeout: 900
+    type: OCamlBenchmarkSuite
+  macro-cpdf-monorepo:
+    programs:
+      cpdf_blacktext:
+        args: -blacktext ${RUNNING_MACRO_BENCH_DIR}/benchmarks/cpdf/PDFReference16.pdf_toobig
+          -o /dev/null
+        build_script: cpdf.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/cpdf
+      cpdf_merge:
+        args: -merge ${RUNNING_MACRO_BENCH_DIR}/benchmarks/cpdf/PDFReference16.pdf_toobig
+          ${RUNNING_MACRO_BENCH_DIR}/benchmarks/cpdf/PDFReference16.pdf_toobig -o
+          /dev/null
+        build_script: cpdf.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/cpdf
+      cpdf_scale:
+        args: scale-to-fit a4landscape -twoup ${RUNNING_MACRO_BENCH_DIR}/benchmarks/cpdf/PDFReference16.pdf_toobig
+          -o /dev/null
+        build_script: cpdf.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/cpdf
+      cpdf_squeeze:
+        args: -squeeze ${RUNNING_MACRO_BENCH_DIR}/benchmarks/cpdf/PDFReference16.pdf_toobig
+          -o /dev/null
+        build_script: cpdf.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/cpdf
+    timeout: 300
+    type: OCamlBenchmarkSuite
+  macro-decompress:
+    programs:
+      test_decompress:
+        args: 64 524288
+        build_script: decompress.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/decompress
+    timeout: 120
+    type: OCamlBenchmarkSuite
+  macro-devkit:
+    programs:
+      devkit_gzip:
+        args: '5'
+        build_script: ahrefs-devkit.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/ahrefs-devkit
+      devkit_htmlstream:
+        args: ''
+        build_script: ahrefs-devkit.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/ahrefs-devkit
+      devkit_network:
+        args: '4'
+        build_script: ahrefs-devkit.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/ahrefs-devkit
+      devkit_stre:
+        args: '30'
+        build_script: ahrefs-devkit.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/ahrefs-devkit
+    timeout: 600
+    type: OCamlBenchmarkSuite
+  macro-eio:
+    programs:
+      eio_fiber_stream:
+        args: ''
+        build_script: eio.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/eio
+    timeout: 120
+    type: OCamlBenchmarkSuite
+  macro-irmin:
+    programs:
+      irmin_mem_rw:
+        args: 3000 10000 80 20000
+        build_script: irmin.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/irmin
+    timeout: 300
+    type: OCamlBenchmarkSuite
+  macro-jsoo:
+    programs:
+      jsoo:
+        args: ''
+        build_script: jsoo.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/js_of_ocaml
+    timeout: 120
+    type: OCamlBenchmarkSuite
+  macro-lavyek-monorepo:
+    programs:
+      lavyek_kv_1d:
+        args: 1 100 10000000 ${RUNNING_MACRO_BENCH_DIR}/benchmarks/lavyek/wal/lavyek_wal_1d
+        build_script: lavyek.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/lavyek
+      lavyek_kv_2d:
+        args: 2 100 10000000 ${RUNNING_MACRO_BENCH_DIR}/benchmarks/lavyek/wal/lavyek_wal_2d
+        build_script: lavyek.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/lavyek
+      lavyek_kv_4d:
+        args: 4 100 10000000 ${RUNNING_MACRO_BENCH_DIR}/benchmarks/lavyek/wal/lavyek_wal_4d
+        build_script: lavyek.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/lavyek
+      lavyek_kv_8d:
+        args: 8 100 10000000 ${RUNNING_MACRO_BENCH_DIR}/benchmarks/lavyek/wal/lavyek_wal_8d
+        build_script: lavyek.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/lavyek
+    timeout: 120
+    type: OCamlBenchmarkSuite
+  macro-liq-video-frames:
+    programs:
+      liq_video_frames_first:
+        args: '30000'
+        build_script: liq-video-frames.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/liq-video-frames
+      liq_video_frames_full:
+        args: '30000'
+        build_script: liq-video-frames.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/liq-video-frames
+      liq_video_frames_none:
+        args: '30000'
+        build_script: liq-video-frames.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/liq-video-frames
+      liq_video_frames_page:
+        args: '30000'
+        build_script: liq-video-frames.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/liq-video-frames
+      liq_video_frames_pool:
+        args: '30000'
+        build_script: liq-video-frames.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/liq-video-frames
+    timeout: 120
+    type: OCamlBenchmarkSuite
+  macro-liquidsoap-lang:
+    programs:
+      liq_parse_typecheck:
+        args: '50000'
+        build_script: liquidsoap-lang.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/liquidsoap-lang
+    timeout: 120
+    type: OCamlBenchmarkSuite
+  macro-menhir-monorepo:
+    programs:
+      menhir_ocamly:
+        args: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/menhir/ocaml.mly --list-errors
+          --no-stdlib --canonical
+        build_script: menhir.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/menhir
+      menhir_sql_parser:
+        args: -v -t ${RUNNING_MACRO_BENCH_DIR}/benchmarks/menhir/keywords.mly ${RUNNING_MACRO_BENCH_DIR}/benchmarks/menhir/sql-parser.mly
+          --base sql-parser
+        build_script: menhir.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/menhir
+      menhir_sysver:
+        args: -v --table ${RUNNING_MACRO_BENCH_DIR}/benchmarks/menhir/sysver.mly
+        build_script: menhir.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/menhir
+    timeout: 600
+    type: OCamlBenchmarkSuite
+  macro-merlin:
+    programs:
+      merlin_bench:
+        args: '4'
+        build_script: merlin.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/merlin
+    timeout: 180
+    type: OCamlBenchmarkSuite
+  macro-ocamlc-self-compile:
+    programs:
+      ocamlc_self_compile:
+        args: ''
+        build_script: ocamlc-self-compile.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/ocamlc-self-compile
+    timeout: 300
+    type: OCamlBenchmarkSuite
+  macro-ocamlformat:
+    programs:
+      ocamlformat_rocq:
+        args: --impl ${RUNNING_MACRO_BENCH_DIR}/benchmarks/ocamlformat/workload_5x.ml
+          -o /dev/null
+        build_script: ocamlformat.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/ocamlformat
+    timeout: 120
+    type: OCamlBenchmarkSuite
+  macro-owl:
+    programs:
+      owl_gc:
+        args: '6'
+        build_script: owl.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/owl
+    timeout: 120
+    type: OCamlBenchmarkSuite
+  macro-pplacer:
+    programs:
+      pplacer_testsuite:
+        args: '5'
+        build_script: pplacer.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/pplacer
+    timeout: 120
+    type: OCamlBenchmarkSuite
+  macro-sedlex:
+    programs:
+      sedlex_tokenize:
+        args: '700000'
+        build_script: sedlex.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/sedlex
+    timeout: 120
+    type: OCamlBenchmarkSuite
+  macro-yojson:
+    programs:
+      ydump_repeat:
+        args: 1000 ${RUNNING_MACRO_BENCH_DIR}/benchmarks/yojson/sample.json
+        build_script: yojson.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/yojson
+    timeout: 120
+    type: OCamlBenchmarkSuite
+  macro-zarith:
+    programs:
+      zarith_pi:
+        args: '15000'
+        build_script: zarith.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/zarith
+    timeout: 120
+    type: OCamlBenchmarkSuite

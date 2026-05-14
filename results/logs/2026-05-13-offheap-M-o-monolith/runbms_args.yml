@@ -1,0 +1,17 @@
+CONFIG: !!python/object/apply:pathlib._local.PosixPath
+- /home/udesou/running-ng/src/running/config/experiments/offheap_M_o_sweep_2026_05_13.yml
+LOG_DIR: !!python/object/apply:pathlib._local.PosixPath
+- /home/udesou/running-ng/gc-sweep-logs-offheap-M-o-2026-05-13
+N: null
+dry_run: false
+id_prefix: null
+invocations: null
+minheap_multiplier: null
+n: []
+resume: null
+skip_oom: null
+skip_timeout: null
+slice: null
+verbose: false
+which: runbms
+workdir: null

@@ -1,0 +1,17 @@
+CONFIG: !!python/object/apply:pathlib._local.PosixPath
+- src/running/config/experiments/fp_flambda_macro_5.4.1_vs_d8bb46c.yml
+LOG_DIR: !!python/object/apply:pathlib._local.PosixPath
+- /home/udesou/running-ng/gc-sweep-logs-fp-flambda-2026-05-12
+N: null
+dry_run: false
+id_prefix: null
+invocations: null
+minheap_multiplier: null
+n: []
+resume: null
+skip_oom: null
+skip_timeout: null
+slice: null
+verbose: false
+which: runbms
+workdir: null
