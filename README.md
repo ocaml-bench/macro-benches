@@ -711,6 +711,33 @@ run. Notation:
   hit).
 - *(empty)* — not used at all.
 
+**Running benchmarks filtered by tag** — running-ng accepts a
+`RUNNING_TAG` environment variable that restricts `benchmarks:` to
+only the programs listed under one or more tags. The single source
+of truth for tag→program mappings lives in [`running-ng/src/running/config/base/ocaml/macro_base.yml`](https://github.com/udesou/running-ng/blob/adding-ocaml-support/src/running/config/base/ocaml/macro_base.yml)
+under the `tags:` block, with `verified_at:` file:line citations
+matching the table below. Examples:
+
+```bash
+# Just the benchmarks that hit Weak.Make on the hot path:
+RUNNING_TAG=weak_refs CONFIG_FILE=…/macrobenchmarks_monorepo.yml bash run_ocaml_bench_gc_sweep.sh
+# → 3 programs (alt_ergo_fill, alt_ergo_yyll, alt_ergo_unsat_smt2)
+
+# Union of two tags:
+RUNNING_TAG=domains,io_uring …
+# → lavyek_kv_{2,4,8}d  (domains) ∪ lavyek_kv_{1,2,4,8}d (io_uring) = 4 programs
+
+# Coverage-gap tags error loudly:
+RUNNING_TAG=ephemerons …
+# → ValueError: all named tags are coverage gaps (`exercised_by:` is empty)
+```
+
+Semantics: comma-separated tags are union'd, then intersected with
+the experiment's `benchmarks:` block — so a tag never re-enables an
+explicitly-disabled bench (e.g. the currently-disabled `macro-merlin`).
+See running-ng's README §"Selecting benchmarks by runtime-feature
+tag" for the full surface.
+
 | Tag | Runtime mechanism | ● hot-path benchmarks | ○ cold benchmarks |
 |---|---|---|---|
 | **minor-gc** | `caml_alloc_small` fast path, young-ptr bump | coqc_corelib_stress, menhir_*, alt_ergo_*, zarith_pi, sedlex_tokenize, devkit_{network,htmlstream,stre}, cpdf_*, ydump_repeat, liq_parse_typecheck, ocamlc_self_compile, jsoo, ocamlformat_rocq | — |
