@@ -37,12 +37,12 @@ Designed to work two ways:
 | **zarith** | Numerics | 1 (15000 digits of pi) | 7s | |
 | **owl** | ML/Numerics | 1 (matrix/graph computation) | 16s | OpenBLAS, in-process iter loop |
 | **pplacer** | Bioinformatics | 1 (224-test phylogenetic suite) | 17s | GSL, sqlite3, env-var iter loop |
-| **ocamlc-self-compile** | Build tools | 1 (`ocamlc` on 400k-line workload) | 8.6s | single-process; closes Ephemeron + Marshal gaps |
+| **ocamlc-self-compile** | Build tools | 1 (`ocamlc` on 400k-line workload) | 8.6s | single-process; Marshal-heavy (.cmi/.cmo write), Bigarray emit buffer, Hashtbl-scale TypeHash. Does **not** exercise Ephemerons — verified against 5.4.1 and trunk compiler-libs |
 | **liquidsoap-lang** | DSL compiler | 1 (parse+typecheck 50k iterations) | 26s | Jane Street PPX (≥ 5.3) |
 | **liq-video-frames** | GC pacer / off-heap | 1 (`pool` — refcounted-pool Bigarrays, 30k 1280×720 YUV420 frames) | 4-20s | Probes [#14533](https://github.com/ocaml/ocaml/issues/14533) — 3-plane YUV420 Bigarrays per frame (mm-faithful, POOL=1+TOUCH=full); env knobs `LIQ_POOL`, `LIQ_DW_MB`, `LIQ_CHURN`, `LIQ_PACE_FPS` |
 | **merlin** | IDE / domains+effects | 1 (7 cram queries × N) | 16s | merlin-domains branch; **DISABLED — upstream race** |
 | **js_of_ocaml** | Compilers | 1 (compile runtime's ocamlc.byte to JS) | 7-9s | jsoo `ocaml-5.6` branch + cmdliner 2.1.0 |
-| **lavyek** | Multi-domain KV / Eio + kcas + io_uring | 4 (kv_1d, kv_2d, kv_4d, kv_8d) | 6-25s | OCaml ≥ 5.2; per-domain CPU pinning via `ocaml-processor` |
+| **lavyek** | Multi-domain KV / Eio + Atomic + io_uring | 4 (kv_1d, kv_2d, kv_4d, kv_8d) | 6-25s | OCaml ≥ 5.2; per-domain CPU pinning via `ocaml-processor`. (Note: imports `kcas`/`kcas_data` in `dune-project` but the in-memory index is actually hand-rolled `Atomic.*` — kcas is unused in source) |
 
 ### Runtime compatibility
 
@@ -248,21 +248,21 @@ profile (`obelisk-2026-04-21` baseline, post-calibration).
 **Profile.** wall ≈ 8.6s on `5.4.1/baseline`, gc_overhead 33%, **4384 minor / 16 major collections, 1.0 GB RSS, promoted_pct 12.5%**. Cross-variant spread is small (8.3–10.0s, ~20%) because the workload is uniform.
 
 **OCaml features.**
-- **Ephemeron tables** in `typing/btype.ml` — used for type hash-consing. This is the canonical real-world ephemeron workload.
-- **Hashtbl** at scale — environment lookups, scope tables, term-hashing.
+- **Hashtbl at scale** — `typing/btype.ml:46 module TypeHash = Hashtbl.Make (...)` for type hash-consing, plus environment lookups, scope tables, term-hashing. (We previously claimed this used `Ephemeron`; verified absent — `grep -rn Ephemeron typing/ bytecomp/ driver/ utils/` returns nothing in 5.4.1 *and* in d8bb46c/trunk.)
 - **AST allocation** — `Parsetree.structure` blocks per top-level item; lots of small `Location.loc` wrappers.
 - **`Format` module** for diagnostic printing (lazily — most warnings don't fire).
-- **`Marshal`** — every successful compilation writes a `.cmi` (the typed signature). The serialised structure includes hashed type names.
+- **`Marshal`** — every successful compilation writes a `.cmi` (`file_formats/cmi_format.ml:87` — `Compression.output_value oc (cmi.cmi_name, cmi.cmi_sign)`) and a `.cmo` (`bytecomp/emitcode.ml:33` — `Marshal.to_channel outchan obj`). Bulk Marshal at the end of each compilation.
+- **`Bigarray.Array1`** — the bytecode emit buffer is a `(char, int8_unsigned_elt, c_layout) Bigarray.Array1.t` (`bytecomp/emitcode.ml:53`), grown via `Bigarray.Array1.blit`/`sub`. The hot allocation path in bytecode emission goes through Bigarray.
 - **Polymorphic `compare` on AST nodes** (used by some passes for canonicalisation).
 
 **Why `ocamlc` (bytecode) and not `ocamlopt` (native).** With `ocamlopt`, flambda variants run *additional* compiler passes (the flambda IR optimisation pipeline) — so cross-variant deltas conflate "runtime perf" with "flambda does extra work". With `ocamlc`, the same pipeline runs everywhere, so cross-variant deltas reflect runtime performance only. (In our 4× 5.4.1 measurement: ocamlc spread is 1.39–1.51s, ≈ 8%; ocamlopt spread is 3.09–6.41s, ≈ 2×.)
 
 **Diagnostic value.** Strongest single signal in the suite for:
-- **Ephemeron** code paths (`caml_ephe_*`).
-- **Marshal** serialisation.
+- **Marshal** serialisation (`.cmi` + `.cmo` writeout — bulk at end of compilation).
 - **Hashtbl** scaling under realistic key/value sizes.
+- **Bigarray.Array1** emit-buffer allocation and `blit`/`sub` cost (small, but in the hot bytecode-emission loop).
 
-Pairs with `liq_parse_typecheck` (also AST-shaped). Movement on ocamlc_self_compile but not liq → likely Ephemeron or Marshal specifically. Movement on both → general AST-allocation path. Movement on `coqc_corelib_stress` *and* `ocamlc_self_compile` → minor-allocator fast path.
+Pairs with `liq_parse_typecheck` (also AST-shaped). Movement on ocamlc_self_compile but not liq → likely Marshal or `cmi_format`-specific. Movement on both → general AST-allocation path. Movement on `coqc_corelib_stress` *and* `ocamlc_self_compile` → minor-allocator fast path.
 
 #### `jsoo` — js_of_ocaml on the runtime's own `ocamlc.byte`
 
@@ -319,7 +319,7 @@ The wrapper exec's a single OCaml binary that does the same `Domain.spawn @@ Mpi
 - **Effects** for the partial-typing / cancellation control flow (the typer can be aborted mid-run when a new request arrives).
 - **`Atomic`** state for the cancellation flag and the shared message channel (`Domain_msg.t`).
 - **Cross-domain GC marking** — pipeline results promoted on the typer domain end up reachable from main.
-- A real-world OCaml typer workload — covers `Env`, `Typecore`, `Typeclass`, ephemeron-backed type variable tables, `Marshal` (the typer's caching layer).
+- A real-world OCaml typer workload — covers `Env`, `Typecore`, `Typeclass`, `Marshal` (the typer's caching layer / `persistent_env`). The vendored merlin typer at `duniverse/merlin/src/ocaml/typing/` uses **`Hashtbl.Make`** (not `Ephemeron`) for its type-hash tables, matching upstream OCaml ≥ 5.3. Merlin itself has one `Ephemeron.K1`-backed table (`saved_parts.ml:3`) that stashes parse-tree fragments by gensym'd string — touched at parse time but not in the typer hot path, so this is the *closest thing* to an ephemeron workload in the suite but still cold.
 
 **Diagnostic value.** This is the *only* benchmark that exercises a 2-domain steady-state workload with non-trivial cross-domain communication. What it catches:
 - Changes in `Domain.spawn` / `Domain.join` cost (creation/teardown is once per run, but matters at small N).
@@ -346,7 +346,7 @@ Four cells differ only in the domain count: `lavyek_kv_1d` (1 domain), `2d`, `4d
 **OCaml features.**
 - **Multi-domain parallelism** via Eio's `Domain_manager.run` (real OS threads, not just fibers). 1d/2d/4d/8d covers the spectrum: single domain (baseline), low parallelism (2), moderate (4), high (8, > NUMA-node-size on many boxes).
 - **Effects** — Eio's `Fiber.fork_promise`, `Fiber.all`, `Fiber.yield`, `Eio.Stream` all go through `Effect.perform` + deep `try_with`. Far more effect traffic than `eio_fiber_stream` (the only other Eio benchmark), spread across multiple domains.
-- **kcas** (lock-free MCAS) — the in-memory index is a kcas-based hash table. Every put/get touches at least one MCAS; cross-domain contention scales with N.
+- **Raw `Atomic.*` lock-free structures** — the in-memory index, the compaction queue, and the Bloom filter all use hand-rolled `Atomic.compare_and_set` / `Atomic.fetch_and_add` loops (`duniverse/lavyek/src/memtable.ml`, `chunk_file.ml`, `compact.ml`, `memfilter.ml`). **Note:** lavyek's `dune-project` and `src/dune` list `kcas` + `kcas_data` as dependencies, but `grep -rn 'Kcas\.\|Kcas_data\.\|Loc\.' duniverse/lavyek/src/` returns nothing — the imports are vestigial (see `duniverse/lavyek/REMOVED.md:22`). **No benchmark in the suite actually exercises kcas / lock-free MCAS** — it remains a coverage gap (see below).
 - **`Atomic.fetch_and_add`** on a shared counter to dispatch chunks — under heavy contention at 8d, this is itself a measurable cost.
 - **io_uring** (via `eio_linux`) for the WAL writes. Each domain creates its own `iou-wrk-*` helper kernel-side thread; per-domain ring size is governed by `OCAMLRUNPARAM` (re=22 → 4 MB ring/domain at md=8).
 - **Per-domain `pthread_setaffinity_np`** (via `ocaml-processor`) — the only benchmark in the suite that exercises this; covers a coverage gap that previously made multi-domain timings non-reproducible.
@@ -646,9 +646,11 @@ Pairs with `devkit_stre` (also string-heavy) — co-movement points at the strin
 **OCaml features.**
 - **Native `.why` parser frontend** (yyll) vs **Dolmen `.smt2` frontend** (unsat).
 - **Theory backends** — DPLL+T, congruence-closure, integer arithmetic, bitvector — most of the work is here.
-- **`Hashtbl`** at scale for term-hashing.
+- **`Weak.Make` for term hash-consing** — `alt-ergo/src/lib/util/hconsing.ml:51 module Make (H : HashedType) : S with type elt = H.t = struct let storage = WHT.create initial_size ...` where `WHT = Weak.Make (H_t)`. Every theory term constructor goes through this weak hashset to deduplicate structurally identical subterms. This is the suite's **only** hot-path `Weak`-array workload.
+- **`Hashtbl`** at scale for term-hashing (independent of the Weak-hashset above — used in solver state, CDCL clause databases, theory lemma caches).
+- **`Sys.set_signal`** — `alt-ergo/src/bin/common/signals_profiling.ml:32-89` installs handlers for `SIGINT` (Ctrl-C), `SIGVTALRM` (`--timelimit` enforcement), `SIGPROF` (profiler). On `alt_ergo_unsat_smt2` the timer is *armed* (`--timelimit 15`) and may fire at the end of a long solve; on `fill`/`yyll` no `--timelimit` is passed so the handlers are registered but inert. **No benchmark stresses high-frequency signal delivery**, but the registration/unregistration path is exercised by all three.
 
-**Diagnostic value.** Three alt-ergo benchmarks (`fill`, `yyll`, `unsat_smt2`) that all move together → suspect alt-ergo's theory backends. Movement on only `unsat_smt2` → Dolmen frontend. Movement on `fill` and `yyll` but not `unsat_smt2` → native frontend.
+**Diagnostic value.** Three alt-ergo benchmarks (`fill`, `yyll`, `unsat_smt2`) that all move together → suspect alt-ergo's theory backends *or* the `caml_weak_*` runtime (every term construction touches the weak hashset). Movement on only `unsat_smt2` → Dolmen frontend (or signal-handler interaction at timeout). Movement on `fill` and `yyll` but not `unsat_smt2` → native frontend. Movement on all three *but not on any other benchmark* → strongly suspect `Weak.Make` / weak-pointer cleaning.
 
 #### `menhir_sql_parser` and `menhir_sysver`
 
@@ -691,25 +693,98 @@ Pairs with `devkit_stre` (also string-heavy) — co-movement points at the strin
 | `ocamlc_self_compile` | 8.6 | 33 | minor-heavy + Ephemeron | Ephemeron tables, Marshal (.cmi), Hashtbl, AST allocation |
 | `jsoo` | 7.2 | 33 | minor + IR construction | jsoo bytecode parser, SSA dataflow, JS codegen |
 | `lavyek_kv_1d` | 25 | — | I/O + kcas + Eio | single-domain Eio scheduler, kcas MCAS, io_uring |
-| `lavyek_kv_2d` | 14 | — | I/O + multi-domain | 2-domain parallel scaling, cross-domain kcas |
+| `lavyek_kv_2d` | 14 | — | I/O + multi-domain | 2-domain parallel scaling, cross-domain Atomic contention |
 | `lavyek_kv_4d` | 8 | — | I/O + multi-domain | 4-domain parallel scaling (calibrated cell) |
 | `lavyek_kv_8d` | 6 | — | I/O + multi-domain | 8-domain scaling, Atomic contention, GC pacer |
 
-### Coverage gaps — what NO benchmark exercises
+### Runtime-feature coverage matrix
+
+Tags are assigned based on **source-grounded** inspection of each
+benchmark's hot path: read the driver `.ml` and `grep` the vendored
+tool for actual uses of the listed primitive. We do **not** trust
+upstream feature lists — only what is reachable from the workload we
+run. Notation:
+
+- **●** — used on the workload's hot path.
+- **○** — present in the codebase but cold (init only, error path,
+  rare event, or a different code path that this workload doesn't
+  hit).
+- *(empty)* — not used at all.
+
+| Tag | Runtime mechanism | ● hot-path benchmarks | ○ cold benchmarks |
+|---|---|---|---|
+| **minor-gc** | `caml_alloc_small` fast path, young-ptr bump | coqc_corelib_stress, menhir_*, alt_ergo_*, zarith_pi, sedlex_tokenize, devkit_{network,htmlstream,stre}, cpdf_*, ydump_repeat, liq_parse_typecheck, ocamlc_self_compile, jsoo, ocamlformat_rocq | — |
+| **major-promotion** | minor→major copy, slice work | liq_parse_typecheck, ydump_repeat, test_decompress, eio_fiber_stream | most allocation-light benches |
+| **custom-block finalisation** | `caml_alloc_custom_mem` + `finalize` cb; `caml_ba_finalize` for Bigarrays | zarith_pi (`Z.t`, `Zarith/caml_z.c:323` via `caml_alloc_custom`), owl_gc (`Bigarray.Array2`, internal `caml_ba_alloc`), liq_video_frames_pool (Y/U/V Bigarrays + `pool_stubs.c` `caml_alloc_custom_mem`), test_decompress (Bigstringaf), devkit_gzip (`z_stream` custom block, `camlzip/zlibstubs.c:61-67`), pplacer (GSL Vector/Matrix, sqlite3 statement handles) | — |
+| **explicit `Gc.finalise`** | `caml_final_register` from user OCaml | pplacer (`gsl-ocaml/src/sum.ml:Gc.finalise _free ws`, plus `rng.ml`, `odeiv.ml`, `eigen.ml`, `integration.ml`) | merlin_bench (`mreader_extend.ml:52`, on a process handle — not the merlin_bench query path) |
+| **`Bigarray` allocation** | Bigarray `caml_ba_alloc` (custom blocks + off-heap byte data) | owl_gc (100×100 Float64 Array2, hot), liq_video_frames_pool (1280×720 YUV420, hot), test_decompress (Bigstringaf I/O buffers), ocamlc_self_compile (`bytecomp/emitcode.ml:53` — bytecode emit buffer is `(char, int8_unsigned_elt, c_layout) Bigarray.Array1.t`) | — |
+| **off-heap accounting / `custom_major_ratio` (M)** | `caml_alloc_custom_mem` mem-tracking → pacer | liq_video_frames_pool (the **only** benchmark whose wall+RSS Pareto front actually moves with M — this is the [#14533](https://github.com/ocaml/ocaml/issues/14533) repro) | owl_gc, zarith_pi, test_decompress all *allocate* custom blocks but at sizes too small to swing pacer policy |
+| **`Ephemeron.K1/K2/Kn`** | `caml_ephe_*` | — (**verified gap**) | merlin_bench's `saved_parts.ml:3` (cold; bench disabled), coq's `clib/cEphemeron.ml` (used by VM backend, but `coq_corelib_stress.v` is kernel-only and never touches it) |
+| **`Weak.Make` / weak refs** | `caml_weak_*` | alt_ergo_{fill,yyll,unsat_smt2} — `alt-ergo/src/lib/util/hconsing.ml:51 module Make ... WHT.create initial_size` where `WHT = Weak.Make`. Every theory-term constructor goes through this weak hashset. **Suite's only hot-path Weak workload.** | — |
+| **`Marshal.{to,from}_*`** | `caml_output_value*` / `caml_input_value*` | ocamlc_self_compile (`.cmi` via `file_formats/cmi_format.ml:87`; `.cmo` via `bytecomp/emitcode.ml:33`) | liquidsoap-lang (`cache.ml:75` — disabled at default), jsoo (`compiler/lib/parse_bytecode.ml:462` — one-shot custom-block introspection), coq (`nativevalues.ml` — native backend not exercised by `coq_corelib_stress.v`), merlin's `persistent_env` (cold), alt-ergo (`satml.ml:2206` — commented out) |
+| **`Effect.perform` (OCaml 5)** | `caml_perform_*`, deep `try_with` | eio_fiber_stream (every `Eio.Stream.add/take` and `Fiber.both/all` performs effects — `lib_eio/core/suspend.ml:6`, `fiber.ml:11`, `cancel.ml`), lavyek_kv_*d (every fiber spawn/yield/await — far higher rate than eio_fiber_stream because of many fibers × N domains) | merlin_bench's cancellation control flow (disabled) |
+| **`Domain.spawn` / `Domain.join`** | `caml_domain_*` | lavyek_kv_{2,4,8}d (via `Eio.Domain_manager.run` — real OS threads, one per domain), merlin_bench (one typer worker — disabled) | lavyek_kv_1d (allocates a domain manager but never spawns a child domain) |
+| **`Atomic.*` (hot)** | `caml_atomic_*` | lavyek_kv_*d (`chunk_file.ml`, `memtable.ml:25-67`, `memfilter.ml`, `compact.ml` — CAS loops on bucket arrays, Bloom-filter bits, compaction queues; also `lavyek_bench.ml`'s `Atomic.fetch_and_add` chunk dispatcher), eio_fiber_stream (`lib_eio/sem_state.ml`, `lazy.ml` — Atomic exchange / CAS on every Stream op), merlin_bench (`Domain_msg.t` cancellation flag — disabled) | ocaml-re internals do Atomic at *regex compile time*, so devkit_{stre,htmlstream,network,gzip} see Atomic only in compile-once init |
+| **kcas / lock-free MCAS** | n/a (library-level) | — (**verified gap**: lavyek's `dune-project` imports `kcas` + `kcas_data` but `grep -rn 'Kcas\.\|Kcas_data\.\|Loc\.' duniverse/lavyek/src/` returns nothing; see `duniverse/lavyek/REMOVED.md:22`) | — |
+| **`Sys.set_signal`** | `caml_install_signal_handler` | alt_ergo_unsat_smt2 (`--timelimit 15` *arms* `SIGVTALRM` via `alt-ergo/src/bin/common/signals_profiling.ml:32`; fires if solving runs over) | alt_ergo_{fill,yyll} (`SIGINT`+`SIGPROF` handlers installed but never fire); coq has its own SIGINT for Ctrl-C but the kernel-only workload doesn't trigger it. **No benchmark exercises high-frequency signal delivery.** |
+| **`Lazy.force` (hot)** | `caml_call_lazy` | liq_parse_typecheck (`typechecking.ml:386`), jsoo (`inline.ml:195,429,714` — `in_loop` and `has_closures` forced per inline decision), menhir_* (`invariant.ml` — invariants forced during conflict resolution) | many cold init lazies (alt-ergo profiling stats, decompress error formatting, ocaml-re regex compile) |
+| **`Format` (hot)** | `Format.{fprintf,pp_*}` | menhir_* (codegen + table dumps), ocamlformat_rocq (the entire workload), liq_parse_typecheck (type printing), alt_ergo_* (debug + diagnostic output even when not enabled), zarith_pi (`Z.output` via Printf/Format) | most other benches use Format only on error paths that don't fire |
+| **`Hashtbl` at scale** | `caml_hash` | menhir_* (LR state tables — `LRijkstraClassic.ml:849` hash-cons of states; conflict tables), ocamlc_self_compile (`typing/btype.ml:46 module TypeHash`), alt_ergo_* (solver state, CDCL clause db), cpdf_* (`camlpdf/pdf.ml:118` — object map of `(int, objectdata ref * int) Hashtbl.t`), irmin_mem_rw (`irmin_mem.ml:44`), liq_parse_typecheck (`repr.ml:97,100,104,136,155,158` — `evars` tables), pplacer (`vendor/pplacer/pdprune_src/ptree.ml:4` — phylo tree `(int, edge) Hashtbl.t`), devkit_* (NAT tables, transformation caches) | most others touch Hashtbl only at trivial scale |
+| **Lwt promises** | `Lwt.bind` continuations | irmin_mem_rw (every store op — write 3 000, read 3 000, then 20 000 mixed) | — |
+| **Eio fibers (effects layer)** | `Eio.Fiber.*`, `Eio.Stream`, `Eio.Switch` | eio_fiber_stream, lavyek_kv_*d | — |
+| **io_uring (real syscalls)** | `Uring.t` via `eio_linux` stubs | lavyek_kv_*d (per-domain WAL writes — every put goes through the ring) | eio_fiber_stream is pure in-memory Stream; **no io_uring traffic** despite using Eio |
+| **CPU pinning** | `pthread_setaffinity_np` via `ocaml-processor` | lavyek_kv_*d (`benchmarks/lavyek/lavyek_bench.ml:59` — `Processor.Affinity.set_cpus`) | — |
+| **OpenBLAS / GMP / GSL / sqlite3 / zlib C stubs in inner loop** | bulk FFI | owl_gc (OpenBLAS GEMM per `Mat.dot`), zarith_pi (GMP per arithmetic op), pplacer (GSL+sqlite3), devkit_gzip (zlib via `camlzip`) | test_decompress is *pure-OCaml zlib* — explicitly an FFI-free counterpart |
+| **`Gc.compact` / `Gc.full_major` forced** | `caml_compact_heap`, `caml_finish_major_cycle` | — (**verified gap**) | eio's `bench/` utilities call `Gc.full_major` but only outside the benchmark hot path |
+| **`Gc.alarm` callbacks** | `caml_final_register_*`-style alarm | — (**verified gap**) | — |
+
+### Per-benchmark tag summary
+
+Reverse index for quick lookup. Hot-path tags only.
+
+| Benchmark | Hot-path tags |
+|---|---|
+| `coqc_corelib_stress` | minor-gc, constructor-alloc |
+| `eio_fiber_stream` | effects, atomics, eio-fibers, major-promotion |
+| `merlin_bench` *(disabled)* | domains, effects, atomics, hashtbl, format; cold: ephemerons, Gc.finalise |
+| `lavyek_kv_1d` | atomics, effects, eio-fibers, io-uring, pthread-affinity, hashtbl |
+| `lavyek_kv_{2,4,8}d` | **domains**, atomics, effects, eio-fibers, io-uring, pthread-affinity, hashtbl |
+| `liq_parse_typecheck` | hashtbl, lazy, format, major-promotion, minor-gc |
+| `ydump_repeat` | minor-gc, major-promotion, recursive-variants |
+| `test_decompress` | bigarray, custom-block-finalisation (Bigstringaf), major-promotion (pure-OCaml zlib) |
+| `pplacer_testsuite` | **Gc.finalise**, custom-block-finalisation (GSL+sqlite3), ffi-stubs, hashtbl, minor-gc |
+| `owl_gc` | bigarray, custom-block-finalisation (Bigarray Array2), ffi-stubs (OpenBLAS), minor-gc |
+| `liq_video_frames_pool` | bigarray, custom-block-finalisation, **off-heap accounting (M-sweep)** |
+| `zarith_pi` | custom-block-finalisation (`Z.t`), ffi-stubs (GMP), minor-gc, format(cold) |
+| `devkit_gzip` | custom-block-finalisation (z_stream), ffi-stubs (zlib), hashtbl, buffer |
+| `devkit_stre` | hashtbl, minor-gc, buffer, string-allocator |
+| `devkit_network` | hashtbl, int32-boxing, minor-gc |
+| `devkit_htmlstream` | hashtbl, buffer, minor-gc |
+| `sedlex_tokenize` | bytes, ppx-match, string-allocator, minor-gc |
+| `ocamlformat_rocq` | **format**, buffer, minor-gc |
+| `cpdf_{merge,blacktext,scale,squeeze}` | hashtbl (object map), bytes mutation, minor-gc; no FFI |
+| `alt_ergo_fill, alt_ergo_yyll` | **weak-refs (Weak.Make hash-consing)**, hashtbl, format |
+| `alt_ergo_unsat_smt2` | **weak-refs**, hashtbl, format, **signals (SIGVTALRM armed by `--timelimit 15`)** |
+| `menhir_{ocamly,sql_parser,sysver}` | hashtbl, format, lazy, minor-gc |
+| `ocamlc_self_compile` | hashtbl, **marshal (`.cmi`+`.cmo` writeout)**, bigarray (emit buffer), minor-gc |
+| `jsoo` | hashtbl, lazy, marshal(cold) |
+
+### Coverage gaps — verified
 
 A regression in any of these areas would **not** be caught by the
-current suite:
+current suite. Each entry was checked by `grep -rn` against the actual
+vendored source.
 
-- ~~**`Ephemeron`**~~ — covered by `ocamlc_self_compile` (the OCaml typer's hash-consing tables).
-- ~~**`Marshal`**~~ — covered by `ocamlc_self_compile` (`.cmi` writing).
-- **`Weak` arrays** — used by hash-consing libraries directly. No benchmark loads or churns a weak-array.
-- ~~**Multi-domain parallelism**~~ — covered by the `lavyek_kv_{1,2,4,8}d` suite (Eio + kcas + io_uring KV store with 1/2/4/8 worker domains over a fixed 10 M-op budget; per-domain CPU pinning via `ocaml-processor` makes 1d→8d wall scaling reproducible across runs). `merlin_bench` was meant to cover the 2-domain case with effects/cancellation, but is currently **disabled** because of an upstream race (see [`benchmarks/merlin/UPSTREAM_BUG.md`](benchmarks/merlin/UPSTREAM_BUG.md)); when re-enabled it complements lavyek on the cancellation/handoff axis. **`Domainslib`-style work-stealing pools** are still not exercised (lavyek dispatches via a manual `Atomic.fetch_and_add` counter) — tracked in TODO.md.
-- **`Gc.alarm` / `Gc.create_alarm`** user callbacks — if the alarm machinery changed, no benchmark would notice.
-- **`Gc.compact` interaction with finalisers** — owl_gc has finalisers but never forces compaction.
-- **Hot inner-loop float computation** isolating flambda's effect — owl_gc is closest but defers to BLAS, so flambda has nothing to optimise. A pure-OCaml numerical kernel (`Array.iter`, no allocation in the inner loop) would catch flambda regressions cleanly. Phase 2 candidate (raytracer / nbody from Sandmark).
-- **`Sys.set_signal` / signal-handler invocation** in tight loops.
-- **`Bigarray` slicing and reshape** — owl_gc creates and uses Array2 but doesn't exercise slicing-heavy patterns.
-- **Polling-points / safe-point** density — no benchmark stresses the cooperative-cancellation path that depends on poll insertion.
+- **`Ephemeron.K1 / K2 / Kn`** — verified **gap**. The OCaml compiler-libs at 5.4.1 and trunk use `Hashtbl.Make` (not `Ephemeron`) for type hash-consing in `typing/btype.ml` and `typing/types.ml`. Merlin has one cold use in `saved_parts.ml` (and merlin_bench is disabled anyway). Coq's `clib/cEphemeron.ml` is only reached by the VM backend, which `coq_corelib_stress.v` (kernel reduction only) does not exercise. **No benchmark exercises ephemerons on a hot path.** This is the cleanest gap in the suite.
+- **kcas / lock-free MCAS** — verified **gap**. Lavyek imports `kcas`/`kcas_data` in `dune-project` but `grep -rn 'Kcas\.\|Kcas_data\.\|Loc\.' duniverse/lavyek/src/` returns nothing — the imports are vestigial (`duniverse/lavyek/REMOVED.md:22` documents the removal of `Kcas_data.Queue`). A small standalone benchmark wrapping `kcas` directly would close this.
+- **Domainslib work-stealing pools** — still uncovered (lavyek dispatches via a manual `Atomic.fetch_and_add` counter; eio uses fibers, not work-stealing).
+- **`Gc.compact` / `Gc.full_major` in a hot loop** — no benchmark forces a full GC. Compaction interaction with finalisers is therefore untested by user-forced path; the runtime is free to compact on its own schedule but a forced-compact benchmark would catch interaction bugs.
+- **`Gc.alarm` / `Gc.create_alarm`** — no benchmark registers one. If alarm machinery changed, the suite would silently miss it.
+- **High-frequency signal delivery in tight loops** — alt-ergo *registers* signal handlers (SIGVTALRM/SIGINT/SIGPROF) but they fire at most once per run. No benchmark exercises rapid user-signal delivery.
+- **Pure-OCaml hot inner-loop float computation** isolating flambda — owl_gc defers to OpenBLAS, so flambda has nothing to optimise in the inner loop. A pure-OCaml numerical kernel (`Array.iter`, no allocation in the inner loop) would catch flambda regressions cleanly. Phase 2 candidate (raytracer / nbody from Sandmark).
+- **`Bigarray` slicing and reshape patterns** — owl_gc creates and uses Array2 but doesn't exercise slicing-heavy patterns; liq_video_frames_pool fills planes without slicing.
+- **Polling-points / safe-point density** — no benchmark stresses the cooperative-cancellation path that depends on poll-insertion frequency.
+- **Direct user `Effect` handlers** (outside Eio) — every effect-perform in the suite goes through Eio's handlers. A bug specific to a user-defined `Effect.Deep.try_with` outside Eio would slip through.
 
 These are candidates for future benchmarks. If a runtime change
 touches one of those areas, the current suite won't catch it — flag
