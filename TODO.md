@@ -136,12 +136,12 @@ exercises shared-heap / cross-domain GC).
 **Status.** Filed 2026-05-01, scheduled to dig in 2026-05-04 (Mon).
 
 
-## GC-parameter sweep on `liq_video_frames` and related — 2026-05-01
+## GC-parameter sweep on `liq_video_frames_pool` and related — 2026-05-01
 
 **Why.** Our cross-runtime matrix uses a single OCAMLRUNPARAM (`re-25,md-2`,
 default `o`=120, default `s`) for every cell. Issue [ocaml/ocaml#13123]
 showed that `o=40` recovers the 4.14-era memory footprint on the
-liquidsoap workload, and our `liq_video_frames` smoke confirmed the
+liquidsoap workload, and our `liq_video_frames_pool` smoke confirmed the
 default `o`=120 leaves ~80 MiB of "extra" RSS the pacer doesn't need.
 Running every cell with a single default risks hiding real
 runtime-vs-runtime wins/losses because the optimum (`s`, `o`) almost
@@ -149,7 +149,7 @@ certainly differs across runtimes (e.g. d8bb46c's pacer change shifts
 the wall vs RSS Pareto curve).
 
 **Plan.**
-1. **Parameter sweep on `liq_video_frames`** — for each runtime in the
+1. **Parameter sweep on `liq_video_frames_pool`** — for each runtime in the
    8-variant matrix, sweep:
    - `s` (minor heap size, default 256 Kwords = 2 MiB):
      `{128K, 256K, 512K, 1M, 2M, 4M}` words
@@ -166,9 +166,9 @@ the wall vs RSS Pareto curve).
    `owl_gc` (off-heap small Bigarrays), `zarith_pi` (off-heap custom
    blocks), `liq_parse_typecheck` (promotion-heavy on-heap),
    `ocamlc_self_compile` (minor-heavy Ephemeron), and the existing
-   `liq_video_frames` (off-heap large Bigarrays). Different optima
-   across these buckets is the interesting finding — single global
-   default cannot satisfy all.
+   `liq_video_frames_pool` (off-heap refcounted-pool Bigarrays).
+   Different optima across these buckets is the interesting finding —
+   single global default cannot satisfy all.
 4. **Re-run the 8-variant cross-runtime comparison** with each
    benchmark using its **per-runtime optimal** `(s, o)`. Compare
    against the default-parameter matrix from

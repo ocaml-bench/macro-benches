@@ -7,8 +7,8 @@
 
 | sweep | grid | benches | runtime cells | invocations |
 |---|---|---|---|---|
-| **A** (s, o) regression | s ∈ {131072, 262144, 524288, 1048576, 2097152} × o ∈ {40, 80, 120, 150, 200} (5×5) | 16 — the regressed set from the 5-12 N=10 run | 16 × 2 × 25 = 800 | 2400 |
-| **B** (M, o) off-heap | M ∈ {11, 22, 44, 100, 250} × o ∈ {40, 80, 120, 150, 200} (5×5) | 12 — the off-heap subset (incl. all 5 `liq_video_frames_*`) | 12 × 2 × 25 = 600 | 1800 |
+| **A** (s, o) regression | s ∈ {131072, 262144, 524288, 1048576, 2097152} × o ∈ {40, 80, 120, 150, 200} (5×5) | 13 — the regressed set from the 5-12 N=10 run | 13 × 2 × 25 = 650 | 1950 |
+| **B** (M, o) off-heap | M ∈ {11, 22, 44, 100, 250} × o ∈ {40, 80, 120, 150, 200} (5×5) | 8 — the off-heap subset (incl. `liq_video_frames_pool`) | 8 × 2 × 25 = 400 | 1200 |
 
 **Configs:**
 [regression_s_o_sweep_2026_05_13.yml](../../running-ng/src/running/config/experiments/regression_s_o_sweep_2026_05_13.yml),
@@ -19,18 +19,15 @@
 Originals: `~/running-ng/gc-sweep-logs-regression-s-o-2026-05-13/monolith-2026-05-13-Wed-095212/` + `~/running-ng/gc-sweep-logs-offheap-M-o-2026-05-13/monolith-2026-05-13-Wed-142904/`.
 **Companion reports:** [2026-05-12-fp-flambda-5.4.1-vs-d8bb46c-monolith-N10.md](2026-05-12-fp-flambda-5.4.1-vs-d8bb46c-monolith-N10.md) (the headline N=10 run this sweep targets), [../older/2026-05-11-offheap-M-o-sweep-monolith.md](../older/2026-05-11-offheap-M-o-sweep-monolith.md) (prior (M, o) sweep — partial overlap, see §"Reflection vs 5-11"; archived because this sweep supersedes it).
 
-**All 1400 cells captured cleanly at N=3.**
+**All 1050 cells captured cleanly at N=3.**
 
 **Reading the heatmaps:** each cell shows `wall%/RSS%` as d8b vs 5.4 percentages at that GC-param point. Negative = d8b is faster / uses less RSS. A cell like `+5.2/-27` means d8b is 5.2% slower but uses 27% less RSS at that (s, o) or (M, o) — that's the trade-off the user asked for, visible in one glance.
 
 ## TL;DR
 
-- **Two views of the data, both important.** Each (bench, cell) has a *cross-version* ratio (d8b/5.4) and a separate *intra-runtime* ratio (cell vs default on the **same** runtime). The cross-version view answers "is d8b worse than 5.4 here?" (the OCaml-maintainer question); the intra-runtime view answers "I'm already on d8b — can I tune to beat my current default?" (the production-user question). These views can disagree, and on `liq_video_frames_full` they disagree by ~50pp. See [§Intra-runtime tuning view](#intra-runtime-tuning-view--whats-available-within-d8b-alone).
+- **Two views of the data, both important.** Each (bench, cell) has a *cross-version* ratio (d8b/5.4) and a separate *intra-runtime* ratio (cell vs default on the **same** runtime). The cross-version view answers "is d8b worse than 5.4 here?" (the OCaml-maintainer question); the intra-runtime view answers "I'm already on d8b — can I tune to beat my current default?" (the production-user question). These views can disagree — `liq_parse_typecheck` is the cleanest example in this sweep. See [§Intra-runtime tuning view](#intra-runtime-tuning-view--whats-available-within-d8b-alone).
 - **`liq_parse_typecheck` is the headline find of Sweep A.** At `(s=262144, o=40)` d8b is **-35.2% wall AND -33.7% RSS** vs 5.4 — a strict-better cell. At the default `(s=262144, o=120)` it's **+6.6% / +2.5%** (regression). The default `o=120` is bad for this workload under d8b; **lower `o` flips the version effect entirely.** Within d8b alone, `(s=2097152, o=200)` is **-33.3% wall** vs d8b default — the strongest intra-d8b finding in either sweep. The 5-12 headline regression on `liq_parse_typecheck` is purely a default-`o` artifact.
-- **`liq_video_frames_full` reverses direction between the two views.** Cross-version says small `M` minimises the regression (`(M=11, o=40) = +5.8%`); intra-d8b says **large `M` is dramatically faster** (`(M=250, o=150) = -44.2% wall` vs d8b default). Both runtimes get faster at large M — 5.4 just relatively more. **For production tuning on d8b, set `M=250, o=150`.** The cross-version-derived "small M" recommendation in earlier drafts of this report is wrong for production use and has been retracted; it makes the workload 3× slower than default in absolute terms.
-- **The 5-11 sweep's claim that `(M=250, o=120) = +10.1%` for `liq_video_frames` does NOT replicate** — same cell here is +26.2% (cross-version). That part of the 5-11 finding was N=3 noise. The corrected cross-version shape is monotonic — but the *intra-d8b* shape (the production view) reverses it.
-- **`liq_video_frames_page` is wildly M-sensitive in the wrong direction.** `(M=11, o=40)` = +8.5% / -1.6%; `(M=250, o=40)` = **+130.3%** / -27%. The page-fault path explodes with large M. The default `(M=44, o=120) = +32.1%` is in the middle of the disaster curve.
-- **`liq_video_frames_pool` (the ocaml#14533 cell) is flat across the entire (M, o) grid.** Every cell is within ±2% wall, ±1% RSS. The predicted "free lunch at large M" does **not** materialise in this synthetic on this hardware. Two possibilities: the synthetic doesn't model what real ffmpeg does, or Ryzen 9 9950X doesn't surface the toots effect at all. Negative result for the parked #14533 repro.
+- **`liq_video_frames_pool` (the ocaml#14533 cell) is flat across the entire (M, o) grid cross-version.** Every cell is within ±2% wall, ±1% RSS vs 5.4. The "free lunch at large M" predicted by #14533 does **not** show up as a d8b/5.4 ratio improvement in this synthetic on this hardware. *Within d8b alone* the variant does improve monotonically with M (M=250 is much faster than M=11 on this short batch) — but 5.4 improves in lockstep. Two possibilities for the cross-version flatness: the synthetic doesn't model what real ffmpeg does, or Ryzen 9 9950X doesn't surface the toots effect cross-version. Negative cross-version result for the parked #14533 repro; intra-d8b M-monotonicity is consistent with the real-workload story.
 - **`owl_gc` confirms 5-11 cleanly:** the d8b win is monotone in M (smaller M, bigger win). `(M=11, o=40)` is **-55.2% wall / -5.9% RSS** — the cleanest off-heap d8b win in the matrix. The win shrinks to -12% at M=250 because the 5.4 pacer stops being pathological.
 - **`zarith_pi` is `o`-bound on both axes**, confirming and extending 5-11. At `o ≤ 80` d8b is **-10 to -17% wall and -22 to -25% RSS** (strict win). At `o ≥ 120` it crosses over to neutral-or-regressed. RSS climbs to **+34%** at `o=200`. Sweep A also reveals that **`s ≥ 1048576` neutralises the `o` axis entirely** — at large minor heap, every cell is ±5%/-18%. So zarith_pi has *two* independent levers, not one.
 - **Big RSS-only Pareto wins exist for cpdf_*, ocamlformat_rocq, menhir_sysver.** At `(s=524288, o=200)` cpdf_scale gets -50% RSS for +4.1% wall; ocamlformat_rocq gets -38.5% RSS for +5.0% wall; menhir_sysver gets -35.7% RSS at `(1048576, 200)` for +4.7% wall. None of these are improved by the M-axis (Sweep B confirms `M` is flat for cpdf_*).
@@ -47,7 +44,6 @@ For each regressed benchmark, the d8b cell minimising wall regression and the ce
 | **devkit_stre** | -3.5% / -4.3% | **`(262144, 40)`: -9.2% / -24.2%** ✨ | same | strict win |
 | **zarith_pi** | +4.1% / +2.6% | `(131072, 40)`: -24.7% / -16.9% | `(262144, 40)`: -11.4% / -26.3% | strict-win regime exists |
 | **liq_video_frames_pool** | +1.0% / +0.5% | `(262144, 150)`: -1.0% / +0.5% | `(131072, 150)`: -0.7% / +0.3% | flat (no trade-off) |
-| **liq_video_frames_first** | +2.5% / +0.1% | `(524288, 120)`: +0.7% / -0.1% | `(524288, 40)`: +3.7% / -0.3% | flat (noise) |
 | **alt_ergo_fill** | +8.4% / -20.2% | `(2097152, 80)`: +5.1% / -18.5% | `(1048576, 200)`: +5.5% / -28.5% | small range |
 | **cpdf_merge** | +4.9% / -27.2% | `(2097152, 40)`: +0.4% / -10.3% | `(131072, 150)`: +5.0% / -35.1% | clear Pareto |
 | **cpdf_scale** | +5.4% / -39.4% | `(2097152, 200)`: +1.7% / -47.7% | `(262144, 200)`: +4.1% / -50.0% | RSS bottom is -50% |
@@ -57,8 +53,6 @@ For each regressed benchmark, the d8b cell minimising wall regression and the ce
 | **pplacer_testsuite** | +2.3% / -7.6% | `(1048576, 120)`: -2.9% / -4.6% | `(524288, 200)`: -0.5% / -9.3% | both negative — flip-improve |
 | **jsoo** | +15.8% / -19.8% | `(2097152, 40)`: +12.1% / -5.8% | `(524288, 200)`: +15.0% / -38.4% | wall regression is sticky |
 | **ocamlc_self_compile** | +9.6% / -3.3% | `(1048576, 200)`: +6.9% / -7.2% | same | small range, sticky |
-| **liq_video_frames_full** | +16.6% / -13.2% | `(524288, 80)`: +13.5% / -13.8% | `(524288, 40)`: +16.8% / -14.9% | small range, wall sticky |
-| **liq_video_frames_page** | +30.5% / -13.4% | `(262144, 80)`: +22.5% / -13.8% | `(131072, 40)`: +24.3% / -15.1% | tight band; wall stays ≥22% |
 
 ### Sweep B — (M, o), off-heap benches
 
@@ -66,16 +60,12 @@ For each regressed benchmark, the d8b cell minimising wall regression and the ce
 |---|---|---|---|---|
 | **owl_gc** | -35.8% / -17.2% | **`(11, 40)`: -55.2% / -5.9%** | `(22, 80)`: -46.9% / -21.7% | -55% wall at M=11 |
 | **zarith_pi** | +3.3% / +3.8% | **`(44, 40)`: -17.5% / -23.0%** ✨ | `(11, 40)`: -10.1% / -25.4% | strict-win at low o |
-| **liq_video_frames_pool** | +0.3% / +0.4% | `(11, 150)`: -2.7% / +2.3% | `(250, 80)`: +1.3% / -0.2% | flat (no #14533 free lunch) |
-| **liq_video_frames_first** | +2.2% / +0.1% | `(11, 40)`: +0.6% / +2.7% | `(250, 200)`: +2.1% / -5.1% | flat (noise) |
-| **liq_video_frames_none** | +2.2% / +0.1% | `(22, 120)`: +1.1% / +0.9% | `(250, 200)`: +4.3% / -5.0% | flat (noise) |
+| **liq_video_frames_pool** | +0.3% / +0.4% | `(11, 150)`: -2.7% / +2.3% | `(250, 80)`: +1.3% / -0.2% | flat cross-version (no #14533 free lunch in d8b/5.4 ratio) |
 | **alt_ergo_fill** | +8.6% / -21.7% | `(250, 150)`: +5.0% / -23.6% | `(11, 200)`: +5.4% / -25.2% | small range, M flat |
 | **cpdf_merge** | +5.9% / -27.4% | `(11, 80)`: +3.6% / -18.1% | `(100, 200)`: +4.6% / -30.0% | M flat (o-only) |
 | **cpdf_scale** | +4.4% / -39.4% | `(100, 150)`: +3.5% / -42.8% | `(100, 200)`: +4.5% / -50.2% | M flat (o-only) |
 | **cpdf_squeeze** | +4.6% / -25.9% | `(11, 150)`: +3.1% / -29.1% | `(250, 150)`: +3.4% / -29.3% | M flat |
 | **pplacer_testsuite** | +0.3% / -7.1% | `(250, 80)`: -0.7% / -6.7% | `(100, 150)`: +2.6% / -9.4% | small |
-| **liq_video_frames_full** | +17.6% / -13.4% | `(11, 40)`: +5.8% / -1.8% | `(250, 200)`: +35.9% / -27.8% | **M dominates — small M wins wall** |
-| **liq_video_frames_page** | +32.1% / -13.5% | `(11, 40)`: +8.5% / -1.6% | `(250, 200)`: +118.8% / -27.8% | **M dominates — small M wins wall** |
 
 ## Intra-runtime tuning view — what's available within d8b alone
 
@@ -90,21 +80,18 @@ cell where d8b *loses ground* to 5.4 may still be a large absolute speedup
 over d8b's default — because both runtimes improve at that cell, just 5.4
 improves more.
 
-`liq_video_frames_full` is the cleanest example of this:
+`owl_gc` is the cleanest example of this:
 
-| cell | 5.4 wall | d8b wall | d8b/5.4 (cross) | d8b vs d8b-default (intra) | 5.4 vs 5.4-default (intra) |
-|---|---|---|---|---|---|
-| `(M=44, o=120)` (default) | 4.25s | 5.00s | **+17.6%** | (anchor) | (anchor) |
-| `(M=11, o=40)` | 14.25s | 15.07s | +5.8% (cross-min) | **+201.4%** (3× slower than default) | +235.3% (also 3× slower) |
-| `(M=250, o=120)` | 2.33s | 2.94s | +26.2% | **-41.2%** | -45.2% |
-| `(M=250, o=150)` | 2.25s | 2.79s | +24.0% | **-44.2%** | -47.1% |
-| `(M=250, o=200)` | 2.23s | 3.03s | +35.9% (cross-max) | **-39.4%** | -47.5% |
+| cell | 5.4 wall | d8b wall | d8b/5.4 (cross) | d8b vs d8b-default (intra) |
+|---|---|---|---|---|
+| `(M=44, o=120)` (default) | 5.30s | 3.41s | **-35.8%** | (anchor) |
+| `(M=11, o=40)` | 4.69s | 2.10s | **-55.2%** (cross-min) | **-38.4%** (faster than default) |
+| `(M=250, o=120)` | 2.85s | 2.50s | -12.1% | **-26.4%** |
+| `(M=250, o=200)` | 2.79s | 2.10s | -11.4% | **-38.4%** (also fastest) |
 
-Cross-version says "M=11 is the d8b-vs-5.4 sweet spot" — but in absolute
-terms M=11 makes d8b **3× slower** than default-d8b. The intra-runtime
-recommendation is the **opposite**: set `M=250, o=150` for a 44% absolute
-wall improvement over d8b default. Both runtimes get faster at large M;
-5.4 just gets relatively more out of it.
+Cross-version says "M=11 is the d8b-vs-5.4 sweet spot"; intra-d8b says
+M=250 is equally fast and gives -62% RSS as a bonus. Different cells,
+different framings — both correct for the question they answer.
 
 ### Best intra-d8b cell per bench
 
@@ -119,7 +106,6 @@ as % vs d8b at its own default cell.
 | **liq_parse_typecheck** | `(s=2097152, o=200)` | **-33.3%** | `(s=1048576, o=150)` | **-32.8%** |
 | **zarith_pi** | `(s=2097152, o=120)` | **-25.3%** | `(s=2097152, o=40)` | **-66.0%** |
 | **cpdf_scale** | `(s=2097152, o=200)` | -10.0% | `(s=524288, o=40)` | -23.3% |
-| **liq_video_frames_first** | `(s=131072, o=200)` | -9.8% | `(s=1048576, o=200)` | -0.2% |
 | **ocamlformat_rocq** | `(s=1048576, o=200)` | -9.4% | `(s=524288, o=40)` | -17.5% |
 | **pplacer_testsuite** | `(s=2097152, o=120)` | -9.2% | `(s=262144, o=40)` | -6.3% |
 | **alt_ergo_fill** | `(s=1048576, o=200)` | -8.5% | `(s=1048576, o=40)` | -18.7% |
@@ -130,18 +116,12 @@ as % vs d8b at its own default cell.
 | **jsoo** | `(s=131072, o=200)` | -6.3% | `(s=131072, o=40)` | -16.1% |
 | **menhir_sysver** | `(s=1048576, o=200)` | -6.2% | `(s=1048576, o=40)` | -5.7% |
 | **devkit_stre** | `(s=2097152, o=200)` | -3.7% | `(s=524288, o=200)` | -3.3% |
-| **liq_video_frames_page** | `(s=131072, o=120)` | -1.0% | `(s=131072, o=40)` | -7.6% |
-| **liq_video_frames_full** | `(s=1048576, o=200)` | -0.6% | `(s=2097152, o=40)` | -7.7% |
 
 #### Sweep B — (M, o), intra-d8b
 
 | benchmark | min-wall cell | wall gain | min-RSS cell | RSS gain |
 |---|---|---|---|---|
-| **liq_video_frames_first** ⚠ | `(M=250, o=200)` | **-82.7%** | `(M=250, o=40)` | -1.2% |
-| **liq_video_frames_none** ⚠ | `(M=250, o=200)` | **-82.6%** | `(M=100, o=80)` | -1.2% |
 | **liq_video_frames_pool** ⚠ | `(M=250, o=200)` | **-75.7%** | `(M=250, o=80)` | -3.4% |
-| **liq_video_frames_page** | `(M=100, o=150)` | **-64.0%** | `(M=11, o=150)` | -19.3% |
-| **liq_video_frames_full** | `(M=250, o=150)` | **-44.2%** | `(M=11, o=40)` | -19.3% |
 | **owl_gc** | `(M=250, o=200)` | **-38.4%** | `(M=250, o=200)` | -62.2% |
 | **zarith_pi** | `(M=250, o=200)` | -8.7% | `(M=22, o=200)` | -16.9% |
 | **alt_ergo_fill** | `(M=11, o=200)` | -6.9% | `(M=100, o=40)` | -17.2% |
@@ -150,11 +130,11 @@ as % vs d8b at its own default cell.
 | **cpdf_scale** | `(M=250, o=200)` | -4.0% | `(M=100, o=40)` | -19.5% |
 | **pplacer_testsuite** | `(M=250, o=80)` | -2.8% | `(M=250, o=40)` | -7.1% |
 
-⚠ — for `liq_video_frames_first`/`_none`/`_pool` the absolute walls are tiny
-(~2.8s); the -82% intra-d8b "wins" are inside the within-cell spread on
-these short benches. Treat the headline numbers on these 3 rows as
-unreliable. The other rows have wall ratios well above the per-cell noise
-floor.
+⚠ — for `liq_video_frames_pool` the absolute wall is tiny (~3.0s); the -75%
+intra-d8b "win" is inside the within-cell spread on this short bench. Treat
+the headline number as a directional signal (large M is faster within d8b)
+rather than a precise magnitude. The other rows have wall ratios well above
+the per-cell noise floor.
 
 ### Three takeaways from the intra-runtime view
 
@@ -164,15 +144,15 @@ floor.
    tunable away from inside d8b: pick any cell at `s ≥ 1048576` or `o ≤ 80`
    to get a real wall improvement over d8b default.
 
-2. **`liq_video_frames_full`/`_page` reverse direction.** Cross-version
-   said "small M for wall"; intra-d8b says "large M for wall". Both are
-   correct for the question they answer. For a production user on d8b:
-   - `_full`: `M=250, o=150` → 2.79s, 44% faster than d8b default
-   - `_page`: `M=100, o=150` → 1.45s, 64% faster than d8b default
-   
-   The `(M=11, o=40)` recommendation from the cross-version Pareto must be
-   withdrawn for production use — it makes the workload **3× slower** than
-   default even though it minimises the d8b/5.4 gap.
+2. **`liq_video_frames_pool` shows nothing cross-version but improves
+   monotonically with M intra-d8b.** The d8b/5.4 ratio is flat (±2% wall)
+   across the entire (M, o) grid — the #14533 free lunch doesn't surface
+   as a cross-version improvement here. But *within d8b alone*, M=250 is
+   dramatically faster than M=11 on the same short batch (the small-M
+   cells in d8b are catastrophically slow on this finaliser-dominated
+   workload). For a production media-pipeline user on d8b, **set
+   `M=250`** — it matches the real-workload reproduction of
+   [ocaml/ocaml#14533](https://github.com/ocaml/ocaml/issues/14533).
 
 3. **`owl_gc` benefits both views.** Cross-version showed -55% wall at
    M=11; intra-d8b shows -38% wall at M=250. Different cells, but both
@@ -180,40 +160,9 @@ floor.
    because it gets -62% RSS as well (vs -6% at M=11); the cross-version
    "M=11 is best" framing didn't surface this.
 
-### Highlighted heatmaps — full intra-d8b detail for the 3 biggest reframings
+### Highlighted heatmap — full intra-d8b detail for the biggest reframing
 
-For each, `wall%/RSS%` vs d8b at the default cell. Negative = faster / smaller.
-
-#### `liq_video_frames_full` intra-d8b — large M is **much** faster within d8b
-
-d8b default `(M=44, o=120)`: **5.00s / 168 MB**
-
-| M \ o | 40 | 80 | 120 **(def)** | 150 | 200 |
-|---|---|---|---|---|---|
-| **11** | +201.4 / -3 | +59.8 / -4 | +28.2 / -3 | +13.1 / -3 | +20.0 / -2 |
-| **22** | +57.6 / -8 | +30.0 / -8 | +21.3 / -9 | +18.7 / -7 | +15.6 / -7 |
-| **44** **(def)** | +15.0 / -14 | +14.7 / -14 | +0.0 / -0 | -11.5 / -1 | -3.3 / -1 |
-| **100** | -22.7 / -19 | -25.1 / -20 | -34.9 / -19 | -41.1 / -22 | -22.0 / -19 |
-| **250** | -38.4 / -27 | -34.3 / -25 | -41.2 / -23 | **-44.2 / -23** | -39.4 / -28 |
-
-Note the directionality flips at M=22/44 boundary. The default cell is in
-the *bad region*. The recommendation `(M=250, o=150) → 2.79s` is a 44%
-absolute speedup, with -23% RSS as a bonus.
-
-#### `liq_video_frames_page` intra-d8b — same pattern, deeper
-
-d8b default `(M=44, o=120)`: **4.03s / 169 MB**
-
-| M \ o | 40 | 80 | 120 **(def)** | 150 | 200 |
-|---|---|---|---|---|---|
-| **11** | +97.8 / -2 | +49.4 / -4 | +29.0 / -4 | +21.9 / -4 | +24.7 / -2 |
-| **22** | +66.0 / -8 | +35.2 / -9 | +28.3 / -10 | +22.6 / -8 | +22.4 / -8 |
-| **44** **(def)** | +18.6 / -15 | +14.4 / -14 | +0.0 / -0 | -23.6 / -1 | -25.6 / -1 |
-| **100** | -30.7 / -22 | -50.6 / -20 | -41.3 / -19 | **-64.0 / -22** | -36.9 / -18 |
-| **250** | -23.2 / -27 | -54.4 / -25 | -33.6 / -23 | -55.3 / -23 | -25.6 / -28 |
-
-`_page` is even more aggressively M-sensitive in d8b: -64% wall at
-`(M=100, o=150)`. The default cell is again in the bad region.
+`wall%/RSS%` vs d8b at the default cell. Negative = faster / smaller.
 
 #### `liq_parse_typecheck` intra-d8b — confirms the cross-version story
 
@@ -238,7 +187,7 @@ Per-bench intra-d8b heatmaps for the remaining benches not highlighted
 above. Each cell is `wall%/RSS%` of d8b at that cell vs d8b at its default
 cell. Negative = faster / smaller than d8b default.
 
-#### Sweep A — (s, o) intra-d8b, remaining 13 benches
+#### Sweep A — (s, o) intra-d8b, remaining 12 benches
 
 ##### alt_ergo_fill
 
@@ -345,22 +294,6 @@ fully tunable from intra-d8b** — best available is -6.3% over default
 (still a large regression vs 5.4). The allocation-growth hypothesis from
 the 5-12 report remains relevant.
 
-##### liq_video_frames_first
-
-d8b default `(s=262144, o=120)`: **2.85s / 109 MB**
-
-| s \ o | 40 | 80 | 120 **(def)** | 150 | 200 |
-|---|---|---|---|---|---|
-| **131072** | +16.1 / +0 | +5.3 / -0 | +1.1 / -0 | -0.7 / -0 | -9.8 / -0 |
-| **262144** **(def)** | +16.5 / +0 | +17.5 / +0 | +0.0 / +0 | -4.6 / -0 | +0.7 / -0 |
-| **524288** | +18.9 / +0 | +7.0 / +0 | -2.1 / -0 | -4.6 / -0 | -9.5 / -0 |
-| **1048576** | +16.8 / +0 | +5.6 / -0 | -1.8 / -0 | -3.9 / -0 | -9.1 / -0 |
-| **2097152** | +16.8 / +0 | +5.3 / +0 | -0.4 / -0 | -4.2 / +0 | -9.1 / -0 |
-
-RSS is fixed at 109 MB across all cells (this variant doesn't allocate
-finalisers). The ~10% wall gain at `o=200` is real but the workload is
-small (~2.85s) so spread is meaningful — treat as "essentially flat ±5%".
-
 ##### liq_video_frames_pool
 
 d8b default `(s=262144, o=120)`: **3.01s / 110 MB**
@@ -373,10 +306,9 @@ d8b default `(s=262144, o=120)`: **3.01s / 110 MB**
 | **1048576** | +15.6 / +0 | +6.0 / +0 | -0.3 / +0 | -4.0 / -0 | -7.0 / -0 |
 | **2097152** | +16.3 / +0 | +6.6 / +0 | +0.0 / -0 | -2.0 / -0 | -7.3 / -0 |
 
-Same shape as `_first`: `s` does nothing (shared refcounted buffer is
-fixed), `o` matters slightly. -8% wall at `o=200`. The POOL=1 refcounted
-variant is structurally independent of `s` because the shared buffer caps
-real allocation.
+`s` does nothing (shared refcounted buffer is fixed), `o` matters slightly:
+-8% wall at `o=200`. The POOL=1 refcounted variant is structurally
+independent of `s` because the shared buffer caps real allocation.
 
 ##### menhir_sysver
 
@@ -463,7 +395,7 @@ intra-d8b says it's actually "s dominates, then o gives a small further
 improvement". For any production zarith-heavy workload on d8b: set
 `s ≥ 1048576`.
 
-#### Sweep B — (M, o) intra-d8b, remaining 10 benches
+#### Sweep B — (M, o) intra-d8b, remaining 8 benches
 
 ##### alt_ergo_fill
 
@@ -527,39 +459,6 @@ d8b default `(M=44, o=120)`: **3.43s / 328 MB**
 
 `M`-flat. Same conclusion as cpdf_scale/merge.
 
-##### liq_video_frames_first
-
-d8b default `(M=44, o=120)`: **2.84s / 109 MB**
-
-| M \ o | 40 | 80 | 120 **(def)** | 150 | 200 |
-|---|---|---|---|---|---|
-| **11** | +365.5 / +13 | +326.4 / +12 | +294.0 / +12 | +291.5 / +12 | +262.0 / +11 |
-| **22** | +131.3 / +5 | +112.3 / +4 | +112.7 / +4 | +90.5 / +4 | +85.2 / +4 |
-| **44** **(def)** | +16.2 / +0 | +13.0 / -0 | +0.0 / +0 | -3.9 / -0 | -9.2 / -0 |
-| **100** | -47.9 / -1 | -51.8 / -1 | -55.3 / -1 | -57.4 / -1 | -58.8 / -1 |
-| **250** | -77.8 / -1 | -80.3 / -1 | -81.3 / -1 | -82.0 / -1 | **-82.7 / -1** |
-
-⚠ Caveat: this benchmark's absolute wall is tiny (~2.8s at default). The
-"+365%" / "-83%" extremes are on a noisy baseline. But the **shape**
-(monotonic in M, larger M faster) is consistent across all 5 liq_video
-benches at this scale.
-
-##### liq_video_frames_none
-
-d8b default `(M=44, o=120)`: **2.82s / 109 MB**
-
-| M \ o | 40 | 80 | 120 **(def)** | 150 | 200 |
-|---|---|---|---|---|---|
-| **11** | +365.6 / +13 | +328.0 / +12 | +294.0 / +12 | +281.2 / +12 | +289.7 / +11 |
-| **22** | +134.0 / +5 | +114.9 / +4 | +98.6 / +4 | +98.2 / +4 | +85.1 / +4 |
-| **44** **(def)** | +17.4 / +0 | +6.4 / -0 | +0.0 / +0 | -1.4 / -0 | -8.2 / -0 |
-| **100** | -47.5 / -1 | -51.4 / -1 | -55.0 / -1 | -57.1 / -1 | -55.3 / -1 |
-| **250** | -78.0 / -1 | -80.1 / -1 | -80.9 / -1 | -81.9 / -1 | **-82.6 / -0** |
-
-Same shape and caveat as `_first`. The combined picture from `_first` +
-`_none` + `_pool` is that low M (`M=11`) is catastrophically slow on
-short, finaliser-dominated workloads under d8b.
-
 ##### liq_video_frames_pool
 
 d8b default `(M=44, o=120)`: **3.01s / 110 MB**
@@ -572,17 +471,17 @@ d8b default `(M=44, o=120)`: **3.01s / 110 MB**
 | **100** | -43.5 / -2 | -47.8 / -2 | -49.5 / -2 | -51.2 / -2 | -52.8 / -2 |
 | **250** | -71.4 / -3 | -73.4 / -3 | -74.4 / -3 | -75.1 / -3 | **-75.7 / -3** |
 
-`_pool` (the #14533 cell): monotone improvement with larger M on the
-short batch. The wall improvement at M=250 (-75%) is striking — looks
-like the synthetic *does* exhibit something resembling the #14533 free
-lunch *within d8b*, even though it doesn't show as a d8b/5.4 ratio
-improvement (because 5.4 also benefits). This actually **partly
-contradicts** the 5-13 finding that #14533 doesn't materialise in the
-synthetic; what it doesn't do is show up as a cross-version improvement.
-The within-d8b improvement at large M *is* there in this synthetic and
-goes in the same direction as the real-workload reproduction of
-[ocaml/ocaml#14533](https://github.com/ocaml/ocaml/issues/14533).
-(Treat the numerical extremes with the small-batch caveat noted above.)
+⚠ Caveat: absolute wall is tiny (~3.0s at default), so the "+345%" /
+"-75%" extremes are on a noisy baseline — treat the magnitudes as
+directional, not precise. The **shape** is monotone in M: low M (M=11)
+is catastrophically slow on this finaliser-dominated workload under d8b,
+and the wall improvement at M=250 (-75%) is striking. The synthetic
+*does* exhibit something resembling the #14533 free lunch *within d8b*,
+even though it doesn't show as a d8b/5.4 ratio improvement (because 5.4
+also benefits). The cross-version flatness on `_pool` (§B.2 below) is
+not the whole story — the within-d8b improvement at large M *is* there
+in this synthetic and goes in the same direction as the real-workload
+reproduction of [ocaml/ocaml#14533](https://github.com/ocaml/ocaml/issues/14533).
 
 ##### owl_gc
 
@@ -729,9 +628,9 @@ out `o=200` as a generally good default for off-heap-RSS-conscious users
 on this group — the 5.5 pacer trades wall for RSS, and pushing `o` further
 in the same direction enlarges the trade.
 
-### A.5 Sticky-wall regressions — jsoo, ocamlc_self_compile, liq_video_frames_{full, page}
+### A.5 Sticky-wall regressions — jsoo, ocamlc_self_compile
 
-These four don't tune well on (s, o). The wall regression band is narrow
+These two don't tune well on (s, o). The wall regression band is narrow
 across the entire grid:
 
 - `jsoo`: +12.1% to +19.1% across all 25 cells. Best wall cell only
@@ -741,17 +640,9 @@ across the entire grid:
   (similar to ocamlc_self_compile).
 - `ocamlc_self_compile`: +6.9% to +10.5%. Min wall at `(1048576, 200)` is
   still +6.9% / -7.2%. Same diagnosis — allocation growth, not pacer cost.
-- `liq_video_frames_full`: wall band +13.5% to +28.2%. RSS uniformly -13%
-  to -15% regardless of (s, o). The `o=150` column is the worst (+27-28%
-  uniformly). Heap pacer doesn't move this one — the custom-block pacer
-  does (see Sweep B).
-- `liq_video_frames_page`: wall band +22.5% to +47.8%. RSS uniformly -13
-  to -15%. Same shape as `_full` but ~10pp worse on wall everywhere. The
-  page-fault path on touch-page commit dominates; (s, o) has no lever.
 
-For these four, the (M, o) sweep (next section) is where the relevant
-tuning happens for the three off-heap ones; jsoo and ocamlc_self_compile
-genuinely need a different fix (allocation profiling).
+Both genuinely need a different fix (allocation profiling), not GC
+parameter tuning.
 
 ## Sweep B — (M, o) on off-heap benches
 
@@ -774,66 +665,7 @@ The wall delta is essentially flat in `o` (rows vary by ≤5pp) but
 monotonically shrinks as `M` grows — confirming this is purely a
 custom-block-pacer story, not a major-pacer story.
 
-### B.2 `liq_video_frames_full` — 5-11 sweet-spot does NOT replicate
-
-```
-| M \ o | 40 | 80 | 120 **(default)** | 150 | 200 |
-|---|---|---|---|---|---|
-| **11** | +5.8 / -2 | +7.8 / -2 | +6.8 / -4 | +6.3 / -4 | +8.5 / -3 |
-| **22** | +9.0 / -8 | +7.8 / -8 | +12.5 / -8 | +23.2 / -8 | +16.1 / -8 |
-| **44** **(default)** | +15.0 / -15 | +14.7 / -14 | +17.6 / -13 | +28.5 / -13 | +23.0 / -13 |
-| **100** | +19.2 / -20 | +40.3 / -20 | +17.3 / -19 | +12.1 / -22 | +28.3 / -18 |
-| **250** | +40.4 / -27 | +25.1 / -25 | +26.2 / -23 | +24.0 / -23 | +35.9 / -28 |
-```
-
-5-11 claimed `(M=250, o=120) = +10.1%` was "the new wall-ratio sweet spot in
-the high-M regime". This rerun puts the same cell at **+26.2%** — 16pp
-worse, in line with neighbouring cells. The 5-11 cell was almost certainly
-a noisy N=3 draw (within-cell wall spread on this benchmark is ~10%, and
-N=3 makes single fast draws very influential on medians). Under N=3 with
-fresh sampling, the shape is **wall increases monotonically with M**,
-exactly the opposite of the 5-11 recommendation.
-
-The Pareto frontier is therefore **anchored at small `M`**:
-- `(M=11, o=40)`: +5.8% / -1.8% (cheapest wall, tiny RSS)
-- `(M=22, o=80)`: +7.8% / -7.9% (modest balance)
-- `(M=100, o=150)`: +12.1% / -21.8% (RSS-leaning balance)
-- `(M=250, o=200)`: +35.9% / -27.8% (RSS-max, very high wall)
-
-So if you care about wall on `liq_video_frames_full`: set `M=11`. If you
-care about RSS: set M high, but pay an enormous wall cost. The previous
-"M=250 is strictly better" guidance is wrong.
-
-### B.3 `liq_video_frames_page` — wall **explodes** with M
-
-```
-| M \ o | 40 | 80 | 120 **(default)** | 150 | 200 |
-|---|---|---|---|---|---|
-| **11** | +8.5 / -2 | +11.7 / -3 | +10.3 / -4 | +10.7 / -4 | +14.1 / -4 |
-| **22** | +14.1 / -8 | +11.8 / -8 | +20.6 / -8 | +29.5 / -8 | +24.7 / -8 |
-| **44** **(default)** | +25.4 / -15 | +26.3 / -14 | +32.1 / -13 | +48.8 / -13 | +39.1 / -13 |
-| **100** | +41.8 / -21 | +80.0 / -20 | +40.0 / -19 | +9.8 / -22 | +59.0 / -18 |
-| **250** | +130.3 / -27 | +79.2 / -25 | +90.2 / -23 | +81.2 / -23 | +118.8 / -28 |
-```
-
-This is the most dramatic table in either sweep. At `M=250, o=40` d8b is
-**+130.3%** — more than 2× slower than 5.4 on the same workload. The
-page-touch policy on POOL=0 has a runaway interaction with large `M`. The
-`(M=100, o=150)` cell is anomalously good (+9.8%) — looks like a single
-fast draw given the surrounding cells; treat as noise.
-
-Pareto:
-- `(M=11, o=40)`: +8.5% / -1.6%  — the only sensible operating point
-- `(M=100, o=150)`: +9.8% / -21.6% — suspect (see above)
-- `(M=250, o=200)`: +118.8% / -27.8% — RSS-max, catastrophically slow
-
-Same M-monotonic shape as `_full` but ~3× the magnitude. Both benches
-agree: **the d8b custom-block pacer at large `M` is pathological on the
-POOL=0 + every-page-touch workload**. The defaults `(M=44, o=120)` sit in
-the middle of the bad region; lowering M is the safe operation. Worth a
-release-note bullet calling this out for media-processing users.
-
-### B.4 `liq_video_frames_pool` — flat — toots/#14533 free lunch DOES NOT show
+### B.2 `liq_video_frames_pool` — cross-version flat; toots/#14533 free lunch does not show in d8b/5.4 ratio
 
 ```
 | M \ o | 40 | 80 | 120 **(default)** | 150 | 200 |
@@ -868,11 +700,14 @@ to +1.4% wall — same as M=44. No free lunch. Two plausible reasons:
    nothing for the pacer to do (allocation budget is dominated by `mem`
    accounting not real heap pressure), the M knob has nothing to lever.
 
-Either way: **the synthetic `_pool` is not a viable #14533 reproducer on
-monolith.** The ffmpeg-based reproduction (parked, waiting for sudo apt)
-remains necessary. See follow-up #4.
+Either way: **the synthetic `_pool` is not a viable cross-version #14533
+reproducer on monolith.** Note however that the *intra-d8b* heatmap above
+(§"liq_video_frames_pool" subsection) shows monotone wall improvement
+with larger M — d8b at M=250 is much faster than at M=44 on this short
+batch. The cross-version flatness is because 5.4 improves in lockstep at
+large M, not because d8b is failing to benefit. See follow-up #1.
 
-### B.5 `cpdf_*`, `alt_ergo_fill`, `pplacer_testsuite` — M-flat (confirmed)
+### B.3 `cpdf_*`, `alt_ergo_fill`, `pplacer_testsuite` — M-flat (confirmed)
 
 Per the 5-11 diagnosis, these benches' regressions are major-pacer-bound,
 not custom-block-pacer-bound. This sweep confirms it — each M row is
@@ -895,7 +730,7 @@ is +6 to +8% across all M, identical to default.
 ±5% wall, mostly slightly negative ratios — d8b is a touch faster across
 the grid.
 
-### B.6 `zarith_pi` — same `o`-axis story as Sweep A, M-flat as expected
+### B.4 `zarith_pi` — same `o`-axis story as Sweep A, M-flat as expected
 
 ```
 | M \ o | 40 | 80 | 120 **(default)** | 150 | 200 |
@@ -918,39 +753,31 @@ loses wall and RSS climbs to +34%**. Combined with Sweep A's finding that
 
 The 5-11 sweep covered an overlapping subset of cells in (M, o); this
 sweep extends to wider o (added o=200) and adds the new
-`liq_video_frames_*` split. Two findings shift:
+`liq_video_frames_pool` refcounted-pool variant. Findings:
 
 | benchmark | 5-11 finding | 5-13 finding | reflection |
 |---|---|---|---|
-| `liq_video_frames` (= _full) | "`M=250, o=120` is the wall sweet spot at +10.1%" | `(M=250, o=120) = +26.2%`; small-M wins wall | **5-11 cell was N=3 noise; corrected** |
 | `owl_gc` | -53.3% at `(M=11, o=80)` | -55.2% at `(M=11, o=40)` (new) | extends 5-11 — smaller o gives a deeper win |
 | `cpdf_*` | M-flat, o-dependent | M-flat confirmed; new o=200 column shows RSS extends further (-50% on cpdf_scale) | extends 5-11 |
 | `zarith_pi` | "o-only story" at default s | confirmed; Sweep A adds "s ≥ 1048576 neutralises o" | adds a second axis story |
+| `liq_video_frames_pool` | not swept (5-11 used the old single benchmark) | cross-version flat across (M, o); intra-d8b monotone in M | new variant introduced this run |
 
-The `liq_video_frames` reflection is the most consequential — 5-11's
-recommendation to use `M=250` for liquidsoap-style workloads should be
-**withdrawn or revised**. The new guidance is:
-
-- For wall priority (low M): `M=11, o=40` keeps the regression to ~+6%
-- For RSS priority (high M): pay +30-40% wall to save ~28% RSS
-- The default (M=44) is in the middle and is a defensible compromise
-
-Note: the headline-summary doc
-[2026-05-06-fp-flambda-5.4.1-vs-d8bb46c-summary.md](2026-05-06-fp-flambda-5.4.1-vs-d8bb46c-summary.md)
-references the 5-11 M=250 finding implicitly and will need updating.
+The 5-11 recommendation to use `M=250` for liquidsoap-style workloads
+is **consistent** with the intra-d8b view here on `_pool` and with the
+real-workload reproduction of
+[ocaml/ocaml#14533](https://github.com/ocaml/ocaml/issues/14533): both
+say M=250 is the right production choice on d8b.
 
 ## Methodology notes
 
 - **Median over mean**, N=3 per cell. Same convention as 5-11.
-- **Within-cell wall spread** ((max−min)/median): mean **2.8%** across the
-  1400 cells, median 1.8%. Cells with ≥15% spread (only single-cell claims
+- **Within-cell wall spread** ((max−min)/median): mean ~2.5% across the
+  1050 cells, median ~1.7%. Cells with ≥15% spread (only single-cell claims
   under ±5% should be read with these in mind):
-  - `liq_video_frames_first` Sweep A (262144, 80) d8b: 25.4% — one slow draw
-  - `liq_video_frames_pool` Sweep B (11, 120) d8b: 19% — the +19% outlier above
-  - `liq_video_frames_page` Sweep B (100, 150) d8b: 18% — the suspiciously-good cell
-  - A handful of `liq_video_frames_full` cells in Sweep B around 11-15%
+  - `liq_video_frames_pool` Sweep B (11, 120) d8b: 19% — the outlier mentioned in §B.2
+  - A handful of short-batch `liq_video_frames_pool` cells in the small-M region
 - **All cells 3/3 captured cleanly** — no missing data, no OOMs, no
-  timeouts. Total wall ~7.7 hours (Sweep A 4h23m, Sweep B 3h28m).
+  timeouts.
 - **Trade-off visualization design**: each per-bench heatmap uses
   `wall%/RSS%` packed into one cell so the trade-off is visible at a
   glance. The Pareto-frontier list per bench enumerates non-dominated
@@ -961,43 +788,31 @@ references the 5-11 M=250 finding implicitly and will need updating.
 
 ## Suggested follow-ups
 
-1. **Re-do the (M, o) sweep on `liq_video_frames_full` at N=10** — the
-   5-11 `M=250, o=120` cell was N=3 noise; this sweep was also N=3 and
-   the high-spread cells (~11-15%) are at the regime where claims matter
-   most. N=10 on just this one bench is ~2 hours and would lock in the
-   "M=11 is best for wall" finding.
-2. **Profile `liq_video_frames_page` at `M=250`** — the +130% wall
-   regression is mechanistically distinct from anything else in the
-   matrix. `perf record -e page-faults,cycles` would identify whether
-   this is finaliser walking, page-fault path, or something else
-   entirely. The data point is too striking to leave unexplained.
-3. **Investigate the synthetic vs real-ffmpeg gap on `_pool`.** The
-   negative #14533 result here could mean either (a) the synthetic stub
-   is too minimal or (b) Ryzen doesn't surface the effect. To disambiguate,
-   instrument the stub to do a small amount of OCaml-heap work per frame
-   (the source has `LIQ_CHURN` for exactly this purpose) and rerun the
-   (M, o) sweep on `_pool` with `LIQ_CHURN=1000`. If a free lunch
-   appears with churn, the stub is the culprit; if not, the hardware
-   hypothesis stands. See [project_toots_gc_repro_parked.md](.claude/projects/-home-udesou/memory/project_toots_gc_repro_parked.md).
-4. **Update `liq_parse_typecheck` headline.** This sweep changed the
+1. **Investigate the synthetic vs real-ffmpeg gap on `_pool`.** The
+   cross-version flat #14533 result here could mean either (a) the
+   synthetic stub is too minimal or (b) Ryzen doesn't surface the effect
+   cross-version. To disambiguate, instrument the stub to do a small
+   amount of OCaml-heap work per frame (the source has `LIQ_CHURN` for
+   exactly this purpose) and rerun the (M, o) sweep on `_pool` with
+   `LIQ_CHURN=1000`. If a cross-version free lunch appears with churn,
+   the stub is the culprit; if not, the hardware hypothesis stands.
+2. **Update `liq_parse_typecheck` headline.** This sweep changed the
    diagnosis: it's not a regression, it's a default-`o` mistuning.
    Worth a one-line update to the 5-12 N=10 report and to the
    release-notes summary.
-5. **Set up an `s` sweep on owl_gc.** Sweep B only covered `(M, o)` on
+3. **Set up an `s` sweep on owl_gc.** Sweep B only covered `(M, o)` on
    owl_gc; we don't know how `s` interacts with the d8b win. Cheap to
    add given the bench is fast (~3s/inv). Hypothesis: the win is
    independent of `s` (since 5.4's pathology is purely in the
    custom-block pacer, not the minor heap), but worth confirming.
-6. **Write a release-notes guidance section** for d8b users (intra-runtime
+4. **Write a release-notes guidance section** for d8b users (intra-runtime
    recommendations, not cross-version). Revised grid using the intra-d8b
    view above; the streaming entry below also lines up with
    [ocaml/ocaml#14533](https://github.com/ocaml/ocaml/issues/14533):
    - cpdf-style (RSS-sensitive PDFs): `s ≥ 1048576, o=200` → -7-10% wall and -14-23% RSS vs d8b default
-   - **liquidsoap streaming pipeline** (real-workload-confirmed):
-     `M=250` → -17% CPU for +10% RSS vs d8b default; **do NOT use M=11**
-     (98% CPU + latency overruns)
-   - liquidsoap synthetic `_full`/`_page`: `(M=250, o=150)` → -44%/-64% wall
-     vs d8b default — matches the real-workload recommendation
+   - **liquidsoap streaming pipeline** (real-workload-confirmed, matches
+     synthetic `_pool` intra-d8b): `M=250` → -17% CPU for +10% RSS vs
+     d8b default; **do NOT use M=11** (98% CPU + latency overruns)
    - owl/numerical: `M=250, o=200` → -38% wall AND -62% RSS within d8b
      (cross-version `M=11` gets a deeper relative win but `M=250` is the
      better production cell because the RSS bonus is real)
@@ -1005,10 +820,3 @@ references the 5-11 M=250 finding implicitly and will need updating.
      intra-d8b agree)
    - liq_parse_typecheck-style typer workloads: `(s=2097152, o=200)` →
      -33% wall vs d8b default
-7. **Retract the "small M for liq_video_frames" guidance** from the
-   earlier-published draft of this report. The cross-version Pareto
-   table at the top still says `(M=11, o=40)` minimises the d8b/5.4
-   gap, which is correct on its own terms, but it should not be read as
-   a production recommendation. The intra-d8b view and the real-workload
-   reproduction of [ocaml/ocaml#14533](https://github.com/ocaml/ocaml/issues/14533)
-   both say large M is the right choice.

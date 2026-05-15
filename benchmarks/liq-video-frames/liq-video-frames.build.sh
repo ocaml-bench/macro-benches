@@ -24,10 +24,6 @@ REAL_EXE="${BUILD_DIR}/default/benchmarks/liq-video-frames/liq_video_frames.exe"
 # In-process iteration loop: the OCaml binary reads Sys.argv.(1) as the
 # number of frames to allocate. The wrappers pass the arg through and
 # exec — single observable OCaml process.
-#
-# Touch variants probe the calibration of the mutator-vs-GC cost mix
-# (see source). Each variant gets its own wrapper so running-ng can
-# treat them as separate programs in a sweep.
 mkdir -p "$(dirname "${OUT}")"
 cat > "${OUT}" << WRAPPER
 #!/usr/bin/env bash
@@ -37,23 +33,12 @@ WRAPPER
 chmod +x "${OUT}"
 
 OUT_BASE="${BENCH_DIR}/liq_video_frames"
-for TOUCH in full page first none; do
-  VARIANT_OUT="${OUT_BASE}_${TOUCH}-${RUNTIME_TAG}"
-  cat > "${VARIANT_OUT}" << WRAPPER
-#!/usr/bin/env bash
-set -euo pipefail
-export LIQ_TOUCH=${TOUCH}
-exec "${REAL_EXE}" "\${1:-1}"
-WRAPPER
-  chmod +x "${VARIANT_OUT}"
-done
 
 # Pool variant: AVFrame-style refcounted-pool semantics. Reproduces toots'
 # ocaml#14533 free-lunch shape — under M=250, CPU drops significantly with
 # no RSS growth (the shared pool buffer caps committed memory regardless
 # of GC release cadence). LIQ_TOUCH=full preserves the real-pipeline
-# every-pixel-write mutator cost; switching POOL=0→1 isolates the
-# "fresh-malloc per frame" vs "refcounted pool" axis at constant mutator.
+# every-pixel-write mutator cost; POOL=1 selects the refcounted-pool path.
 POOL_OUT="${OUT_BASE}_pool-${RUNTIME_TAG}"
 cat > "${POOL_OUT}" << WRAPPER
 #!/usr/bin/env bash
@@ -64,4 +49,4 @@ exec "${REAL_EXE}" "\${1:-1}"
 WRAPPER
 chmod +x "${POOL_OUT}"
 
-echo "liq-video-frames built: ${OUT} (plus 4 LIQ_TOUCH + 1 LIQ_POOL variant wrappers)"
+echo "liq-video-frames built: ${OUT} (plus LIQ_POOL variant wrapper)"

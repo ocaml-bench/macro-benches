@@ -39,7 +39,7 @@ Designed to work two ways:
 | **pplacer** | Bioinformatics | 1 (224-test phylogenetic suite) | 17s | GSL, sqlite3, env-var iter loop |
 | **ocamlc-self-compile** | Build tools | 1 (`ocamlc` on 400k-line workload) | 8.6s | single-process; closes Ephemeron + Marshal gaps |
 | **liquidsoap-lang** | DSL compiler | 1 (parse+typecheck 50k iterations) | 26s | Jane Street PPX (≥ 5.3) |
-| **liq-video-frames** | GC pacer / off-heap | 4 variants (`full`/`page`/`first`/`none`) × 10k 1280×720 YUV420 frames | 4-20s | Probes [#13123](https://github.com/ocaml/ocaml/issues/13123) + [#14533](https://github.com/ocaml/ocaml/issues/14533) — 3-plane YUV420 Bigarrays per frame (mm-faithful); env knobs `LIQ_POOL`, `LIQ_DW_MB`, `LIQ_CHURN`, `LIQ_PACE_FPS` |
+| **liq-video-frames** | GC pacer / off-heap | 1 (`pool` — refcounted-pool Bigarrays, 30k 1280×720 YUV420 frames) | 4-20s | Probes [#14533](https://github.com/ocaml/ocaml/issues/14533) — 3-plane YUV420 Bigarrays per frame (mm-faithful, POOL=1+TOUCH=full); env knobs `LIQ_POOL`, `LIQ_DW_MB`, `LIQ_CHURN`, `LIQ_PACE_FPS` |
 | **merlin** | IDE / domains+effects | 1 (7 cram queries × N) | 16s | merlin-domains branch; **DISABLED — upstream race** |
 | **js_of_ocaml** | Compilers | 1 (compile runtime's ocamlc.byte to JS) | 7-9s | jsoo `ocaml-5.6` branch + cmdliner 2.1.0 |
 | **lavyek** | Multi-domain KV / Eio + kcas + io_uring | 4 (kv_1d, kv_2d, kv_4d, kv_8d) | 6-25s | OCaml ≥ 5.2; per-domain CPU pinning via `ocaml-processor` |
@@ -156,7 +156,7 @@ macro-benches/
     pplacer/                   # pplacer test suite wrapper
     ocamlc-self-compile/       # ocamlc on 400k-line generated workload
     liquidsoap-lang/           # liq_bench.ml (parser+typechecker)
-    liq-video-frames/          # 1280x720 Bigarray frames (RSS probe)
+    liq-video-frames/          # 1280x720 YUV420 Bigarray frames, refcounted pool (#14533 reproducer)
     merlin/                    # merlin-domains typer (currently disabled)
     js_of_ocaml/               # jsoo on ocamlc.byte → JS
     lavyek/                    # multi-domain Eio + kcas + io_uring KV store
@@ -494,23 +494,23 @@ Conversely, it's *insensitive* to major-GC changes (almost no major work happens
 
 Movement here without corresponding `owl_gc` movement → suspect custom-block path specifically (`zarith` uses them, `owl_gc` uses Bigarray). Movement on both → general FFI overhead.
 
-#### `liq_video_frames` — synthetic large-Bigarray streaming (heap-growth probe)
+#### `liq_video_frames_pool` — refcounted-pool video frames (ocaml#14533 reproducer)
 
-**What it does.** Allocates 1280×720 RGBA8 video frames as `Bigarray.Array1 Char` (~3.5 MiB each, off-heap with a finaliser) in a tight loop, fills each frame via `Bigarray.Array1.fill` (`memset`-equivalent — commits all pages to RSS), then discards. A persistent ~320 MiB `int array` "deadweight" simulates liquidsoap's loaded standard library + script state. arg=10000 → ~20s wall on obelisk; toggle `LIQ_NO_DEADWEIGHT=1` to disable the deadweight (~10 MB RSS, control case).
+**What it does.** Mimics ffmpeg's `AVFrame` lifecycle: each iteration allocates three Bigarrays (Y/U/V planes at 1280×720 YUV420, ~1.32 MiB total) matching `mm/Image.YUV420.create`, fills every pixel (`LIQ_TOUCH=full`), and recycles the buffer via a refcounted pool (`LIQ_POOL=1`). A persistent ~100 MiB OCaml-heap "deadweight" simulates liquidsoap's loaded stdlib + script graph (`LIQ_DW_MB`, default 100). arg=30000 → ~4-20s wall depending on hardware.
 
-**Profile.** Wall ≈ 20s, gc_overhead modest (each frame is large enough to bypass minor-heap promotion and go straight to major), but **RSS varies ~34% with `space_overhead`**: `o=40` → 458 MB, `o=80` → 499 MB, `o=120` (default) → 534 MB, `o=200` → 612 MB. The OCaml heap stays small but RSS reflects how much off-heap budget the GC pacer keeps live.
+**Profile.** Wall and RSS both sensitive to `M` (custom_major_ratio): under M=250 the refcounted-pool path drops CPU significantly with no RSS growth (the shared pool buffer caps committed memory regardless of GC release cadence). At default `(M=44, o=120)` the variant sits near noise-floor vs 5.4.1 — the "free lunch" predicted by #14533 only materialises in the large-M regime.
 
 **OCaml features.**
 - **Bigarray** of `Char` — large-allocation custom block path (different code path from `owl_gc`'s small-matrix Bigarrays, which go through minor-heap promotion).
-- **Off-heap memory accounting** in the major-heap pacer — `caml_alloc_custom_mem` reports the off-heap size to the GC, which factors it into space_overhead decisions.
-- **Persistent live data** (the deadweight) interacting with `space_overhead` to control major-heap headroom.
+- **Off-heap memory accounting** in the major-heap pacer — `caml_alloc_custom_mem` reports the off-heap size to the GC, which factors it into space_overhead / custom_major_ratio decisions.
+- **Refcounted pool semantics** — switching `LIQ_POOL=0→1` isolates the "fresh-malloc per frame" vs "refcounted pool" axis at constant mutator cost (`pool_stubs.c`).
+- **Persistent live data** (the deadweight) interacting with the pacer to control major-heap headroom.
 
-**Diagnostic value.** This is a focused probe of the pattern in [ocaml/ocaml#13123](https://github.com/ocaml/ocaml/issues/13123) — the regression liquidsoap reported when moving from 4.14 to 5.x, and the workload Romain Beauxis describes in [the ai-radio blog post](https://www.liquidsoap.info/blog/2024-02-10-video-canvas-and-ai/) ("a short term streaming loop allocating a lot of custom blocks with large external memory"). The headline signal is **`max_rss_kb`**, not wall time. What to look for:
-- **`o=40` vs default RSS gap**: replicates the issue's `space_overhead=40` workaround. If the gap shrinks across releases, the pacer is becoming more conservative by default (fix). If the gap grows, the regression is widening.
-- **No movement on this benchmark + movement on `owl_gc`** → the small-Bigarray (minor-heap-promoted) pacer code path has changed but the large-Bigarray (direct-major) path hasn't. We saw exactly this pattern on 5.4.1 → d8bb46c (5.5-beta): `owl_gc` improved 27%, this benchmark's RSS was unchanged.
-- **Movement here** → the `caml_alloc_custom_mem` accounting or `space_overhead` policy itself changed.
+**Diagnostic value.** This is the canonical reproduction of toots' [ocaml#14533](https://github.com/ocaml/ocaml/issues/14533) free-lunch shape — the workload Romain Beauxis describes in [the ai-radio blog post](https://www.liquidsoap.info/blog/2024-02-10-video-canvas-and-ai/) ("a short term streaming loop allocating a lot of custom blocks with large external memory"). Headline signals are **`wall_time` and `max_rss_kb`** under an M-sweep. What to look for:
+- **Large-M CPU drop with flat RSS** → the predicted #14533 shape; pacer changes have preserved the refcounted-pool fast path.
+- **Movement at default `(M=44, o=120)`** → the `caml_alloc_custom_mem` accounting or pacer policy itself changed.
 
-The benchmark is *not* a wall-time benchmark — for cross-version regression detection on this workload, compare RSS first. Wall-time differences below ~5% are likely DRAM-bandwidth noise from the `memset` rather than runtime perf.
+For cross-version regression detection on this workload, sweep `M` and compare wall vs RSS Pareto fronts; a single default-cell read is uninformative.
 
 #### `devkit_gzip` — zlib via C bindings
 
@@ -673,7 +673,7 @@ Pairs with `devkit_stre` (also string-heavy) — co-movement points at the strin
 | `pplacer_testsuite` | 13 | 70 | major-heavy (FFI) | gsl/sqlite3, tree allocation |
 | `owl_gc` | 16 | 50 | off-heap (Bigarray, small) | Bigarray finalisation, OpenBLAS stubs |
 | `zarith_pi` | 8 | 27 | off-heap (GMP custom blocks) | custom-block path, GMP stubs |
-| `liq_video_frames` | 20 | low | off-heap (Bigarray, large) | space_overhead pacer, RSS growth ([#13123](https://github.com/ocaml/ocaml/issues/13123)) |
+| `liq_video_frames_pool` | 4-20 | low | off-heap (Bigarray, refcounted pool) | custom_major_ratio pacer, refcounted-pool free lunch ([#14533](https://github.com/ocaml/ocaml/issues/14533)) |
 | `devkit_gzip` | 10 | 1 | compute-bound | codegen, zlib stubs |
 | `devkit_stre` | 14 | 5.5 | minor + retention | string allocator, generational copy |
 | `devkit_network` | 17 | 4.5 | minor (Int32) | int32 boxing, Hashtbl |
@@ -770,7 +770,7 @@ In use by:
 | `devkit_stre` | `Sys.argv.(1)` | Plain OCaml main; loops the 8 sub-benches (split, slicing, pattern ops, etc.) |
 | `devkit_gzip` | `Sys.argv.(1)` | Same shape as stre. gc_overhead ≈ 1% — compute-bound |
 | `devkit_network` | `Sys.argv.(1)` | Same shape as stre. ipv4/cidr parsing benchmarks |
-| `liq_video_frames` | `Sys.argv.(1)` | Number of frames to allocate. RSS-focused, not wall-time |
+| `liq_video_frames_pool` | `Sys.argv.(1)` | Number of frames to allocate (default 30000). RSS + wall under M-sweep |
 
 **Ring-size interaction.** A single OCaml process accumulating events
 across N iterations needs more `runtime_events` ring than N separate
