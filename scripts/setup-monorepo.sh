@@ -95,13 +95,13 @@ fi
 
 # Cmdliner upgrade: jsoo's recent code uses Cmdliner.Arg.Completion, which
 # was added in Cmdliner 2.0. opam-monorepo gives us 1.3.0; replace with 2.1.0.
-echo "[2.3/9] Vendoring cmdliner v2.1.0..."
+echo "[2.3/9] Vendoring cmdliner v2.1.1..."
 if [ -d duniverse/cmdliner ] && \
    grep -q "version: \"2\." duniverse/cmdliner/cmdliner.opam 2>/dev/null; then
   echo "  duniverse/cmdliner/ already at >= 2.x. Skipping."
 else
   rm -rf duniverse/cmdliner
-  git clone --depth 1 -b v2.1.0 \
+  git clone --depth 1 -b v2.1.1 \
     https://github.com/dbuenzli/cmdliner.git duniverse/cmdliner
   echo "  Cloned."
 fi
@@ -137,7 +137,7 @@ _clone_if_missing https://github.com/ocaml-ppx/ppx_deriving_yojson.git ppx_deriv
 # benchmarks/lavyek/lavyek_bench.ml to pin each parallel domain to its own
 # physical core, so wall times of the 1d/2d/4d/8d cells are comparable
 # across runs. Not in opam-monorepo lockfile.
-_clone_if_missing https://github.com/haesbaert/ocaml-processor.git    processor            master
+_clone_if_missing https://github.com/haesbaert/ocaml-processor.git    processor            main
 # Override lavyek's root dune (which references ahrocksdb/lmdb) to build src/
 # only. Idempotent: just overwrites with our minimal version.
 echo "(dirs src)" > duniverse/lavyek/dune
