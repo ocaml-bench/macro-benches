@@ -75,6 +75,71 @@ PY
 fi
 echo ""
 
+# ---- Patch dolmen base.ml to work around an OCaml 5.6-trunk typechecker bug ----
+# `term_app_chain` and `term_app_chain_ast` in
+# duniverse/dolmen/src/typecheck/base.ml take a (module Type) with two
+# locally abstract types (env, term) and pass that same module to
+# `map_chain`, which introduces its own (type t).  Post-cfb30145 trunk
+# (and PR #14796 which builds on it) crashes during type_function /
+# type_newtype with `Fatal error: exception Ctype.Unify(_)`.  Inlining
+# `map_chain`'s body inside the two callers sidesteps the nested
+# locally-abstract-type interaction.  Functionally identical.
+# Idempotent: skip if the workaround marker is already present.
+echo "[2.2.5/9] Patching dolmen base.ml for OCaml 5.6 trunk typechecker bug..."
+if [ -f duniverse/dolmen/src/typecheck/base.ml ] && \
+   ! grep -q "map_chain_inlined" duniverse/dolmen/src/typecheck/base.ml; then
+  python3 - <<'PY'
+p = "duniverse/dolmen/src/typecheck/base.ml"
+s = open(p).read()
+inlined = """  let map_chain_inlined mk args =
+    let rec aux mk = function
+      | [] -> assert false
+      | [_] -> []
+      | x :: ((y :: _) as r) -> mk x y :: aux mk r
+    in
+    match aux mk args with
+    | [] -> assert false
+    | [x] -> x
+    | l -> Type.T._and l
+  in
+"""
+for old, new_call in [
+    ("""let term_app_chain
+    (type env) (type term)
+    (module Type : Tff_intf.S with type env = env and type T.t = term)
+    ?(check=(fun _ _ -> ())) env symbol mk =
+  make_chain (module Type) env symbol (fun ast l ->
+      check ast l;
+      let l' = List.map (Type.parse_term env) l in
+      map_chain (module Type) mk l'
+    )""",
+     "map_chain_inlined mk l'"),
+    ("""let term_app_chain_ast
+    (type env) (type term)
+    (module Type : Tff_intf.S with type env = env and type T.t = term)
+    ?(check=(fun _ _ -> ())) env symbol mk =
+  make_chain (module Type) env symbol (fun ast l ->
+      check ast l;
+      let l' = List.map (Type.parse_term env) l in
+      map_chain (module Type) (mk ast) l'
+    )""",
+     "map_chain_inlined (mk ast) l'"),
+]:
+    assert old in s, f"expected pattern not found in {p}:\n{old[:80]}..."
+    header, body = old.split("symbol mk =\n  make_chain", 1)
+    new = (header + "symbol mk =\n" + inlined +
+           "  make_chain" +
+           body.replace("map_chain (module Type) mk l'", new_call)
+               .replace("map_chain (module Type) (mk ast) l'", new_call))
+    s = s.replace(old, new, 1)
+open(p, "w").write(s)
+print("  Patched dolmen base.ml.")
+PY
+else
+  echo "  Already patched (or file missing). Skipping."
+fi
+echo ""
+
 # ---- Vendor js_of_ocaml (ocaml-5.6 branch, not in opam-monorepo lockfile) ----
 # The opam-monorepo pull would give us js_of_ocaml 6.2.0 which rejects
 # OCaml >= 5.5 outright (explicit failwith in compiler/lib/magic_number.ml).
