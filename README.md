@@ -11,15 +11,17 @@ Designed to work two ways:
 - **Standalone** — `make setup` once, then build any tool under any
   opam switch (`dune build -- benchmarks/<name>/<name>.exe`) and run
   the resulting binary directly.
-- **Orchestrated** — used as the macrobenchmark backend for
-  [running-ng](https://github.com/udesou/running-ng), which manages
-  per-runtime opam switches and drives cross-runtime / flag / GC-param
-  sweeps. See §"Run via running-ng" below.
+- **Orchestrated** — used as the macrobenchmark backend for an
+  orchestrator such as [running-ng](https://github.com/udesou/running-ng),
+  which manages per-runtime opam switches and drives cross-runtime /
+  flag / GC-param sweeps. See §"Run benchmarks" below.
 
 ## Benchmarks
 
-19 active tools, 32 benchmark programs, 18 categories.  Target runtime:
-5-25s per benchmark (DaCapo sweet spot; lavyek's 1d cell sits at the upper edge).
+18 active tools, 28 benchmark programs, 16 categories.  Target runtime:
+5-25s per benchmark (DaCapo sweet spot; a few of the heavier compiler/proof
+workloads run longer — see the table).  Two further tools, `merlin` and
+`lavyek`, ship in the tree but are currently disabled (see their notes).
 
 | Benchmark | Category | Programs | ~Runtime | Notes |
 |-----------|----------|----------|----------|-------|
@@ -42,18 +44,18 @@ Designed to work two ways:
 | **liq-video-frames** | GC pacer / off-heap | 1 (`pool` — refcounted-pool Bigarrays, 30k 1280×720 YUV420 frames) | 4-20s | Probes [#14533](https://github.com/ocaml/ocaml/issues/14533) — 3-plane YUV420 Bigarrays per frame (mm-faithful, POOL=1+TOUCH=full); env knobs `LIQ_POOL`, `LIQ_DW_MB`, `LIQ_CHURN`, `LIQ_PACE_FPS` |
 | **merlin** | IDE / domains+effects | 1 (7 cram queries × N) | 16s | merlin-domains branch; **DISABLED — upstream race** |
 | **js_of_ocaml** | Compilers | 1 (compile runtime's ocamlc.byte to JS) | 7-9s | jsoo `ocaml-5.6` branch + cmdliner 2.1.0 |
-| **lavyek** | Multi-domain KV / Eio + Atomic + io_uring | 4 (kv_1d, kv_2d, kv_4d, kv_8d) | 6-25s | OCaml ≥ 5.2; per-domain CPU pinning via `ocaml-processor`. (Note: imports `kcas`/`kcas_data` in `dune-project` but the in-memory index is actually hand-rolled `Atomic.*` — kcas is unused in source) |
+| **lavyek** | Multi-domain KV / Eio + Atomic + io_uring | 4 (kv_1d, kv_2d, kv_4d, kv_8d) | 6-25s | **DISABLED — private repo.** OCaml ≥ 5.2; per-domain CPU pinning via `ocaml-processor`. (Note: imports `kcas`/`kcas_data` in `dune-project` but the in-memory index is actually hand-rolled `Atomic.*` — kcas is unused in source) |
 
 ### Runtime compatibility
 
 | Runtime | Working benchmarks |
 |---------|-------------------|
-| **OCaml 5.4.1** | All 19 active tools (32 programs) |
-| **OCaml d8bb46c (5.5-beta)** | All 19 active tools |
-| **OCaml trunk (5.6)** | All 19 active tools — ppxlib+lwt upgraded from git |
+| **OCaml 5.4.1** | All 18 active tools (28 programs) |
+| **OCaml d8bb46c (5.5-beta)** | All 18 active tools |
+| **OCaml trunk (5.6)** | All 18 active tools — ppxlib+lwt upgraded from git |
 | **OxCaml** | menhir (3), test_decompress, zarith_pi (5 programs) |
-| **OCaml 5.4.1 ± fp ± flambda** | All 19 active tools (used by `fp_flambda_macrobenchmarks.yml`) |
-| **OCaml d8bb46c ± fp ± flambda** | All 19 active tools (used by `fp_flambda_macrobenchmarks.yml`) |
+| **OCaml 5.4.1 ± fp ± flambda** | All 18 active tools (the `-fp` / `-flambda` build variants) |
+| **OCaml d8bb46c ± fp ± flambda** | All 18 active tools (the `-fp` / `-flambda` build variants) |
 
 ## Quick start
 
@@ -85,25 +87,32 @@ The setup is **idempotent** — safe to run multiple times without `make clean`.
 
 ### Run benchmarks
 
-Running-ng ships two configs that consume this monorepo:
-
-| Config | What it does | Invocations |
-|---|---|---|
-| `macrobenchmarks_monorepo.yml` | Cross-runtime comparison (5.4.1, trunk, OxCaml) at default GC | 1 |
-| `fp_flambda_macrobenchmarks.yml` | Frame pointers × flambda 2×2 sweep (4 variants of 5.4.1) | 3 |
+**Standalone.** Build one tool with its build script and run the
+resulting binary directly — no orchestrator required. The script writes
+the binary to `benchmarks/<tool>/<tool>-runtime` by default:
 
 ```bash
-cd ~/running-ng
-export RUNNING_MACRO_BENCH_DIR=~/macro-benches
-
-# Default cross-runtime comparison:
-CONFIG_FILE=src/running/config/experiments/macrobenchmarks_monorepo.yml \
-  bash run_ocaml_bench_gc_sweep.sh
-
-# Frame pointers × flambda (3 invocations):
-CONFIG_FILE=src/running/config/experiments/fp_flambda_macrobenchmarks.yml \
-  bash run_ocaml_bench_gc_sweep.sh
+bash benchmarks/eio/eio.build.sh
+./benchmarks/eio/eio-runtime
 ```
+
+The custom-`.ml` benchmarks can also be built straight from the
+workspace:
+
+```bash
+dune build -- benchmarks/eio/eio_bench.exe
+./_build/default/benchmarks/eio/eio_bench.exe
+```
+
+Build scripts honour the env-var contract in §"Build scripts", so a
+script behaves identically whether you run it by hand or an orchestrator
+invokes it.
+
+**Orchestrated.** For cross-runtime, frame-pointer/flambda, or
+GC-parameter sweeps you need per-runtime opam switches managed for you.
+Point an orchestrator such as [running-ng](https://github.com/udesou/running-ng)
+at this monorepo (`export RUNNING_MACRO_BENCH_DIR=~/macro-benches`) and
+drive the sweeps from there; see its docs for the available configs.
 
 ### Clean and rebuild
 
@@ -159,7 +168,7 @@ macro-benches/
     liq-video-frames/          # 1280x720 YUV420 Bigarray frames, refcounted pool (#14533 reproducer)
     merlin/                    # merlin-domains typer (currently disabled)
     js_of_ocaml/               # jsoo on ocamlc.byte → JS
-    lavyek/                    # multi-domain Eio + kcas + io_uring KV store
+    lavyek/                    # multi-domain Eio + kcas + io_uring KV store (currently disabled — private repo)
 
   scripts/
     setup-monorepo.sh          # full setup: pull + patch + build
@@ -187,7 +196,7 @@ macro-benches/
 Each benchmark has `benchmarks/<tool>/<tool>.build.sh`. Build scripts
 honor the same env-var contract as [`~/benches/`](https://github.com/ocaml-bench/benches) —
 identical names, identical fallbacks, so a script behaves the same way
-whether running-ng invokes it or you run it by hand:
+whether you run it by hand or an orchestrator invokes it:
 
 | Variable | Meaning | Fallback when unset |
 |----------|---------|---------------------|
@@ -331,9 +340,19 @@ What it does **not** catch:
 - N>2 domain heap contention — only main vs 1 worker. For "many domains marking concurrently", we still need a Sandmark `parallel_binarytrees` import (TODO.md).
 - Work-stealing scheduler patterns — merlin uses a single dedicated worker, not a pool.
 
-**Runtime requirement.** Currently disabled. The merlin-domains branch has a non-deterministic race in the typer-domain handoff that fires `Types.rev_log → Invalid -> assert false` at N≥2 iterations of the cram-bench workload. The race fires on **both** 5.4.1 (almost every run) and d8bb46c / 5.5-beta (~50% of N=2 runs in our trials). Initially we suspected an OCaml-version ABI mismatch — the bundled typer is synced from upstream/ocaml_503/ — but the same assertion fires on 5.5-beta, so it's a merlin-domains bug, not a version issue. Source kept; suite entry in `running-ng/.../macrobenchmarks_base.yml` is set to `[]` (empty programs). Full repro + analysis in [`benchmarks/merlin/UPSTREAM_BUG.md`](benchmarks/merlin/UPSTREAM_BUG.md). Re-enable when upstream fixes [#1890](https://github.com/ocaml/merlin/pull/1890).
+**Runtime requirement.** Currently disabled. The merlin-domains branch has a non-deterministic race in the typer-domain handoff that fires `Types.rev_log → Invalid -> assert false` at N≥2 iterations of the cram-bench workload. The race fires on **both** 5.4.1 (almost every run) and d8bb46c / 5.5-beta (~50% of N=2 runs in our trials). Initially we suspected an OCaml-version ABI mismatch — the bundled typer is synced from upstream/ocaml_503/ — but the same assertion fires on 5.5-beta, so it's a merlin-domains bug, not a version issue. Source kept; the benchmark is disabled in the orchestrator config (its programs list is emptied). Full repro + analysis in [`benchmarks/merlin/UPSTREAM_BUG.md`](benchmarks/merlin/UPSTREAM_BUG.md). Re-enable when upstream fixes [#1890](https://github.com/ocaml/merlin/pull/1890).
 
 #### `lavyek_kv_*` — multi-domain Eio + kcas + io_uring key-value store
+
+**Currently disabled — private repo.** Lavyek lives in a private
+repository, so it is not cloned or built by default (the same treatment
+as `merlin`): the benchmark definition stays in the tree but its
+programs list is emptied, and `setup-monorepo.sh` skips the clone and
+test-build. Re-enable once you have access (see the comments in
+`scripts/setup-monorepo.sh`). The characterisation below documents the
+benchmark for when it is re-enabled; until then the runtime features it
+covered (N>2 domains, io_uring, CPU pinning) are coverage gaps — see
+§"Coverage gaps".
 
 **What it does.** Lavyek is a from-scratch multicore KV store: Eio for fiber scheduling, kcas for the lock-free in-memory index, io_uring for the WAL writes (per-domain log file). The DaCapo-style driver in [`benchmarks/lavyek/lavyek_bench.ml`](benchmarks/lavyek/lavyek_bench.ml) runs a fixed-work load: WRITE phase puts `nb` = 10 000 000 (key, value) pairs (24-byte key, 100-byte value), then a READ phase verifies all of them. Work is distributed by a shared `Atomic.fetch_and_add` chunk counter (range = 1 op/chunk at max_fibers=100); each domain runs 100 fibers concurrently. Per-domain WAL files live under `benchmarks/lavyek/wal/lavyek_wal_<N>d/` and are removed on clean exit.
 
@@ -341,7 +360,7 @@ Four cells differ only in the domain count: `lavyek_kv_1d` (1 domain), `2d`, `4d
 
 **Profile.** Walls on monolith (Ryzen 9 9950X) with re=22, md=8: 1d ≈ 25s, 2d ≈ 14s, 4d ≈ 8s, 8d ≈ 6s. The 4-domain cell is the calibrated target; the 1d cell is the serial baseline for scaling. Notable: I/O matters (per-domain WAL), so on a slow disk the curves flatten; on tmpfs you see ideal scaling out to 4 domains and diminishing returns at 8d (GC pacer + cross-domain kcas contention).
 
-**CPU pinning (deterministic placement across runs).** Each worker domain calls `Processor.Affinity.set_cpus` (from [`ocaml-processor`](https://github.com/haesbaert/ocaml-processor), vendored in `duniverse/processor/`) as the first action inside `fn ()`, locking itself to physical core `id_domain` (the `smt=0` representative — SMT siblings are deliberately not used). Without this, Linux is free to migrate domains around the inherited CPU mask between time slices, which is the dominant source of run-to-run noise on multi-domain Eio workloads. Verified by reading `/proc/<pid>/task/*/status:Cpus_allowed_list`: each domain (and its GC + per-domain io_uring helper threads, which inherit the pthread mask) sits on a single core for the duration of the run. Two early-startup helper threads (the first global `iou-wrk` and the Eio main-setup thread) spawn before `fn ()` runs and so don't get pinned; the `pin_lavyek` modifier (`taskset -c 0-15`) in [`macro_base.yml`](../running-ng/src/running/config/base/ocaml/macro_base.yml) fences them to physical cores too.
+**CPU pinning (deterministic placement across runs).** Each worker domain calls `Processor.Affinity.set_cpus` (from [`ocaml-processor`](https://github.com/haesbaert/ocaml-processor), vendored in `duniverse/processor/`) as the first action inside `fn ()`, locking itself to physical core `id_domain` (the `smt=0` representative — SMT siblings are deliberately not used). Without this, Linux is free to migrate domains around the inherited CPU mask between time slices, which is the dominant source of run-to-run noise on multi-domain Eio workloads. Verified by reading `/proc/<pid>/task/*/status:Cpus_allowed_list`: each domain (and its GC + per-domain io_uring helper threads, which inherit the pthread mask) sits on a single core for the duration of the run. Two early-startup helper threads (the first global `iou-wrk` and the Eio main-setup thread) spawn before `fn ()` runs and so don't get pinned; the `pin_lavyek` modifier (`taskset -c 0-15`) in the orchestrator config fences them to physical cores too.
 
 **OCaml features.**
 - **Multi-domain parallelism** via Eio's `Domain_manager.run` (real OS threads, not just fibers). 1d/2d/4d/8d covers the spectrum: single domain (baseline), low parallelism (2), moderate (4), high (8, > NUMA-node-size on many boxes).
@@ -358,7 +377,7 @@ Four cells differ only in the domain count: `lavyek_kv_1d` (1 domain), `2d`, `4d
 
 Doesn't catch: Domainslib-style work-stealing pools (lavyek uses a manual atomic counter), pure CPU-bound parallel computation (the I/O is always on the path).
 
-**Runtime requirement.** OCaml ≥ 5.2 (Eio 1.x). Requires `md=8` and a smaller per-domain runtime-events ring (`re=22`) — wired via the lavyek-only `re_par` / `md_par` modifiers in [`macro_base.yml`](../running-ng/src/running/config/base/ocaml/macro_base.yml).
+**Runtime requirement.** OCaml ≥ 5.2 (Eio 1.x). Requires `md=8` and a smaller per-domain runtime-events ring (`re=22`) — wired via lavyek-only `re_par` / `md_par` modifiers in the orchestrator config when the benchmark is re-enabled.
 
 ---
 
@@ -690,12 +709,10 @@ Pairs with `devkit_stre` (also string-heavy) — co-movement points at the strin
 | `menhir_ocamly` | 33 | 20 | minor (canonical LR) | Hashtbl scale, large arrays |
 | `menhir_sql_parser` | 3.3 | 29 | minor (LALR + verbose) | menhir internals |
 | `menhir_sysver` | 20 | 33 | minor (table) | Hashtbl growth |
-| `ocamlc_self_compile` | 8.6 | 33 | minor-heavy + Ephemeron | Ephemeron tables, Marshal (.cmi), Hashtbl, AST allocation |
+| `ocamlc_self_compile` | 8.6 | 33 | minor-heavy + Marshal | Marshal (`.cmi`/`.cmo`), Hashtbl, Bigarray emit buffer, AST allocation |
 | `jsoo` | 7.2 | 33 | minor + IR construction | jsoo bytecode parser, SSA dataflow, JS codegen |
-| `lavyek_kv_1d` | 25 | — | I/O + kcas + Eio | single-domain Eio scheduler, kcas MCAS, io_uring |
-| `lavyek_kv_2d` | 14 | — | I/O + multi-domain | 2-domain parallel scaling, cross-domain Atomic contention |
-| `lavyek_kv_4d` | 8 | — | I/O + multi-domain | 4-domain parallel scaling (calibrated cell) |
-| `lavyek_kv_8d` | 6 | — | I/O + multi-domain | 8-domain scaling, Atomic contention, GC pacer |
+
+(`merlin_bench` and `lavyek_kv_*` are omitted — both currently disabled; see their notes above.)
 
 ### Runtime-feature coverage matrix
 
@@ -711,32 +728,16 @@ run. Notation:
   hit).
 - *(empty)* — not used at all.
 
-**Running benchmarks filtered by tag** — running-ng accepts a
-`RUNNING_TAG` environment variable that restricts `benchmarks:` to
-only the programs listed under one or more tags. The single source
-of truth for tag→program mappings lives in [`running-ng/src/running/config/base/ocaml/macro_base.yml`](https://github.com/udesou/running-ng/blob/adding-ocaml-support/src/running/config/base/ocaml/macro_base.yml)
-under the `tags:` block, with `verified_at:` file:line citations
-matching the table below. Examples:
+**Filtering by feature.** Each benchmark is tagged with the runtime
+features it exercises on the hot path, so a runner can select a subset
+(e.g. "only the `Weak.Make` benchmarks"). A tag whose hot-path set is
+empty is a **coverage gap** — listed explicitly at the end of this
+section. Note that `domains`, `io_uring`, and `cpu_pinning` were
+exercised only by `lavyek` (now disabled, and `domains` also by the
+disabled `merlin`), so those tags currently select nothing.
 
-```bash
-# Just the benchmarks that hit Weak.Make on the hot path:
-RUNNING_TAG=weak_refs CONFIG_FILE=…/macrobenchmarks_monorepo.yml bash run_ocaml_bench_gc_sweep.sh
-# → 3 programs (alt_ergo_fill, alt_ergo_yyll, alt_ergo_unsat_smt2)
-
-# Union of two tags:
-RUNNING_TAG=domains,io_uring …
-# → lavyek_kv_{2,4,8}d  (domains) ∪ lavyek_kv_{1,2,4,8}d (io_uring) = 4 programs
-
-# Coverage-gap tags error loudly:
-RUNNING_TAG=ephemerons …
-# → ValueError: all named tags are coverage gaps (`exercised_by:` is empty)
-```
-
-Semantics: comma-separated tags are union'd, then intersected with
-the experiment's `benchmarks:` block — so a tag never re-enables an
-explicitly-disabled bench (e.g. the currently-disabled `macro-merlin`).
-See running-ng's README §"Selecting benchmarks by runtime-feature
-tag" for the full surface.
+An orchestrator can consume these tags to filter a run — running-ng, for
+example, exposes them through a `RUNNING_TAG` selector; see its docs.
 
 | Tag | Runtime mechanism | ● hot-path benchmarks | ○ cold benchmarks |
 |---|---|---|---|
@@ -749,18 +750,18 @@ tag" for the full surface.
 | **`Ephemeron.K1/K2/Kn`** | `caml_ephe_*` | — (**verified gap**) | merlin_bench's `saved_parts.ml:3` (cold; bench disabled), coq's `clib/cEphemeron.ml` (used by VM backend, but `coq_corelib_stress.v` is kernel-only and never touches it) |
 | **`Weak.Make` / weak refs** | `caml_weak_*` | alt_ergo_{fill,yyll,unsat_smt2} — `alt-ergo/src/lib/util/hconsing.ml:51 module Make ... WHT.create initial_size` where `WHT = Weak.Make`. Every theory-term constructor goes through this weak hashset. **Suite's only hot-path Weak workload.** | — |
 | **`Marshal.{to,from}_*`** | `caml_output_value*` / `caml_input_value*` | ocamlc_self_compile (`.cmi` via `file_formats/cmi_format.ml:87`; `.cmo` via `bytecomp/emitcode.ml:33`) | liquidsoap-lang (`cache.ml:75` — disabled at default), jsoo (`compiler/lib/parse_bytecode.ml:462` — one-shot custom-block introspection), coq (`nativevalues.ml` — native backend not exercised by `coq_corelib_stress.v`), merlin's `persistent_env` (cold), alt-ergo (`satml.ml:2206` — commented out) |
-| **`Effect.perform` (OCaml 5)** | `caml_perform_*`, deep `try_with` | eio_fiber_stream (every `Eio.Stream.add/take` and `Fiber.both/all` performs effects — `lib_eio/core/suspend.ml:6`, `fiber.ml:11`, `cancel.ml`), lavyek_kv_*d (every fiber spawn/yield/await — far higher rate than eio_fiber_stream because of many fibers × N domains) | merlin_bench's cancellation control flow (disabled) |
-| **`Domain.spawn` / `Domain.join`** | `caml_domain_*` | lavyek_kv_{2,4,8}d (via `Eio.Domain_manager.run` — real OS threads, one per domain), merlin_bench (one typer worker — disabled) | lavyek_kv_1d (allocates a domain manager but never spawns a child domain) |
-| **`Atomic.*` (hot)** | `caml_atomic_*` | lavyek_kv_*d (`chunk_file.ml`, `memtable.ml:25-67`, `memfilter.ml`, `compact.ml` — CAS loops on bucket arrays, Bloom-filter bits, compaction queues; also `lavyek_bench.ml`'s `Atomic.fetch_and_add` chunk dispatcher), eio_fiber_stream (`lib_eio/sem_state.ml`, `lazy.ml` — Atomic exchange / CAS on every Stream op), merlin_bench (`Domain_msg.t` cancellation flag — disabled) | ocaml-re internals do Atomic at *regex compile time*, so devkit_{stre,htmlstream,network,gzip} see Atomic only in compile-once init |
+| **`Effect.perform` (OCaml 5)** | `caml_perform_*`, deep `try_with` | eio_fiber_stream (every `Eio.Stream.add/take` and `Fiber.both/all` performs effects — `lib_eio/core/suspend.ml:6`, `fiber.ml:11`, `cancel.ml`) | lavyek_kv_*d (much higher effect rate — many fibers × N domains — but **disabled**), merlin_bench's cancellation control flow (disabled) |
+| **`Domain.spawn` / `Domain.join`** | `caml_domain_*` | — (**gap**: the only producers, lavyek_kv_{2,4,8}d and merlin_bench, are both disabled) | lavyek_kv_{2,4,8}d (`Eio.Domain_manager.run` — real OS threads) + merlin_bench (one typer worker), when re-enabled |
+| **`Atomic.*` (hot)** | `caml_atomic_*` | eio_fiber_stream (`lib_eio/sem_state.ml`, `lazy.ml` — Atomic exchange / CAS on every Stream op) | lavyek_kv_*d (CAS loops in `memtable.ml:25-67`, `chunk_file.ml`, `memfilter.ml`, `compact.ml` + `Atomic.fetch_and_add` dispatcher — **disabled**), merlin_bench (`Domain_msg.t` cancellation flag — disabled); ocaml-re internals do Atomic at *regex compile time*, so devkit_{stre,htmlstream,network,gzip} see Atomic only in compile-once init |
 | **kcas / lock-free MCAS** | n/a (library-level) | — (**verified gap**: lavyek's `dune-project` imports `kcas` + `kcas_data` but `grep -rn 'Kcas\.\|Kcas_data\.\|Loc\.' duniverse/lavyek/src/` returns nothing; see `duniverse/lavyek/REMOVED.md:22`) | — |
 | **`Sys.set_signal`** | `caml_install_signal_handler` | alt_ergo_unsat_smt2 (`--timelimit 15` *arms* `SIGVTALRM` via `alt-ergo/src/bin/common/signals_profiling.ml:32`; fires if solving runs over) | alt_ergo_{fill,yyll} (`SIGINT`+`SIGPROF` handlers installed but never fire); coq has its own SIGINT for Ctrl-C but the kernel-only workload doesn't trigger it. **No benchmark exercises high-frequency signal delivery.** |
 | **`Lazy.force` (hot)** | `caml_call_lazy` | liq_parse_typecheck (`typechecking.ml:386`), jsoo (`inline.ml:195,429,714` — `in_loop` and `has_closures` forced per inline decision), menhir_* (`invariant.ml` — invariants forced during conflict resolution) | many cold init lazies (alt-ergo profiling stats, decompress error formatting, ocaml-re regex compile) |
 | **`Format` (hot)** | `Format.{fprintf,pp_*}` | menhir_* (codegen + table dumps), ocamlformat_rocq (the entire workload), liq_parse_typecheck (type printing), alt_ergo_* (debug + diagnostic output even when not enabled), zarith_pi (`Z.output` via Printf/Format) | most other benches use Format only on error paths that don't fire |
 | **`Hashtbl` at scale** | `caml_hash` | menhir_* (LR state tables — `LRijkstraClassic.ml:849` hash-cons of states; conflict tables), ocamlc_self_compile (`typing/btype.ml:46 module TypeHash`), alt_ergo_* (solver state, CDCL clause db), cpdf_* (`camlpdf/pdf.ml:118` — object map of `(int, objectdata ref * int) Hashtbl.t`), irmin_mem_rw (`irmin_mem.ml:44`), liq_parse_typecheck (`repr.ml:97,100,104,136,155,158` — `evars` tables), pplacer (`vendor/pplacer/pdprune_src/ptree.ml:4` — phylo tree `(int, edge) Hashtbl.t`), devkit_* (NAT tables, transformation caches) | most others touch Hashtbl only at trivial scale |
 | **Lwt promises** | `Lwt.bind` continuations | irmin_mem_rw (every store op — write 3 000, read 3 000, then 20 000 mixed) | — |
-| **Eio fibers (effects layer)** | `Eio.Fiber.*`, `Eio.Stream`, `Eio.Switch` | eio_fiber_stream, lavyek_kv_*d | — |
-| **io_uring (real syscalls)** | `Uring.t` via `eio_linux` stubs | lavyek_kv_*d (per-domain WAL writes — every put goes through the ring) | eio_fiber_stream is pure in-memory Stream; **no io_uring traffic** despite using Eio |
-| **CPU pinning** | `pthread_setaffinity_np` via `ocaml-processor` | lavyek_kv_*d (`benchmarks/lavyek/lavyek_bench.ml:59` — `Processor.Affinity.set_cpus`) | — |
+| **Eio fibers (effects layer)** | `Eio.Fiber.*`, `Eio.Stream`, `Eio.Switch` | eio_fiber_stream | lavyek_kv_*d (disabled) |
+| **io_uring (real syscalls)** | `Uring.t` via `eio_linux` stubs | — (**gap**: only lavyek_kv_*d, disabled) | lavyek_kv_*d (per-domain WAL writes — every put goes through the ring, when re-enabled); eio_fiber_stream is pure in-memory Stream — **no io_uring traffic** despite using Eio |
+| **CPU pinning** | `pthread_setaffinity_np` via `ocaml-processor` | — (**gap**: only lavyek_kv_*d, disabled) | lavyek_kv_*d (`benchmarks/lavyek/lavyek_bench.ml:59` — `Processor.Affinity.set_cpus`, when re-enabled) |
 | **OpenBLAS / GMP / GSL / sqlite3 / zlib C stubs in inner loop** | bulk FFI | owl_gc (OpenBLAS GEMM per `Mat.dot`), zarith_pi (GMP per arithmetic op), pplacer (GSL+sqlite3), devkit_gzip (zlib via `camlzip`) | test_decompress is *pure-OCaml zlib* — explicitly an FFI-free counterpart |
 | **`Gc.compact` / `Gc.full_major` forced** | `caml_compact_heap`, `caml_finish_major_cycle` | — (**verified gap**) | eio's `bench/` utilities call `Gc.full_major` but only outside the benchmark hot path |
 | **`Gc.alarm` callbacks** | `caml_final_register_*`-style alarm | — (**verified gap**) | — |
@@ -774,8 +775,8 @@ Reverse index for quick lookup. Hot-path tags only.
 | `coqc_corelib_stress` | minor-gc, constructor-alloc |
 | `eio_fiber_stream` | effects, atomics, eio-fibers, major-promotion |
 | `merlin_bench` *(disabled)* | domains, effects, atomics, hashtbl, format; cold: ephemerons, Gc.finalise |
-| `lavyek_kv_1d` | atomics, effects, eio-fibers, io-uring, pthread-affinity, hashtbl |
-| `lavyek_kv_{2,4,8}d` | **domains**, atomics, effects, eio-fibers, io-uring, pthread-affinity, hashtbl |
+| `lavyek_kv_1d` *(disabled)* | atomics, effects, eio-fibers, io-uring, pthread-affinity, hashtbl |
+| `lavyek_kv_{2,4,8}d` *(disabled)* | **domains**, atomics, effects, eio-fibers, io-uring, pthread-affinity, hashtbl |
 | `liq_parse_typecheck` | hashtbl, lazy, format, major-promotion, minor-gc |
 | `ydump_repeat` | minor-gc, major-promotion, recursive-variants |
 | `test_decompress` | bigarray, custom-block-finalisation (Bigstringaf), major-promotion (pure-OCaml zlib) |
@@ -802,9 +803,18 @@ A regression in any of these areas would **not** be caught by the
 current suite. Each entry was checked by `grep -rn` against the actual
 vendored source.
 
+- **Multi-domain parallelism (`Domain.spawn`/`join`), real io_uring syscall
+  traffic, and per-domain CPU pinning (`pthread_setaffinity_np`)** — now
+  **gaps** because the only benchmarks that exercised them are disabled:
+  `lavyek_kv_*` (private repo) covered all three, and `merlin_bench`
+  covered the 2-domain case. `eio_fiber_stream` still exercises
+  single-domain effects, fibers, and `Atomic`, but nothing currently
+  drives N>2 domains, io_uring, or affinity pinning. Re-enabling `lavyek`
+  (with access) or importing a Sandmark `parallel_*` benchmark would
+  close these.
 - **`Ephemeron.K1 / K2 / Kn`** — verified **gap**. The OCaml compiler-libs at 5.4.1 and trunk use `Hashtbl.Make` (not `Ephemeron`) for type hash-consing in `typing/btype.ml` and `typing/types.ml`. Merlin has one cold use in `saved_parts.ml` (and merlin_bench is disabled anyway). Coq's `clib/cEphemeron.ml` is only reached by the VM backend, which `coq_corelib_stress.v` (kernel reduction only) does not exercise. **No benchmark exercises ephemerons on a hot path.** This is the cleanest gap in the suite.
-- **kcas / lock-free MCAS** — verified **gap**. Lavyek imports `kcas`/`kcas_data` in `dune-project` but `grep -rn 'Kcas\.\|Kcas_data\.\|Loc\.' duniverse/lavyek/src/` returns nothing — the imports are vestigial (`duniverse/lavyek/REMOVED.md:22` documents the removal of `Kcas_data.Queue`). A small standalone benchmark wrapping `kcas` directly would close this.
-- **Domainslib work-stealing pools** — still uncovered (lavyek dispatches via a manual `Atomic.fetch_and_add` counter; eio uses fibers, not work-stealing).
+- **kcas / lock-free MCAS** — verified **gap**. Even when `lavyek` was enabled it didn't exercise this: it imports `kcas`/`kcas_data` in `dune-project` but `grep -rn 'Kcas\.\|Kcas_data\.\|Loc\.' duniverse/lavyek/src/` returns nothing — the imports are vestigial (`duniverse/lavyek/REMOVED.md:22` documents the removal of `Kcas_data.Queue`). A small standalone benchmark wrapping `kcas` directly would close this.
+- **Domainslib work-stealing pools** — uncovered (eio uses fibers, not work-stealing; lavyek, even when enabled, dispatched via a manual `Atomic.fetch_and_add` counter).
 - **`Gc.compact` / `Gc.full_major` in a hot loop** — no benchmark forces a full GC. Compaction interaction with finalisers is therefore untested by user-forced path; the runtime is free to compact on its own schedule but a forced-compact benchmark would catch interaction bugs.
 - **`Gc.alarm` / `Gc.create_alarm`** — no benchmark registers one. If alarm machinery changed, the suite would silently miss it.
 - **High-frequency signal delivery in tight loops** — alt-ergo *registers* signal handlers (SIGVTALRM/SIGINT/SIGPROF) but they fire at most once per run. No benchmark exercises rapid user-signal delivery.
@@ -901,9 +911,9 @@ When porting another benchmark to this pattern:
    etc.).
 3. Update the build script's wrapper to drop the shell `for` loop and
    just `exec` the binary, passing the count through as the env var.
-4. Update `running-ng/src/running/config/base/ocaml/macro_base.yml`'s
-   `args:` to be the loop count rather than an external iteration
-   count.
+4. In your orchestrator config (e.g. running-ng's `macro_base.yml`), set
+   the benchmark's `args:` to the loop count rather than an external
+   iteration count.
 5. Document the new env var in the table above.
 
 If the OCaml entry point is upstream code (vendored from another
@@ -963,8 +973,10 @@ for reference and for manual application if needed.
 
 ```bash
 # 1. Modify dune-project if adding/removing packages
-# 2. Re-lock
-OPAMSWITCH=running-ng-tools opam monorepo lock
+# 2. Re-lock — run in any switch that has the opam-monorepo plugin
+#    (install once with `opam install opam-monorepo`). OPAMSWITCH selects
+#    that switch for this one command without changing your shell's switch:
+OPAMSWITCH=<tools-switch> opam monorepo lock
 # 3. Rebuild from scratch
 make clean-all
 make setup
@@ -982,6 +994,6 @@ git commit -m "Update vendored dependencies"
    - `<tool>.build.sh` — build script (see existing ones for template)
    - `dune` — if the benchmark is custom `.ml` code compiled in the workspace
    - Input files (`.mly`, `.smt2`, `.json`, etc.)
-5. Add to `running-ng/src/running/config/experiments/macrobenchmarks_monorepo.yml`
+5. Register it in your orchestrator config (e.g. running-ng's experiment YAML) if you run it orchestrated
 6. Add to the test build list in `scripts/setup-monorepo.sh`
 7. Test: `make clean-all && make setup`
