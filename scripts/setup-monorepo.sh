@@ -172,40 +172,44 @@ else
 fi
 echo ""
 
-# ---- Vendor lavyek + multicore deps (not in opam-monorepo lockfile) ----
-# lavyek: multicore key-value store (Eio + io_uring + kcas) used as a macro
-# benchmark in benchmarks/lavyek/. The kcas/saturn/etc. ecosystem is not in
-# the lockfile, so we shallow-clone each missing dep into duniverse/. The
-# upstream lavyek root `dune` builds a `test` exe linking ahrocksdb + lmdb
-# (for cross-DB comparison); we override it with `(dirs src)` to build only
-# the lavyek library, since we don't run the C++ comparisons.
-echo "[2.4/9] Vendoring lavyek + multicore deps..."
-_clone_if_missing() {
-  local url="$1" dir="$2" branch="$3"
-  if [ -d "duniverse/$dir" ] && [ -f "duniverse/$dir/dune-project" ]; then
-    echo "  duniverse/$dir/ already populated. Skipping."
-  else
-    rm -rf "duniverse/$dir"
-    git clone --depth 1 -b "$branch" "$url" "duniverse/$dir"
-    rm -rf "duniverse/$dir/.git"
-    echo "  Cloned $dir."
-  fi
-}
-_clone_if_missing https://github.com/tarides/lavyek.git              lavyek               master
-_clone_if_missing https://github.com/ocaml-multicore/kcas.git        kcas                 main
-_clone_if_missing https://github.com/ocaml-multicore/backoff.git     backoff              main
-_clone_if_missing https://github.com/ocaml-multicore/multicore-magic.git multicore-magic  main
-_clone_if_missing https://github.com/ocaml-multicore/thread-table.git    thread-table     main
-_clone_if_missing https://github.com/ocaml-multicore/domain-local-timeout.git domain-local-timeout main
-_clone_if_missing https://github.com/ocaml-ppx/ppx_deriving_yojson.git ppx_deriving_yojson master
-# ocaml-processor: per-domain CPU affinity via pthread_setaffinity_np. Used by
-# benchmarks/lavyek/lavyek_bench.ml to pin each parallel domain to its own
-# physical core, so wall times of the 1d/2d/4d/8d cells are comparable
-# across runs. Not in opam-monorepo lockfile.
-_clone_if_missing https://github.com/haesbaert/ocaml-processor.git    processor            main
-# Override lavyek's root dune (which references ahrocksdb/lmdb) to build src/
-# only. Idempotent: just overwrites with our minimal version.
-echo "(dirs src)" > duniverse/lavyek/dune
+# ---- Vendor lavyek + multicore deps — DISABLED (private repo) ----------------
+# lavyek lives in a PRIVATE repo (github.com/tarides/lavyek), so this step is
+# skipped the same way macro-merlin is skipped in the running-ng configs: the
+# benchmark stays in the tree but is never cloned, built, or enabled, so builds
+# without lavyek access work out of the box. The companion change empties
+# macro-lavyek-monorepo in running-ng's macro_base.yml `benchmarks:` block and
+# drops benchmarks/lavyek/lavyek_bench.exe from the [9/9] test build below.
+#
+# To RE-ENABLE (requires lavyek access): uncomment this whole block, re-add the
+# lavyek_bench.exe line to the [9/9] test build, and uncomment the lavyek cells
+# in macro_base.yml + smoke_macro.yml.
+#
+# lavyek: multicore key-value store (Eio + io_uring + kcas). The kcas/saturn
+# ecosystem and ocaml-processor (per-domain pthread_setaffinity_np pinning) are
+# not in the lockfile, hence the shallow clones. The upstream lavyek root `dune`
+# builds a `test` exe linking ahrocksdb + lmdb; `(dirs src)` overrides it to
+# build only the lavyek library.
+echo "[2.4/9] Vendoring lavyek + multicore deps... SKIPPED (private repo)."
+# _clone_if_missing() {
+#   local url="$1" dir="$2" branch="$3"
+#   if [ -d "duniverse/$dir" ] && [ -f "duniverse/$dir/dune-project" ]; then
+#     echo "  duniverse/$dir/ already populated. Skipping."
+#   else
+#     rm -rf "duniverse/$dir"
+#     git clone --depth 1 -b "$branch" "$url" "duniverse/$dir"
+#     rm -rf "duniverse/$dir/.git"
+#     echo "  Cloned $dir."
+#   fi
+# }
+# _clone_if_missing https://github.com/tarides/lavyek.git              lavyek               master
+# _clone_if_missing https://github.com/ocaml-multicore/kcas.git        kcas                 main
+# _clone_if_missing https://github.com/ocaml-multicore/backoff.git     backoff              main
+# _clone_if_missing https://github.com/ocaml-multicore/multicore-magic.git multicore-magic  main
+# _clone_if_missing https://github.com/ocaml-multicore/thread-table.git    thread-table     main
+# _clone_if_missing https://github.com/ocaml-multicore/domain-local-timeout.git domain-local-timeout main
+# _clone_if_missing https://github.com/ocaml-ppx/ppx_deriving_yojson.git ppx_deriving_yojson master
+# _clone_if_missing https://github.com/haesbaert/ocaml-processor.git    processor            main
+# echo "(dirs src)" > duniverse/lavyek/dune
 echo ""
 
 # ---- Patch dune_ version (3.22 → 3.21) ----
@@ -558,7 +562,6 @@ dune build \
   duniverse/ocamlformat/bin/ocamlformat/main.exe \
   benchmarks/decompress/test_decompress.exe \
   benchmarks/eio/eio_bench.exe \
-  benchmarks/lavyek/lavyek_bench.exe \
   benchmarks/sedlex/sedlex_bench.exe \
   vendor/pplacer/tests.exe \
   benchmarks/liquidsoap-lang/liq_bench.exe \
