@@ -162,6 +162,18 @@ depends: [
   "yojson" {= "3.0.0" & ?vendor}
   "zarith" {= "1.14+dune" & ?vendor}
   "zip" {= "1.11+dune" & ?vendor}
+  "bos" {= "0.2.1+dune" & ?vendor}
+  "jane-street-headers" {= "v0.17.0" & ?vendor}
+  "jst-config" {= "v0.17.0" & ?vendor}
+  "ppx_assert" {= "v0.17.0" & ?vendor}
+  "ppx_deriving_yaml" {= "0.4.1" & ?vendor}
+  "ppx_deriving_yojson" {= "3.10.0" & ?vendor}
+  "ppx_here" {= "v0.17.0" & ?vendor}
+  "ppx_inline_test" {= "v0.17.1" & ?vendor}
+  "ppx_optcomp" {= "v0.17.1" & ?vendor}
+  "rresult" {= "0.7.0+dune" & ?vendor}
+  "time_now" {= "v0.17.0" & ?vendor}
+  "yaml" {= "3.2.0" & ?vendor}
 ]
 depexts: [
   ["cblas" "lapacke" "openblas"] {os-distribution = "arch"}
@@ -843,6 +855,54 @@ pin-depends: [
   [
     "zip.1.11+dune"
     "https://github.com/dune-universe/camlzip/releases/download/v1.11%2Bdune/camlzip-1.11.dune.tbz"
+  ]
+  [
+    "bos.0.2.1+dune"
+    "https://github.com/dune-universe/bos/releases/download/v0.2.1%2Bdune/bos-0.2.1.dune.tbz"
+  ]
+  [
+    "jane-street-headers.v0.17.0"
+    "https://github.com/janestreet/jane-street-headers/archive/refs/tags/v0.17.0.tar.gz"
+  ]
+  [
+    "jst-config.v0.17.0"
+    "https://github.com/janestreet/jst-config/archive/refs/tags/v0.17.0.tar.gz"
+  ]
+  [
+    "ppx_assert.v0.17.0"
+    "https://github.com/janestreet/ppx_assert/archive/refs/tags/v0.17.0.tar.gz"
+  ]
+  [
+    "ppx_deriving_yaml.0.4.1"
+    "https://github.com/patricoferris/ppx_deriving_yaml/releases/download/v0.4.1/ppx_deriving_yaml-0.4.1.tbz"
+  ]
+  [
+    "ppx_deriving_yojson.3.10.0"
+    "https://github.com/ocaml-ppx/ppx_deriving_yojson/releases/download/v3.10.0/ppx_deriving_yojson-3.10.0.tbz"
+  ]
+  [
+    "ppx_here.v0.17.0"
+    "https://github.com/janestreet/ppx_here/archive/refs/tags/v0.17.0.tar.gz"
+  ]
+  [
+    "ppx_inline_test.v0.17.1"
+    "https://github.com/janestreet/ppx_inline_test/archive/refs/tags/v0.17.1.tar.gz"
+  ]
+  [
+    "ppx_optcomp.v0.17.1"
+    "https://github.com/janestreet/ppx_optcomp/archive/refs/tags/v0.17.1.tar.gz"
+  ]
+  [
+    "rresult.0.7.0+dune"
+    "https://github.com/dune-universe/rresult/releases/download/v0.7.0%2Bdune/rresult-0.7.0.dune.tbz"
+  ]
+  [
+    "time_now.v0.17.0"
+    "https://github.com/janestreet/time_now/archive/refs/tags/v0.17.0.tar.gz"
+  ]
+  [
+    "yaml.3.2.0"
+    "https://github.com/avsm/ocaml-yaml/releases/download/v3.2.0/yaml-3.2.0.tbz"
   ]
 ]
 x-opam-monorepo-duniverse-dirs: [
@@ -1708,6 +1768,97 @@ x-opam-monorepo-duniverse-dirs: [
       "sha512=72c85ec63104d6a7c7b6305b4642b86909fcad2e46561427ad596e37e686b3c94cd382da440f058d32800a15b157b80a8242df8043440a209ba73d209657ea84"
     ]
   ]
+  [
+    "https://github.com/avsm/ocaml-yaml/releases/download/v3.2.0/yaml-3.2.0.tbz"
+    "ocaml-yaml"
+    [
+      "sha256=c50d2aca28b9f966792b71e1603351e5d24eda4dfd3e4453fbd50366a3a08227"
+      "sha512=e87ae73f3e376800a09e4359d5c7090ef5107807f540b51fbdee9017bcbacb2414ec12255b37caead115ea1562303436cac2c91c60814c2ba44bdd3d677fc0d1"
+    ]
+  ]
+  [
+    "https://github.com/dune-universe/bos/releases/download/v0.2.1%2Bdune/bos-0.2.1.dune.tbz"
+    "bos"
+    [
+      "sha256=c6a34311946ff906824cedc2d12825ee9ad73b73bfa1581fb8100d6fc3dd5c35"
+      "sha512=5a1422809050dfbebab9691f29109e8219e27ecc4bc50c2eb714dc59036811936e9c5860b13583ab0ba7c15a00ee5b515af25642cdc312a4814076d8e76e3fd7"
+    ]
+  ]
+  [
+    "https://github.com/dune-universe/rresult/releases/download/v0.7.0%2Bdune/rresult-0.7.0.dune.tbz"
+    "rresult"
+    [
+      "sha256=3726c0ddf709e1886ef9adae83bf3696fa65466cc675d2494fa6ea9da9945a9f"
+      "sha512=e29d1a41fca85a301df370183740d89c6a23ceb7fa530e8ba3693917032d5784b7899b6f713fd5f66d49c3426811a65465f5709af23b3f9120017f94cd9a448e"
+    ]
+  ]
+  [
+    "https://github.com/janestreet/jane-street-headers/archive/refs/tags/v0.17.0.tar.gz"
+    "jane-street-headers"
+    [
+      "sha256=78fa6084cd067b7a7d930d1fe1cb7eb9dcd1a90c73017e570213b47a3762eb4f"
+    ]
+  ]
+  [
+    "https://github.com/janestreet/jst-config/archive/refs/tags/v0.17.0.tar.gz"
+    "jst-config"
+    [
+      "sha256=2cf345e33bed0ee4c325667e77dfc5bee8f12afd56318b7c9acf81ec875ecf6e"
+    ]
+  ]
+  [
+    "https://github.com/janestreet/ppx_assert/archive/refs/tags/v0.17.0.tar.gz"
+    "ppx_assert"
+    [
+      "sha256=94c47289a6393642b1cca7d2cdb8decdbf387c3cee4faf50d9b00efc871cce8b"
+    ]
+  ]
+  [
+    "https://github.com/janestreet/ppx_here/archive/refs/tags/v0.17.0.tar.gz"
+    "ppx_here"
+    [
+      "sha256=27ac69db34a5ff0efbf6e3c52d52dda46d1e5d5db4d14fb4d8c20370b932a913"
+    ]
+  ]
+  [
+    "https://github.com/janestreet/ppx_inline_test/archive/refs/tags/v0.17.1.tar.gz"
+    "ppx_inline_test"
+    [
+      "md5=38196081de2fab8321b71addbe769b73"
+      "sha512=e5c2dc8e519bbdadb5b1472ee5c5d08c547395e46c294962f1ac830461bb2d30d16894395ba95866713a099ef3565d83e67dda48d6ed26b55ad7cb36a8f7f6aa"
+    ]
+  ]
+  [
+    "https://github.com/janestreet/ppx_optcomp/archive/refs/tags/v0.17.1.tar.gz"
+    "ppx_optcomp"
+    [
+      "md5=0bf43393409414c655c4473d79480fdf"
+      "sha512=2e7c41f168c004cf3be1cd768a5406c61af135c0b084ffdfc39555b4be8c21a227c56cffbfb66de8dc3de35f735277d330f3cc6762e6ba8708deebb78f9fd49b"
+    ]
+  ]
+  [
+    "https://github.com/janestreet/time_now/archive/refs/tags/v0.17.0.tar.gz"
+    "time_now"
+    [
+      "sha256=fc85d6e46c4eb9370de9385f7bbfa6d57b4e48a9e96b20009007226b73f9530c"
+    ]
+  ]
+  [
+    "https://github.com/ocaml-ppx/ppx_deriving_yojson/releases/download/v3.10.0/ppx_deriving_yojson-3.10.0.tbz"
+    "ppx_deriving_yojson"
+    [
+      "sha256=ced3d265e4287f1f18b09df6446a24444fad52b2a3054cbcbe0c9494d0e89b3f"
+      "sha512=038752a73690dc1b55031c119f57ee27fbee0d51a4a541d2f31ad1baf8b05637396c0b97a7dbfd77db600b689e90a62bfff7ca3fcf74545bd5b32dc3dabff511"
+    ]
+  ]
+  [
+    "https://github.com/patricoferris/ppx_deriving_yaml/releases/download/v0.4.1/ppx_deriving_yaml-0.4.1.tbz"
+    "ppx_deriving_yaml"
+    [
+      "sha256=dc2bef3043aaff7237589e97e44ca8a6268c8ec859a0430f9362b82f1d25752a"
+      "sha512=da2801971d93a2c19196d724e08883c87dd1025f5491e54ccef81b26a9f133872d2c195065092bd2d753f78748065b0db6801a58cbbc0d5bbfcbdbe9509196f4"
+    ]
+  ]
 ]
 x-opam-monorepo-opam-provided: [
   "conf-gmp"
@@ -1733,6 +1884,7 @@ x-opam-monorepo-root-packages: [
   "macro-bench-decompress"
   "macro-bench-devkit"
   "macro-bench-eio"
+  "macro-bench-frama-c"
   "macro-bench-irmin"
   "macro-bench-jsoo"
   "macro-bench-liquidsoap-lang"

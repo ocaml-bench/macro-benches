@@ -91,3 +91,23 @@
   (csv (>= 2.4))
   (xmlm (>= 1.3.0))
   (ounit2 (>= 2.2.0))))
+
+; frama-c is vendored manually (scripts/vendor-frama-c.sh — 32.1 is not
+; in opam, and we build only a trimmed kernel+EVA, no WP/why3/GUI/apron).
+; These are the OCaml deps of the kernel + EVA subtree only.  yaml is the
+; one dep not already pulled by another benchmark.
+(package
+ (name macro-bench-frama-c)
+ (allow_empty)
+ (depends
+  (zarith (>= 1.13))
+  (ocamlgraph (>= 2.0.0))
+  (menhir (>= 20181006))
+  (yojson (>= 2.0.0))
+  (yaml (>= 3.0.0))
+  (camlzip (>= 1.11))
+  (dune-site (>= 3.13.0))
+  (ppx_deriving (>= 5.0))
+  (ppx_deriving_yojson (>= 3.0))
+  (ppx_deriving_yaml (>= 0.2.0))
+  (ppx_inline_test (>= 0.17.0))))
