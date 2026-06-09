@@ -162,13 +162,22 @@ fi
 # was added in Cmdliner 2.0. opam-monorepo gives us 1.3.0; replace with 2.1.0.
 echo "[2.3/9] Vendoring cmdliner v2.1.1..."
 if [ -d duniverse/cmdliner ] && \
-   grep -q "version: \"2\." duniverse/cmdliner/cmdliner.opam 2>/dev/null; then
+   grep -qE "^version: \"2\." duniverse/cmdliner/cmdliner.opam 2>/dev/null; then
   echo "  duniverse/cmdliner/ already at >= 2.x. Skipping."
 else
+  # opam-monorepo's lockfile pins cmdliner 1.3.0+dune, but jsoo's ocaml-5.6
+  # branch needs the 2.x `Arg.Completion` API.  Fetch the dune-universe
+  # overlay's 2.1.1+dune build (upstream dbuenzli/cmdliner has NO dune
+  # files and cannot be built in this workspace).  Its cmdliner.opam
+  # carries `version: "2.1.1+dune"`, so the >= 2.x skip-check above matches
+  # on subsequent runs.
   rm -rf duniverse/cmdliner
-  git clone --depth 1 -b v2.1.1 \
-    https://github.com/dbuenzli/cmdliner.git duniverse/cmdliner
-  echo "  Cloned."
+  mkdir -p duniverse/cmdliner
+  curl -fsSL "https://github.com/dune-universe/cmdliner/releases/download/v2.1.1%2Bdune/cmdliner-2.1.1.dune.tbz" \
+    -o /tmp/cmdliner-2.1.1.dune.tbz
+  tar xf /tmp/cmdliner-2.1.1.dune.tbz -C duniverse/cmdliner --strip-components=1
+  rm -f /tmp/cmdliner-2.1.1.dune.tbz
+  echo "  Fetched cmdliner 2.1.1+dune (dune-universe overlay)."
 fi
 echo ""
 
