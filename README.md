@@ -18,7 +18,7 @@ Designed to work two ways:
 
 ## Benchmarks
 
-18 active tools, 28 benchmark programs, 16 categories.  Target runtime:
+19 active tools, 30 benchmark programs, 17 categories.  Target runtime:
 5-25s per benchmark (DaCapo sweet spot; a few of the heavier compiler/proof
 workloads run longer — see the table).  Two further tools, `merlin` and
 `lavyek`, ship in the tree but are currently disabled (see their notes).
@@ -42,6 +42,7 @@ workloads run longer — see the table).  Two further tools, `merlin` and
 | **ocamlc-self-compile** | Build tools | 1 (`ocamlc` on 400k-line workload) | 8.6s | single-process; Marshal-heavy (.cmi/.cmo write), Bigarray emit buffer, Hashtbl-scale TypeHash. Does **not** exercise Ephemerons — verified against 5.4.1 and trunk compiler-libs |
 | **liquidsoap-lang** | DSL compiler | 1 (parse+typecheck 50k iterations) | 26s | Jane Street PPX (≥ 5.3) |
 | **liq-video-frames** | GC pacer / off-heap | 1 (`pool` — refcounted-pool Bigarrays, 30k 1280×720 YUV420 frames) | 4-20s | Probes [#14533](https://github.com/ocaml/ocaml/issues/14533) — 3-plane YUV420 Bigarrays per frame (mm-faithful, POOL=1+TOUCH=full); env knobs `LIQ_POOL`, `LIQ_DW_MB`, `LIQ_CHURN`, `LIQ_PACE_FPS` |
+| **frama-c** | Static analysis | 2 (eva_t, eva_sqlite) | 7-8s | EVA abstract interpretation; `eva_sqlite` parses+analyses the 258k-line SQLite amalgamation — heavy `Weak.Make` hash-consing, 460MB RSS, probes [#11733](https://github.com/ocaml/ocaml/issues/11733). Static-linked kernel+EVA (32.1); `FRAMAC_EVA_SLEVEL` knob |
 | **merlin** | IDE / domains+effects | 1 (7 cram queries × N) | 16s | merlin-domains branch; **DISABLED — upstream race** |
 | **js_of_ocaml** | Compilers | 1 (compile runtime's ocamlc.byte to JS) | 7-9s | jsoo `ocaml-5.6` branch + cmdliner 2.1.0 |
 | **lavyek** | Multi-domain KV / Eio + Atomic + io_uring | 4 (kv_1d, kv_2d, kv_4d, kv_8d) | 6-25s | **DISABLED — private repo.** OCaml ≥ 5.2; per-domain CPU pinning via `ocaml-processor`. (Note: imports `kcas`/`kcas_data` in `dune-project` but the in-memory index is actually hand-rolled `Atomic.*` — kcas is unused in source) |
@@ -50,12 +51,12 @@ workloads run longer — see the table).  Two further tools, `merlin` and
 
 | Runtime | Working benchmarks |
 |---------|-------------------|
-| **OCaml 5.4.1** | All 18 active tools (28 programs) |
-| **OCaml d8bb46c (5.5-beta)** | All 18 active tools |
-| **OCaml trunk (5.6)** | All 18 active tools — ppxlib+lwt upgraded from git |
+| **OCaml 5.4.1** | All 19 active tools (30 programs) |
+| **OCaml d8bb46c (5.5-beta)** | All 19 active tools |
+| **OCaml trunk (5.6)** | All 19 active tools — ppxlib+lwt upgraded from git |
 | **OxCaml** | menhir (3), test_decompress, zarith_pi (5 programs) |
-| **OCaml 5.4.1 ± fp ± flambda** | All 18 active tools (the `-fp` / `-flambda` build variants) |
-| **OCaml d8bb46c ± fp ± flambda** | All 18 active tools (the `-fp` / `-flambda` build variants) |
+| **OCaml 5.4.1 ± fp ± flambda** | All 19 active tools (the `-fp` / `-flambda` build variants) |
+| **OCaml d8bb46c ± fp ± flambda** | All 19 active tools (the `-fp` / `-flambda` build variants) |
 
 ## Quick start
 
@@ -176,6 +177,7 @@ macro-benches/
     vendor-coq.sh              # manual vendor for rocq + zarith
     vendor-devkit-deps.sh      # manual vendor for libevent/ocurl
     vendor-pplacer.sh          # manual vendor for pplacer+mcl
+    vendor-frama-c.sh          # manual vendor for frama-c 32.1 (kernel+EVA)
     vendor-menhir.sh           # manual vendor for menhir
     vendor-alt-ergo.sh         # manual vendor for alt-ergo + deps
 
@@ -665,11 +667,51 @@ Pairs with `devkit_stre` (also string-heavy) — co-movement points at the strin
 **OCaml features.**
 - **Native `.why` parser frontend** (yyll) vs **Dolmen `.smt2` frontend** (unsat).
 - **Theory backends** — DPLL+T, congruence-closure, integer arithmetic, bitvector — most of the work is here.
-- **`Weak.Make` for term hash-consing** — `alt-ergo/src/lib/util/hconsing.ml:51 module Make (H : HashedType) : S with type elt = H.t = struct let storage = WHT.create initial_size ...` where `WHT = Weak.Make (H_t)`. Every theory term constructor goes through this weak hashset to deduplicate structurally identical subterms. This is the suite's **only** hot-path `Weak`-array workload.
+- **`Weak.Make` for term hash-consing** — `alt-ergo/src/lib/util/hconsing.ml:51 module Make (H : HashedType) : S with type elt = H.t = struct let storage = WHT.create initial_size ...` where `WHT = Weak.Make (H_t)`. Every theory term constructor goes through this weak hashset to deduplicate structurally identical subterms. Together with `frama_c_eva_*` (which hash-conses its CIL AST through `Weak.Make`), this is one of the suite's two hot-path `Weak`-array workloads — and recall (see coverage matrix) that `Weak.Make` is ephemeron-backed in the runtime, so these also exercise the `caml_ephe_clean` path.
 - **`Hashtbl`** at scale for term-hashing (independent of the Weak-hashset above — used in solver state, CDCL clause databases, theory lemma caches).
 - **`Sys.set_signal`** — `alt-ergo/src/bin/common/signals_profiling.ml:32-89` installs handlers for `SIGINT` (Ctrl-C), `SIGVTALRM` (`--timelimit` enforcement), `SIGPROF` (profiler). On `alt_ergo_unsat_smt2` the timer is *armed* (`--timelimit 15`) and may fire at the end of a long solve; on `fill`/`yyll` no `--timelimit` is passed so the handlers are registered but inert. **No benchmark stresses high-frequency signal delivery**, but the registration/unregistration path is exercised by all three.
 
 **Diagnostic value.** Three alt-ergo benchmarks (`fill`, `yyll`, `unsat_smt2`) that all move together → suspect alt-ergo's theory backends *or* the `caml_weak_*` runtime (every term construction touches the weak hashset). Movement on only `unsat_smt2` → Dolmen frontend (or signal-handler interaction at timeout). Movement on `fill` and `yyll` but not `unsat_smt2` → native frontend. Movement on all three *but not on any other benchmark* → strongly suspect `Weak.Make` / weak-pointer cleaning.
+
+#### `frama_c_eva_t` and `frama_c_eva_sqlite` — EVA abstract interpretation
+
+**What they do.** Run Frama-C's EVA (Evolved Value Analysis — abstract
+interpretation / value analysis) over a C program.  `eva_t` analyses
+`t.c` (the zlib source, ~17.5k lines); `eva_sqlite` analyses the SQLite
+amalgamation `sqlite3.c` (~258k lines) via a tiny driver `main` that
+opens an in-memory DB and runs a couple of statements.  Both are single
+observable OCaml processes.
+
+**How it's built.** Frama-C 32.1 is vendored as source
+(`scripts/vendor-frama-c.sh` → `vendor/frama-c`) and only its kernel +
+EVA are built — WP (and its `why3` dep, which caps OCaml < 5.5) and the
+GUI/apron plugins are not.  `benchmarks/frama-c/dune` links a standalone
+exe statically (`-linkall`, with `frama-c-eva.core` *before*
+`frama-c.boot` so EVA's `Plugin.Register` runs before boot finalises the
+option table), mirroring Frama-C's own `frama-c` binary.  It runs with
+`-no-autoload-plugins`, so dune-site plugin discovery is never used, and
+`frama-c.build.sh` sets `DUNE_DIR_LOCATIONS` to point Frama-C's
+(otherwise-empty, uninstalled) `share`/`lib` sites at `vendor/frama-c`.
+
+**Profile.** `eva_sqlite` ≈ 7-8s, **460MB RSS** at `-eva-slevel 0` on
+trunk (100/2529 functions, 1846 statements); raise `FRAMAC_EVA_SLEVEL`
+to push wall + RSS.  Verified building and running with identical
+analysis output on 5.4.1, d8bb46c (5.5-beta) and trunk.
+
+**Diagnostic value.** This is the suite's **largest weak/ephemeron
+hash-consing workload**: Frama-C hash-conses its entire CIL AST and EVA's
+abstract state through `State_builder.Hashconsing_tbl_weak` (= OCaml's
+`Weak.Make`), which is ephemeron-backed in the runtime (see coverage
+matrix).  `eva_sqlite` is the suite's reproducer for
+[ocaml#11733](https://github.com/ocaml/ocaml/issues/11733) — Frama-C's
+3-5× RSS / startup regression on OCaml 5, rooted in the
+ephemeron-cleaning path.  Headline signals are **`max_rss_kb` and
+`wall_time`** under an `FRAMAC_EVA_SLEVEL` sweep.  Movement on
+`eva_sqlite` (huge AST) but not `eva_t` (small) → suspect weak-table /
+`caml_ephe_clean` scaling; movement on both → EVA's core abstract
+interpreter or minor-GC allocation.  Pairs with `alt_ergo_*` (the other
+`Weak.Make` workload): movement on Frama-C *and* alt-ergo but nothing
+else → strongly suspect weak/ephemeron-pointer cleaning.
 
 #### `menhir_sql_parser` and `menhir_sysver`
 
@@ -747,8 +789,9 @@ example, exposes them through a `RUNNING_TAG` selector; see its docs.
 | **explicit `Gc.finalise`** | `caml_final_register` from user OCaml | pplacer (`gsl-ocaml/src/sum.ml:Gc.finalise _free ws`, plus `rng.ml`, `odeiv.ml`, `eigen.ml`, `integration.ml`) | merlin_bench (`mreader_extend.ml:52`, on a process handle — not the merlin_bench query path) |
 | **`Bigarray` allocation** | Bigarray `caml_ba_alloc` (custom blocks + off-heap byte data) | owl_gc (100×100 Float64 Array2, hot), liq_video_frames_pool (1280×720 YUV420, hot), test_decompress (Bigstringaf I/O buffers), ocamlc_self_compile (`bytecomp/emitcode.ml:53` — bytecode emit buffer is `(char, int8_unsigned_elt, c_layout) Bigarray.Array1.t`) | — |
 | **off-heap accounting / `custom_major_ratio` (M)** | `caml_alloc_custom_mem` mem-tracking → pacer | liq_video_frames_pool (the **only** benchmark whose wall+RSS Pareto front actually moves with M — this is the [#14533](https://github.com/ocaml/ocaml/issues/14533) repro) | owl_gc, zarith_pi, test_decompress all *allocate* custom blocks but at sizes too small to swing pacer policy |
-| **`Ephemeron.K1/K2/Kn`** | `caml_ephe_*` | — (**verified gap**) | merlin_bench's `saved_parts.ml:3` (cold; bench disabled), coq's `clib/cEphemeron.ml` (used by VM backend, but `coq_corelib_stress.v` is kernel-only and never touches it) |
-| **`Weak.Make` / weak refs** | `caml_weak_*` | alt_ergo_{fill,yyll,unsat_smt2} — `alt-ergo/src/lib/util/hconsing.ml:51 module Make ... WHT.create initial_size` where `WHT = Weak.Make`. Every theory-term constructor goes through this weak hashset. **Suite's only hot-path Weak workload.** | — |
+| **ephemeron GC machinery** (alloc + per-domain ephe list + `caml_ephe_clean` key scan) | `caml_ephe_create`, `caml_ephe_clean` | alt_ergo_{fill,yyll,unsat_smt2} and **frama_c_eva_*** — via `Weak.Make`. **`Weak.*` is not a separate runtime path**: `runtime/weak.c` defines `caml_weak_create` as `return caml_ephe_create(len)` and routes `caml_weak_get`/`set` through `caml_ephe_*` — a weak array is an ephemeron without a data field. So these weak workloads already drive ephemeron allocation + key-liveness cleaning on the hot path (the path that regressed on OCaml 5 — see [#11733](https://github.com/ocaml/ocaml/issues/11733), a Frama-C RSS blow-up). | — |
+| **ephemeron *data-field*** (`Ephemeron.K1`-with-data: value live iff all keys live) | `caml_ephe_set_data` / `get_data` + data branch of `caml_ephe_clean` | — (**verified gap, narrowed**) | merlin_bench's `saved_parts.ml:3` (cold; bench disabled), coq's `clib/cEphemeron.ml` (VM backend, unreached by kernel-only `coq_corelib_stress.v`). No bench sets an ephemeron data field on a hot path. |
+| **`Weak.Make` / weak hashsets** | `caml_ephe_*` (no distinct `caml_weak_*` GC path — see above) | **frama_c_eva_sqlite** (Frama-C hash-conses its entire CIL AST + EVA abstract state through `State_builder.Hashconsing_tbl_weak` = `Weak.Make`; on the 258k-line SQLite amalgamation this is the suite's **largest** weak/ephemeron workload, 460MB RSS), alt_ergo_{fill,yyll,unsat_smt2} (`hconsing.ml:51`, `WHT = Weak.Make` — every theory term) | — |
 | **`Marshal.{to,from}_*`** | `caml_output_value*` / `caml_input_value*` | ocamlc_self_compile (`.cmi` via `file_formats/cmi_format.ml:87`; `.cmo` via `bytecomp/emitcode.ml:33`) | liquidsoap-lang (`cache.ml:75` — disabled at default), jsoo (`compiler/lib/parse_bytecode.ml:462` — one-shot custom-block introspection), coq (`nativevalues.ml` — native backend not exercised by `coq_corelib_stress.v`), merlin's `persistent_env` (cold), alt-ergo (`satml.ml:2206` — commented out) |
 | **`Effect.perform` (OCaml 5)** | `caml_perform_*`, deep `try_with` | eio_fiber_stream (every `Eio.Stream.add/take` and `Fiber.both/all` performs effects — `lib_eio/core/suspend.ml:6`, `fiber.ml:11`, `cancel.ml`) | lavyek_kv_*d (much higher effect rate — many fibers × N domains — but **disabled**), merlin_bench's cancellation control flow (disabled) |
 | **`Domain.spawn` / `Domain.join`** | `caml_domain_*` | — (**gap**: the only producers, lavyek_kv_{2,4,8}d and merlin_bench, are both disabled) | lavyek_kv_{2,4,8}d (`Eio.Domain_manager.run` — real OS threads) + merlin_bench (one typer worker), when re-enabled |
@@ -793,6 +836,7 @@ Reverse index for quick lookup. Hot-path tags only.
 | `cpdf_{merge,blacktext,scale,squeeze}` | hashtbl (object map), bytes mutation, minor-gc; no FFI |
 | `alt_ergo_fill, alt_ergo_yyll` | **weak-refs (Weak.Make hash-consing)**, hashtbl, format |
 | `alt_ergo_unsat_smt2` | **weak-refs**, hashtbl, format, **signals (SIGVTALRM armed by `--timelimit 15`)** |
+| `frama_c_eva_{t,sqlite}` | **weak-refs / ephemeron-backed hash-consing (`Weak.Make` at scale)**, hashtbl, recursive-variants (CIL AST), minor-gc, **max-rss (sqlite, #11733)** |
 | `menhir_{ocamly,sql_parser,sysver}` | hashtbl, format, lazy, minor-gc |
 | `ocamlc_self_compile` | hashtbl, **marshal (`.cmi`+`.cmo` writeout)**, bigarray (emit buffer), minor-gc |
 | `jsoo` | hashtbl, lazy, marshal(cold) |
@@ -812,7 +856,7 @@ vendored source.
   drives N>2 domains, io_uring, or affinity pinning. Re-enabling `lavyek`
   (with access) or importing a Sandmark `parallel_*` benchmark would
   close these.
-- **`Ephemeron.K1 / K2 / Kn`** — verified **gap**. The OCaml compiler-libs at 5.4.1 and trunk use `Hashtbl.Make` (not `Ephemeron`) for type hash-consing in `typing/btype.ml` and `typing/types.ml`. Merlin has one cold use in `saved_parts.ml` (and merlin_bench is disabled anyway). Coq's `clib/cEphemeron.ml` is only reached by the VM backend, which `coq_corelib_stress.v` (kernel reduction only) does not exercise. **No benchmark exercises ephemerons on a hot path.** This is the cleanest gap in the suite.
+- **Ephemeron *data-field* semantics** — verified **gap, narrowed** (and no longer "the cleanest gap" now that Frama-C is in the suite). The runtime caveat: in `runtime/weak.c`, `caml_weak_create` is `return caml_ephe_create(len)` and `caml_weak_get`/`set` route through `caml_ephe_*` — a weak array is an ephemeron without a data field, and the GC's per-domain ephemeron list + `caml_ephe_clean` key-scan are shared. So the **ephemeron machinery is covered** on the hot path by the `Weak.Make` workloads — `frama_c_eva_sqlite` (CIL AST hash-consing at 258k-line scale, the [#11733](https://github.com/ocaml/ocaml/issues/11733) reproducer) and `alt_ergo_*`. What remains uncovered is only the **data-field path**: `Ephemeron.K1`-with-data (value retained iff all keys live), i.e. `caml_ephe_set_data`/`get_data` + the data-clearing branch of `caml_ephe_clean`. Compiler-libs use `Hashtbl.Make` for type hash-consing; merlin's `saved_parts.ml` use is cold (and disabled); coq's `clib/cEphemeron.ml` is VM-backend-only, unreached by `coq_corelib_stress.v`. **No benchmark sets an ephemeron data field on a hot path** — that is the gap.
 - **kcas / lock-free MCAS** — verified **gap**. Even when `lavyek` was enabled it didn't exercise this: it imports `kcas`/`kcas_data` in `dune-project` but `grep -rn 'Kcas\.\|Kcas_data\.\|Loc\.' duniverse/lavyek/src/` returns nothing — the imports are vestigial (`duniverse/lavyek/REMOVED.md:22` documents the removal of `Kcas_data.Queue`). A small standalone benchmark wrapping `kcas` directly would close this.
 - **Domainslib work-stealing pools** — uncovered (eio uses fibers, not work-stealing; lavyek, even when enabled, dispatched via a manual `Atomic.fetch_and_add` counter).
 - **`Gc.compact` / `Gc.full_major` in a hot loop** — no benchmark forces a full GC. Compaction interaction with finalisers is therefore untested by user-forced path; the runtime is free to compact on its own schedule but a forced-compact benchmark would catch interaction bugs.
@@ -949,14 +993,17 @@ for reference and for manual application if needed.
   rules use relative paths that resolve outside the monorepo.
   `make clean-all` removes this symlink.
 
-- **js_of_ocaml**: Parked.  Needs findlib at runtime to locate `stdlib`
-  package.  Also constrained to OCaml < 5.5.
-
 - **melange**: Parked.  Requires `(using melange 0.1)` dune extension to
   compile OCaml→JS; can't benchmark standalone.
 
-- **Frama-C**: Parked.  EVA analysis plugin doesn't build as a `.cmxs`
-  in the vendored context due to dune-site plugin loading limitations.
+- **Frama-C / dune-site**: The EVA benchmark links the Frama-C kernel +
+  EVA *statically* (`benchmarks/frama-c/dune`, `-linkall`) and runs with
+  `-no-autoload-plugins`, so dune-site plugin discovery is never used —
+  the `.cmxs` plugin path does not work for a relocated, uninstalled
+  build.  Frama-C's dune-site resource sites (`share`, `lib`) are also
+  empty in an uninstalled build, so `frama-c.build.sh` sets
+  `DUNE_DIR_LOCATIONS` to point them at `vendor/frama-c`.  WP is excluded
+  (its `why3` dep caps OCaml < 5.5); EVA needs neither WP nor why3.
 
 - **OxCaml**: Only menhir, test_decompress, and zarith_pi work.  Other
   tools fail due to locality type annotation errors in vendored
@@ -968,6 +1015,12 @@ for reference and for manual application if needed.
 
 - **pplacer**: Vendored manually (not in opam).  Requires `libgsl-dev`
   and `libsqlite3-dev` system packages.
+
+- **frama-c**: Vendored manually (`scripts/vendor-frama-c.sh`) — 32.1 is
+  not in opam, and only a trimmed kernel+EVA is built.  Requires
+  `libyaml`/`pkg-config` (for the `yaml` dep) and a C preprocessor (EVA
+  preprocesses the analysed C source).  The vendor script fills Frama-C's
+  empty `*.opam` placeholders so opam-monorepo can scan the tree.
 
 ## Updating dependencies
 

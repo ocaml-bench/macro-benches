@@ -1,0 +1,21 @@
+; Frama-C EVA benchmark: a standalone executable that statically links
+; the Frama-C kernel + the EVA (value/abstract-interpretation) plugin.
+;
+; This mirrors Frama-C's own `frama-c` binary (upstream's empty_file
+; exe): an empty main module whose behaviour comes entirely from the
+; link-time registration side-effects of the linked libraries.  -linkall
+; forces every module (incl. EVA's Plugin.Register) to be linked.
+;
+; CRUX: frama-c-eva.core MUST come before frama-c.boot in (libraries).
+; boot's module-init finalises the kernel command-line option table, so
+; EVA's registration must run first — otherwise `-eva` is unknown.
+;
+; Run with `-no-autoload-plugins` (see frama-c.build.sh wrapper): EVA is
+; statically registered, so the dune-site plugin loader is never invoked
+; and no plugin site / .cmxs is needed — the limitation that originally
+; parked Frama-C does not apply to this static-link build.
+(executable
+ (name frama_c_eva)
+ (modes exe)
+ (flags (:standard -open Frama_c_kernel -linkall))
+ (libraries frama-c.kernel frama-c.init.cmdline frama-c-eva.core frama-c.boot))

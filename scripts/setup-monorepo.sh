@@ -272,6 +272,11 @@ echo "[6b/9] Vendoring pplacer + mcl..."
 bash scripts/vendor-pplacer.sh
 echo ""
 
+# ---- Vendor frama-c (kernel + EVA only) ----
+echo "[6c/9] Vendoring frama-c (kernel + EVA)..."
+bash scripts/vendor-frama-c.sh
+echo ""
+
 # ---- Apply vendored source patches ----
 echo "[7/9] Applying vendored source patches..."
 
@@ -565,6 +570,7 @@ dune build \
   benchmarks/sedlex/sedlex_bench.exe \
   vendor/pplacer/tests.exe \
   benchmarks/liquidsoap-lang/liq_bench.exe \
+  benchmarks/frama-c/frama_c_eva.exe \
   --profile release
 
 echo ""
