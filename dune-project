@@ -34,11 +34,21 @@
  (depends
   (devkit (>= 1.20240429))))
 
+; cmdliner >= 2.0: jsoo's ocaml-5.6 branch uses Cmdliner.Arg.Completion
+; (added in 2.0).  Without this lower bound the solver picks 1.3.0+dune,
+; which lacks that API and breaks the jsoo build.  The dune-universe overlay
+; provides 2.1.1+dune, which this constraint pins the lock to.
+; dune = 3.22.2: the switch dune binaries are 3.22.1, and setup-monorepo's
+; dune_ lang patch only matches "3.22"; letting the solver bump dune to 3.23
+; leaves duniverse/dune_ at lang 3.23, which the 3.22.1 binaries can't parse.
+; Pinning to 3.22.2 (the previously-locked version) keeps the build working.
 (package
  (name macro-bench-jsoo)
  (allow_empty)
  (depends
-  (js_of_ocaml-compiler (= 6.2.0))))
+  (js_of_ocaml-compiler (= 6.2.0))
+  (cmdliner (>= 2.0.0))
+  (dune (= 3.22.2))))
 
 (package
  (name macro-bench-irmin)
@@ -111,3 +121,16 @@
   (ppx_deriving_yojson (>= 3.0))
   (ppx_deriving_yaml (>= 0.2.0))
   (ppx_inline_test (>= 0.17.0))))
+
+; goblint: static analyser (ocaml#13733 regression reproducer).  Vendored
+; via opam-monorepo (goblint + goblint-cil + deps are pure dune).  apron is
+; REQUIRED by the svcomp config but is non-dune (configure/make + camlidl),
+; so it is listed opam-provided (see the .opam.template) to keep the lock
+; from trying to vendor it; it is supplied instead from a vendored,
+; per-runtime prefix built by scripts/vendor-apron.sh (see
+; benchmarks/goblint/goblint.build.sh).
+(package
+ (name macro-bench-goblint)
+ (allow_empty)
+ (depends
+  (goblint (= 2.5.0))))

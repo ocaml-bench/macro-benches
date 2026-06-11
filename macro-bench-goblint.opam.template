@@ -1,0 +1,13 @@
+x-opam-monorepo-opam-provided: [
+  "apron"
+  "camlidl"
+  "mlgmpidl"
+  "conf-gmp"
+  "conf-mpfr"
+  "conf-perl"
+  "conf-pkg-config"
+]
+x-opam-monorepo-opam-repositories: [
+  "git+https://github.com/dune-universe/opam-overlays.git"
+  "https://opam.ocaml.org"
+]
