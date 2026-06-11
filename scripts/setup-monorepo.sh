@@ -221,12 +221,16 @@ echo "[2.4/9] Vendoring lavyek + multicore deps... SKIPPED (private repo)."
 # echo "(dirs src)" > duniverse/lavyek/dune
 echo ""
 
-# ---- Patch dune_ version (3.22 → 3.21) ----
-echo "[3/9] Patching duniverse/dune_/dune-project (lang dune 3.22 → 3.21)..."
-if grep -q 'lang dune 3.22' duniverse/dune_/dune-project 2>/dev/null; then
-  sed -i 's/lang dune 3.22/lang dune 3.21/' duniverse/dune_/dune-project
+# ---- Patch dune_ lang (3.2x → 3.21) ----
+# The switch dune binaries are 3.22.1 (5.4.1/5.5/tools) and can't parse a
+# `lang dune 3.23` dune-project (which the lock's dune now pulls).  Lower
+# whatever 3.2x the lock produced to 3.21 so every switch's dune can build it.
+echo "[3/9] Patching duniverse/dune_/dune-project (lang dune 3.2x → 3.21)..."
+if grep -qE 'lang dune 3\.2[0-9]' duniverse/dune_/dune-project 2>/dev/null && \
+   ! grep -q 'lang dune 3.21' duniverse/dune_/dune-project 2>/dev/null; then
+  sed -i -E 's/lang dune 3\.2[0-9]+/lang dune 3.21/' duniverse/dune_/dune-project
   rm -rf duniverse/dune_/test
-  echo "  Patched."
+  echo "  Patched ($(head -1 duniverse/dune_/dune-project))."
 else
   echo "  Already patched (or version differs). Skipping."
 fi
@@ -496,6 +500,22 @@ elif [ -f "$PPLACER_TESTS_ML" ]; then
   echo "  [13] pplacer tests.ml: already patched."
 else
   echo "  [13] pplacer: not vendored. Skipping."
+fi
+
+# Patch 14: goblint runtime header — GCC 14+/C23 conflicting-types error.
+# goblint.h declares __goblint_assume_join() with no args (= void(void) under
+# C23), but goblint.c defines it taking a pthread_t, so modern gcc rejects the
+# mismatch.  Make the declaration match the definition; pthread_t is unsigned
+# long on Linux/glibc, so we avoid pulling pthread.h into the header (which the
+# upstream comment deliberately avoids).
+GOBLINT_H="duniverse/analyzer/lib/goblint/runtime/include/goblint.h"
+if [ -f "$GOBLINT_H" ] && grep -q '__goblint_assume_join(/\* pthread_t' "$GOBLINT_H" 2>/dev/null; then
+  sed -i 's|void __goblint_assume_join(/\* pthread_t thread \*/);.*|void __goblint_assume_join(unsigned long thread); // pthread_t is unsigned long on Linux; avoids pthread.h vs kernel headers|' "$GOBLINT_H"
+  echo "  [14] goblint.h: patched __goblint_assume_join signature (GCC 14+/C23)."
+elif [ -f "$GOBLINT_H" ]; then
+  echo "  [14] goblint.h: already patched."
+else
+  echo "  [14] goblint: not vendored. Skipping."
 fi
 echo ""
 

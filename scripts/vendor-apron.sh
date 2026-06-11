@@ -35,8 +35,10 @@ export OCAMLPATH="$PREFIX/lib" OCAMLFIND_DESTDIR="$PREFIX/lib" PATH="$PREFIX/bin
 echo "compiler: $(ocaml -version)"
 
 echo "[1/4] bigarray-compat (dune)"
-( cd "$SRC/bigarray-compat" && dune build -p bigarray-compat @install >/dev/null 2>&1 \
-  && dune install --prefix "$PREFIX" --libdir "$PREFIX/lib" bigarray-compat >/dev/null 2>&1 )
+# --root isolates the build: without it, dune walks up and adopts the enclosing
+# macro-benches workspace as root (vendor/ lives inside it), breaking the build.
+( dune build --root "$SRC/bigarray-compat" --profile release @install >/dev/null 2>&1 \
+  && dune install --root "$SRC/bigarray-compat" --prefix "$PREFIX" --libdir "$PREFIX/lib" bigarray-compat >/dev/null 2>&1 )
 echo "      $(ocamlfind query bigarray-compat 2>&1)"
 
 echo "[2/4] camlidl (make build; findlib install)"
