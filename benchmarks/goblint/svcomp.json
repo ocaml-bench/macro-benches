@@ -58,7 +58,6 @@
     "autotune": {
       "enabled": true,
       "activated": [
-        "singleThreaded",
         "mallocWrappers",
         "noRecursiveIntervals",
         "enums",
