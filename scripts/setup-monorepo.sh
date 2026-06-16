@@ -622,6 +622,22 @@ else
 fi
 echo ""
 
+# Patch 18: goblint control.ml — first-class-module signature inference.
+# `analyze_loop` takes `(module CFG : CfgBidirSkip)`; the two call sites pack
+# `(module CFG)` without annotation.  OCaml >= 5.5's stricter typechecker can't
+# infer the packaged-module signature there ("signature for this packaged module
+# couldn't be inferred"), so annotate the packs.  Harmless on 5.4.1.
+GOBLINT_CTRL="duniverse/analyzer/src/framework/control.ml"
+if [ -f "$GOBLINT_CTRL" ] && ! grep -qF "(module CFG : CfgBidirSkip)" "$GOBLINT_CTRL" 2>/dev/null; then
+  sed -i 's/analyze_loop (module CFG) file fs change_info/analyze_loop (module CFG : CfgBidirSkip) file fs change_info/g' "$GOBLINT_CTRL"
+  echo "  [18] goblint control.ml: annotated (module CFG : CfgBidirSkip) packs (OCaml >= 5.5)."
+elif [ -f "$GOBLINT_CTRL" ]; then
+  echo "  [18] goblint control.ml: already annotated."
+else
+  echo "  [18] goblint control.ml: not vendored. Skipping."
+fi
+echo ""
+
 # ---- Generate rocq config + dunestrap ----
 echo "[8/9] Generating rocq config and dunestrap files..."
 ROCQ_DIR="duniverse/rocq"
