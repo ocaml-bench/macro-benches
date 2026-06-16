@@ -8,6 +8,6 @@ x-opam-monorepo-opam-provided: [
   "conf-pkg-config"
 ]
 x-opam-monorepo-opam-repositories: [
-  "git+https://github.com/dune-universe/opam-overlays.git"
-  "https://opam.ocaml.org"
+  "git+https://github.com/dune-universe/opam-overlays.git#efd742d67b0d49b2d6f491ffbbf205ca42977a6e"
+  "git+https://github.com/ocaml/opam-repository.git#b860455781b24ea862ab687f6345d8bc6c8a3a82"
 ]

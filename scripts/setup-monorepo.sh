@@ -517,6 +517,21 @@ elif [ -f "$GOBLINT_H" ]; then
 else
   echo "  [14] goblint: not vendored. Skipping."
 fi
+
+# Patch 15: cpu (goblint dep) — generate config.h.  cpu's opam build runs
+# `autoconf; autoheader; ./configure` before dune, which produces src/config.h
+# that its C stub (#include "config.h") needs.  opam-monorepo vendors the
+# source but not that build step, so generate it here.  Idempotent.
+CPU_DIR="duniverse/cpu"
+if [ -f "$CPU_DIR/configure.ac" ] && [ ! -f "$CPU_DIR/src/config.h" ]; then
+  ( cd "$CPU_DIR" && autoconf && autoheader && ./configure ) >/dev/null 2>&1 \
+    && echo "  [15] cpu: generated src/config.h (autoconf/autoheader/configure)." \
+    || echo "  [15] cpu: configure FAILED — check autoconf availability."
+elif [ -f "$CPU_DIR/src/config.h" ]; then
+  echo "  [15] cpu: config.h already present."
+else
+  echo "  [15] cpu: not vendored. Skipping."
+fi
 echo ""
 
 # ---- Generate rocq config + dunestrap ----
