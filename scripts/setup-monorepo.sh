@@ -534,6 +534,94 @@ else
 fi
 echo ""
 
+# Patch 16: json-data-encoding (goblint dep) — re-align the dune-universe fork's
+# Json_repr.Yojson type with upstream / Yojson.Safe.t.  opam-monorepo vendors the
+# pirbo +dune fork, which narrows `yojson` to 8 constructors (drops `Tuple` /
+# `Variant`).  Goblint treats Json_repr.Yojson.value and Yojson.Safe.t as the
+# SAME type (and converts both directions), so it won't typecheck against the
+# narrowed fork.  Add the two missing tags (making it = Yojson.Safe.t) plus the
+# matching view / to_basic cases.  goblint config values never contain
+# Tuple/Variant, so the added converter arms are unreachable.  Idempotent.
+JR_ML="duniverse/json-data-encoding/src/json_repr.ml"
+if [ -f "$JR_ML" ] && ! grep -qF "Tuple of value list" "$JR_ML" 2>/dev/null; then
+  python3 - <<'PY'
+ml = "duniverse/json-data-encoding/src/json_repr.ml"; s = open(ml).read()
+s = s.replace(
+"""    | `Intlit of string
+    | `List of value list
+    | `Null
+    | `String of string ]""",
+"""    | `Intlit of string
+    | `List of value list
+    | `Null
+    | `String of string
+    | `Tuple of value list
+    | `Variant of (string * value option) ]""", 1)
+s = s.replace(
+"""    | `Null -> `Null
+    | `Bool b -> `Bool b
+
+  let repr""",
+"""    | `Null -> `Null
+    | `Bool b -> `Bool b
+    | `Tuple l -> `A l
+    | `Variant (s, _) -> `String s
+
+  let repr""", 1)
+s = s.replace(
+"""    | `Null -> `Null
+    | `Bool b -> `Bool b
+  in
+  (* Rename `Assoc, `Int and `List *)""",
+"""    | `Null -> `Null
+    | `Bool b -> `Bool b
+    | `Tuple _ | `Variant _ -> assert false  (* goblint configs never produce these *)
+  in
+  (* Rename `Assoc, `Int and `List *)""", 1)
+open(ml, "w").write(s)
+mli = "duniverse/json-data-encoding/src/json_repr.mli"; s = open(mli).read()
+s = s.replace(
+"""  | `List of yojson list  (** A JS array. *)
+  | `Null  (** The [null] constant. *)
+  | `String of string  (** An UTF-8 encoded string. *) ]""",
+"""  | `List of yojson list  (** A JS array. *)
+  | `Null  (** The [null] constant. *)
+  | `String of string  (** An UTF-8 encoded string. *)
+  | `Tuple of yojson list
+  | `Variant of (string * yojson option) ]""", 1)
+open(mli, "w").write(s)
+PY
+  echo "  [16] json-data-encoding: re-aligned Json_repr.Yojson with Yojson.Safe.t."
+elif [ -f "$JR_ML" ]; then
+  echo "  [16] json-data-encoding: already aligned."
+else
+  echo "  [16] json-data-encoding: not vendored. Skipping."
+fi
+echo ""
+
+# Patch 17: bare_encoding (goblint/catapult dep) — install its source .ml/.mli.
+# catapult's core lib does `(copy %{lib:bare_encoding:Bare_encoding.ml} ...)`,
+# which needs the (capitalised) source installed under the package's lib dir;
+# the plain (library) stanza doesn't install source, so add an install stanza.
+BARE_DUNE="duniverse/bare-ocaml/src/dune"
+if [ -f "$BARE_DUNE" ] && ! grep -qF "Bare_encoding.ml" "$BARE_DUNE" 2>/dev/null; then
+  cat >> "$BARE_DUNE" <<'DUNE_EOF'
+
+; Goblint's catapult dep copies Bare_encoding.ml/.mli via %{lib:bare_encoding:..}
+; which needs the source installed under the lib dir (capitalised module name).
+(install
+ (section lib)
+ (package bare_encoding)
+ (files (bare_encoding.ml as Bare_encoding.ml) (bare_encoding.mli as Bare_encoding.mli)))
+DUNE_EOF
+  echo "  [17] bare_encoding: added source install stanza."
+elif [ -f "$BARE_DUNE" ]; then
+  echo "  [17] bare_encoding: already patched."
+else
+  echo "  [17] bare_encoding: not vendored. Skipping."
+fi
+echo ""
+
 # ---- Generate rocq config + dunestrap ----
 echo "[8/9] Generating rocq config and dunestrap files..."
 ROCQ_DIR="duniverse/rocq"
