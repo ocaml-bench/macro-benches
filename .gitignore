@@ -33,3 +33,7 @@ benchmarks/ocamlc-self-compile/inputs/compile_workload.ml
 # Notebook execution artifacts (rebuilt on re-run)
 results/**/notebooks/cache/
 results/**/notebooks/__pycache__/
+
+# goblint run artifacts (witness output + preprocessing cache)
+witness.yml
+.goblint/
