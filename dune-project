@@ -34,21 +34,16 @@
  (depends
   (devkit (>= 1.20240429))))
 
-; cmdliner >= 2.0: jsoo's ocaml-5.6 branch uses Cmdliner.Arg.Completion
-; (added in 2.0).  Without this lower bound the solver picks 1.3.0+dune,
-; which lacks that API and breaks the jsoo build.  The dune-universe overlay
-; provides 2.1.1+dune, which this constraint pins the lock to.
-; dune = 3.22.2: the switch dune binaries are 3.22.1, and setup-monorepo's
-; dune_ lang patch only matches "3.22"; letting the solver bump dune to 3.23
-; leaves duniverse/dune_ at lang 3.23, which the 3.22.1 binaries can't parse.
-; Pinning to 3.22.2 (the previously-locked version) keeps the build working.
+; cmdliner (2.x, for jsoo's Arg.Completion) and the dune_ lang level are both
+; handled post-pull in setup-monorepo.sh ([2.3] / [3]) — opam-monorepo ignores
+; version pins on these base/overlay packages anyway, and a `dune = 3.22.2` pin
+; here actually makes the solve UNSAT (the set wants 3.23.1, which the [3] lang
+; patch builds fine on the 3.22.1 binaries).  So jsoo stays unconstrained.
 (package
  (name macro-bench-jsoo)
  (allow_empty)
  (depends
-  (js_of_ocaml-compiler (= 6.2.0))
-  (cmdliner (>= 2.0.0))
-  (dune (= 3.22.2))))
+  (js_of_ocaml-compiler (= 6.2.0))))
 
 (package
  (name macro-bench-irmin)
@@ -133,4 +128,8 @@
  (name macro-bench-goblint)
  (allow_empty)
  (depends
-  (goblint (= 2.5.0))))
+  (goblint (= 2.5.0))
+  ; catapult's core lib copies Bare_encoding + runs bare-codegen at build time,
+  ; but catapult's opam doesn't declare it (optional there); name it so the
+  ; lock vendors it.
+  (bare_encoding (>= 0.3.0))))

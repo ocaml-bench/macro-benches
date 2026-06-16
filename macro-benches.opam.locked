@@ -8,6 +8,7 @@ depends: [
   "angstrom" {= "0.16.1" & ?vendor}
   "arg-complete" {= "0.2.1" & ?vendor}
   "astring" {= "0.8.5+dune" & ?vendor}
+  "bare_encoding" {= "0.3.1" & ?vendor}
   "base" {= "v0.17.3" & ?vendor}
   "base-bigarray" {= "base"}
   "base-bytes" {= "base+dune" & ?vendor}
@@ -423,6 +424,10 @@ pin-depends: [
   [
     "astring.0.8.5+dune"
     "https://github.com/dune-universe/astring/archive/v0.8.5+dune.tar.gz"
+  ]
+  [
+    "bare_encoding.0.3.1"
+    "https://github.com/c-cube/bare-ocaml/releases/download/v0.3.1/bare_encoding-0.3.1.tbz"
   ]
   [
     "base.v0.17.3"
@@ -1161,6 +1166,14 @@ x-opam-monorepo-duniverse-dirs: [
     [
       "sha256=b0956210863cc24f480203ba3c2ef06dfae5579536a05744364e7de58822b230"
       "sha512=257cdd5fb90337b3e3682cade1269c1d181f3124e569a731909f49bbfbe581ab529ac401472fb9ef57166ac34d8ebadfa6a32c93665f38f5a335982d5e5dc0e1"
+    ]
+  ]
+  [
+    "https://github.com/c-cube/bare-ocaml/releases/download/v0.3.1/bare_encoding-0.3.1.tbz"
+    "bare-ocaml"
+    [
+      "sha256=29c842dc6ed864345c8c7ff601fa6bdae53a50000ff5342cd8ace4d3d0021ba6"
+      "sha512=2785df62a58786dd8ca68c9c1fb1cb0dcc8a8b3dfd9f79a3cad201f5870718ea8524ce3b4bf3dbbab06d3b63733deb2100bf712f730772be1ee1c5a6dabba402"
     ]
   ]
   [
