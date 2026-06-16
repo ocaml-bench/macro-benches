@@ -40,6 +40,13 @@ dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
 
 REAL_EXE="${BUILD_DIR}/default/duniverse/analyzer/src/goblint.exe"
 
+# Goblint locates its bundled libc/sv-comp/linux stubs + runtime includes via
+# dune-site (Goblint_sites.lib_*), populated only on `opam install`.  Our
+# hermetic in-tree build never installs, so those sites are empty and goblint
+# aborts ("custom include stdlib.c not found").  Point pre.custom_includes (which
+# goblint searches first) at the vendored source dirs instead.
+GLIB="${MONOREPO_DIR}/duniverse/analyzer/lib"
+
 # 3. Emit a wrapper that runs Goblint on the SV-COMP workload.  apron's shared
 #    libs live in the prefix, so the wrapper puts them on the dynamic loader
 #    path (the OCaml side is statically linked, but apron's C .so are dlopened).
@@ -54,6 +61,11 @@ exec "${REAL_EXE}" \\
   --sets ana.specification "${BENCH_DIR}/unreach-call.prp" \\
   --sets exp.architecture 64bit \\
   --set pre.cppflags[+] -std=gnu17 \\
+  --set pre.custom_includes[+] "${GLIB}/libc/stub/src" \\
+  --set pre.custom_includes[+] "${GLIB}/libc/stub/include" \\
+  --set pre.custom_includes[+] "${GLIB}/sv-comp/stub/src" \\
+  --set pre.custom_includes[+] "${GLIB}/linux/stub/include" \\
+  --set pre.custom_includes[+] "${GLIB}/goblint/runtime/include" \\
   "${BENCH_DIR}/bench.c" "\$@"
 WRAPPER
 chmod +x "${OUT}"
