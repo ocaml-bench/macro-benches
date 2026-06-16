@@ -2,7 +2,7 @@
 opam-version: "2.0"
 depends: [
   "dune" {>= "3.0"}
-  "goblint" {= "2.5.0"}
+  "goblint" {= "2.7.1"}
   "bare_encoding" {>= "0.3.0"}
   "odoc" {with-doc}
 ]

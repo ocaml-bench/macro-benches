@@ -128,7 +128,7 @@
  (name macro-bench-goblint)
  (allow_empty)
  (depends
-  (goblint (= 2.5.0))
+  (goblint (= 2.7.1))
   ; catapult's core lib copies Bare_encoding + runs bare-codegen at build time,
   ; but catapult's opam doesn't declare it (optional there); name it so the
   ; lock vendors it.

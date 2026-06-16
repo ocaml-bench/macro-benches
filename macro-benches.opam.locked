@@ -82,8 +82,8 @@ depends: [
   "fpath" {= "0.7.3+dune" & ?vendor}
   "fs-io" {= "3.23.1" & ?vendor}
   "gen" {= "1.1" & ?vendor}
-  "goblint" {= "2.5.0" & ?vendor}
-  "goblint-cil" {= "2.0.6" & ?vendor}
+  "goblint" {= "2.7.1" & ?vendor}
+  "goblint-cil" {= "2.0.9" & ?vendor}
   "gsl" {= "1.25.1" & ?vendor}
   "headache" {= "1.08" & ?vendor}
   "hex" {= "1.5.0" & ?vendor}
@@ -160,7 +160,7 @@ depends: [
   "ppxlib_jane" {= "v0.17.4" & ?vendor}
   "psmt2-frontend" {= "0.4.0" & ?vendor}
   "psq" {= "0.2.1" & ?vendor}
-  "qcheck-core" {= "0.25" & ?vendor}
+  "qcheck-core" {= "0.91" & ?vendor}
   "re" {= "1.14.0" & ?vendor}
   "repr" {= "0.8.0" & ?vendor}
   "result" {= "1.5" & ?vendor}
@@ -346,7 +346,7 @@ depexts: [
   ["perl-ExtUtils-MakeMaker"]
     {os-distribution = "centos" | os-family = "fedora" |
      os-distribution = "ol"}
-  ["perl-FindBin"] {os-family = "fedora"}
+  ["perl-FindBin"] {os-distribution = "centos" | os-family = "fedora"}
   ["perl-Pod-Html"] {os-family = "fedora"}
   ["perl-Pod-Html"] {os-distribution = "centos" & os-version >= "8"}
   ["perl5"] {os = "freebsd"}
@@ -632,12 +632,12 @@ pin-depends: [
   ]
   ["gen.1.1" "https://github.com/c-cube/gen/archive/v1.1.tar.gz"]
   [
-    "goblint.2.5.0"
-    "https://github.com/goblint/analyzer/releases/download/v2.5.0/goblint-2.5.0.tbz"
+    "goblint.2.7.1"
+    "https://github.com/goblint/analyzer/releases/download/v2.7.1/goblint-2.7.1.tbz"
   ]
   [
-    "goblint-cil.2.0.6"
-    "https://github.com/goblint/cil/releases/download/2.0.6/goblint-cil-2.0.6.tbz"
+    "goblint-cil.2.0.9"
+    "https://github.com/goblint/cil/releases/download/2.0.9/goblint-cil-2.0.9.tbz"
   ]
   [
     "gsl.1.25.1"
@@ -915,7 +915,7 @@ pin-depends: [
     "https://github.com/pqwy/psq/releases/download/v0.2.1/psq-0.2.1.tbz"
   ]
   [
-    "qcheck-core.0.25" "https://github.com/c-cube/qcheck/archive/v0.25.tar.gz"
+    "qcheck-core.0.91" "https://github.com/c-cube/qcheck/archive/v0.91.tar.gz"
   ]
   [
     "re.1.14.0"
@@ -1185,11 +1185,11 @@ x-opam-monorepo-duniverse-dirs: [
     ]
   ]
   [
-    "https://github.com/c-cube/qcheck/archive/v0.25.tar.gz"
+    "https://github.com/c-cube/qcheck/archive/v0.91.tar.gz"
     "qcheck"
     [
-      "md5=e1e928bf792c27de5c072f9123eeaec9"
-      "sha512=a0b5791cea09f98f1f17221e6289b87a7a1c16ae1c9af0c2e5bd6a170f2cf8727dba0759a7fd932d5d617e8c242562d69187c7e74eefd5262bc5fd75a322699e"
+      "md5=ac45753406af93cb77a3c173741e0fe8"
+      "sha512=3baa8c04a43db0497891394208c8a6184d603e4fe0ad9d15fddf666e7a628597210874ca85c96022b69c11a99fdd43bbbf0e6211e34ed7d1dea7b1c95bd54316"
     ]
   ]
   [
@@ -1390,19 +1390,19 @@ x-opam-monorepo-duniverse-dirs: [
     ]
   ]
   [
-    "https://github.com/goblint/analyzer/releases/download/v2.5.0/goblint-2.5.0.tbz"
+    "https://github.com/goblint/analyzer/releases/download/v2.7.1/goblint-2.7.1.tbz"
     "analyzer"
     [
-      "sha256=452d8491527aea21f2cbb11defcc14ba0daf9fdb6bdb9fc0af73e56eac57b916"
-      "sha512=1993cd45c4c7fe124ca6e157f07d17ec50fab5611b270a434ed1b7fb2910aa85a8e6eaaa77dad770430710aafb2f6d676c774dd33942d921f23e2f9854486551"
+      "sha256=af01aac256229f33a90a9fcbfed04b01e3097f154d4d124f006476d6387c6a66"
+      "sha512=2a93bfe16881adbc2d8dcbfe38c1e19cd24ca105d8e1eda13d02440f3002874ffe2957dfd937510765233a054a40568b0052db92e31d382a5bd215d1ec12565c"
     ]
   ]
   [
-    "https://github.com/goblint/cil/releases/download/2.0.6/goblint-cil-2.0.6.tbz"
+    "https://github.com/goblint/cil/releases/download/2.0.9/goblint-cil-2.0.9.tbz"
     "cil"
     [
-      "sha256=5577007bfac63c3f0609abdb74119fe674c9bc8529d790e90ef73a85964aa07a"
-      "sha512=f1a393fa92614ceaf857bec4df474d3e152c578d0ab5fdf791e9129668861ccaa37efae2f18aa539965d6c2ed4dabb47b4a5262aab55112e181935def06f18da"
+      "sha256=b8f33cf1e3d455ff3db273e8e6e1609fe30873f12b5b68a5173311dc6a0a0bd7"
+      "sha512=c279eacac4f766e19b158b1b7c10f92bcaca924634fde4bd88e8f806f33c8f2b401852ab68d2fe5a2ef3f5fe2912f7009104ff99dd43086c91fde5ca7047ad6b"
     ]
   ]
   [
