@@ -12,6 +12,7 @@ _rocq_prefix/
 # Benchmark binaries
 *-ocaml-*
 *-oxcaml-*
+*-mmtk*
 
 # Coq compilation artifacts (produced by running the coq benchmarks)
 benchmarks/coq/*.vo
