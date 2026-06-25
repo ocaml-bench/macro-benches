@@ -57,6 +57,31 @@ workloads run longer — see the table).  Two further tools, `merlin` and
 | **OxCaml** | menhir (3), test_decompress, zarith_pi (5 programs) |
 | **OCaml 5.4.1 ± fp ± flambda** | All 19 active tools (the `-fp` / `-flambda` build variants) |
 | **OCaml d8bb46c ± fp ± flambda** | All 19 active tools (the `-fp` / `-flambda` build variants) |
+| **OCaml 5.5+mmtk (MMTk GC)** | 26/30 programs run under Immix + StickyImmix (see [MMTk notes](#mmtk-ocaml-mmtk)) |
+
+### MMTk (`ocaml-mmtk`)
+
+The monorepo builds and runs under [ocaml-mmtk](https://github.com/fplaunchpad/ocaml-mmtk)
+— OCaml 5.5 with the [MMTk](https://www.mmtk.io/) collector instead of the stock
+runtime — as a drop-in runtime in running-ng (`type: OCamlMMTk`). See
+[running-ng's MMTk section](https://github.com/udesou/running-ng#mmtk-ocaml-mmtk)
+for how to run, the plans, and the heap knobs. All 30 programs **build**; **26 run
+cleanly** under both native plans (Immix, StickyImmix). Known MMTk-only issues:
+
+- **Crashes (4 programs):** `alt_ergo_{fill,yyll,unsat_smt2}` → SIGSEGV (the moving
+  collector relocates a value a C stub holds a raw pointer to — zarith→GMP; runs
+  fine under a non-moving MMTk build, so it is a moving-GC / object-pinning gap)
+  and `pplacer_testsuite` → SIGABRT (a channel finaliser locks an already-closed
+  channel mutex during GC). Both are excluded from the running-ng MMTk configs.
+- **Off-heap is not GC-paced.** A fixed `MMTK_HEAP_SIZE_MB` bounds only the on-heap
+  (MMTk-managed) memory. Custom-block off-heap data — Bigarray bulk data in
+  [`owl_gc`](#owl_gc--bigarray-gromov-wasserstein-distances), GMP limbs in
+  `zarith_pi` — is `malloc`'d and freed by the block's finaliser only when the proxy
+  is collected, but MMTk paces collection on on-heap occupancy, so off-heap bytes
+  accumulate with the heap budget: `owl_gc` RSS goes from ~130 MB at a 3 MB heap to
+  ~12 GB at a 16 GB heap with the *same* live set. (Stock OCaml paces the major GC on
+  off-heap/dependent memory via `caml_alloc_custom_mem`; under MMTk that path is
+  currently inert.) These benches are therefore poor footprint signals under MMTk.
 
 ## Quick start
 
