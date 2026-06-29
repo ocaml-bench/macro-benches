@@ -9,10 +9,13 @@ vendor/
 # Rocq local install (for coqc stdlib/plugins)
 _rocq_prefix/
 
-# Benchmark binaries
+# Benchmark binaries (executable-mode MMTk names; commit-mode -ocaml-mmtk-* is
+# already covered by *-ocaml-*). Narrow patterns so they don't match result dirs
+# whose names contain "-mmtk-".
 *-ocaml-*
 *-oxcaml-*
-*-mmtk*
+*-mmtk
+*-mmtk-nm
 
 # Coq compilation artifacts (produced by running the coq benchmarks)
 benchmarks/coq/*.vo
