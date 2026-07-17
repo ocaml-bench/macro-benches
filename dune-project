@@ -26,7 +26,7 @@
  (name macro-bench-alt-ergo)
  (allow_empty)
  (depends
-  (alt-ergo (= 2.6.2))))
+  (alt-ergo (= 2.6.3))))
 
 (package
  (name macro-bench-devkit)
@@ -38,7 +38,7 @@
  (name macro-bench-jsoo)
  (allow_empty)
  (depends
-  (js_of_ocaml-compiler (= 6.2.0))))
+  (js_of_ocaml-compiler (= 6.4.1))))
 
 (package
  (name macro-bench-irmin)

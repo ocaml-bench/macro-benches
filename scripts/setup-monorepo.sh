@@ -140,46 +140,26 @@ else
 fi
 echo ""
 
-# ---- Vendor js_of_ocaml (ocaml-5.6 branch, not in opam-monorepo lockfile) ----
-# The opam-monorepo pull would give us js_of_ocaml 6.2.0 which rejects
-# OCaml >= 5.5 outright (explicit failwith in compiler/lib/magic_number.ml).
-# The `ocaml-5.6` branch (PR #2227) extends the upper bound to < 5.7 and
-# adds the bytecode-magic + WASM/JS runtime support for OCaml 5.6,
+# ---- Vendor js_of_ocaml (master branch, not in opam-monorepo lockfile) ----
+# The opam-monorepo pull would give us js_of_ocaml 6.4.1 which reject OCaml >= 5.7
+# outright (explicit failwith in compiler/lib/magic_number.ml). That upper
+# bound used to be lifted by a dedicated `ocaml-5.6` branch (PR #2227), but
+# that branch has since been merged and deleted upstream; its fix now lives
+# directly on `master` ("Update OCaml bound", 2026-07-06), extending the
+# bound to < 5.7 with bytecode-magic + WASM/JS runtime support for OCaml
+# 5.6. No released version has this fix yet, so we vendor master directly,
 # covering 5.4.1, 5.5-beta, and trunk in our matrix.
-echo "[2.2/9] Vendoring js_of_ocaml (ocaml-5.6 branch)..."
+echo "[2.2/9] Vendoring js_of_ocaml (master branch)..."
 if [ -d duniverse/js_of_ocaml ] && \
    [ -f duniverse/js_of_ocaml/dune-project ] && \
    grep -q '\[ 5; 7 \] >= 0' duniverse/js_of_ocaml/compiler/lib/magic_number.ml 2>/dev/null; then
-  echo "  duniverse/js_of_ocaml/ already on ocaml-5.6 branch. Skipping."
+  echo "  duniverse/js_of_ocaml/ already supports OCaml < 5.7. Skipping."
 else
   rm -rf duniverse/js_of_ocaml
-  git clone --depth 1 -b ocaml-5.6 \
+  git clone --depth 1 -b master \
     https://github.com/ocsigen/js_of_ocaml.git duniverse/js_of_ocaml
   echo "  Cloned."
 fi
-
-# Cmdliner upgrade: jsoo's recent code uses Cmdliner.Arg.Completion, which
-# was added in Cmdliner 2.0. opam-monorepo gives us 1.3.0; replace with 2.1.0.
-echo "[2.3/9] Vendoring cmdliner v2.1.1..."
-if [ -d duniverse/cmdliner ] && \
-   grep -qE "^version: \"2\." duniverse/cmdliner/cmdliner.opam 2>/dev/null; then
-  echo "  duniverse/cmdliner/ already at >= 2.x. Skipping."
-else
-  # opam-monorepo's lockfile pins cmdliner 1.3.0+dune, but jsoo's ocaml-5.6
-  # branch needs the 2.x `Arg.Completion` API.  Fetch the dune-universe
-  # overlay's 2.1.1+dune build (upstream dbuenzli/cmdliner has NO dune
-  # files and cannot be built in this workspace).  Its cmdliner.opam
-  # carries `version: "2.1.1+dune"`, so the >= 2.x skip-check above matches
-  # on subsequent runs.
-  rm -rf duniverse/cmdliner
-  mkdir -p duniverse/cmdliner
-  curl -fsSL "https://github.com/dune-universe/cmdliner/releases/download/v2.1.1%2Bdune/cmdliner-2.1.1.dune.tbz" \
-    -o /tmp/cmdliner-2.1.1.dune.tbz
-  tar xf /tmp/cmdliner-2.1.1.dune.tbz -C duniverse/cmdliner --strip-components=1
-  rm -f /tmp/cmdliner-2.1.1.dune.tbz
-  echo "  Fetched cmdliner 2.1.1+dune (dune-universe overlay)."
-fi
-echo ""
 
 # ---- Vendor lavyek + multicore deps — DISABLED (private repo) ----------------
 # lavyek lives in a PRIVATE repo (github.com/tarides/lavyek), so this step is
@@ -198,7 +178,7 @@ echo ""
 # not in the lockfile, hence the shallow clones. The upstream lavyek root `dune`
 # builds a `test` exe linking ahrocksdb + lmdb; `(dirs src)` overrides it to
 # build only the lavyek library.
-echo "[2.4/9] Vendoring lavyek + multicore deps... SKIPPED (private repo)."
+echo "[2.3/9] Vendoring lavyek + multicore deps... SKIPPED (private repo)."
 # _clone_if_missing() {
 #   local url="$1" dir="$2" branch="$3"
 #   if [ -d "duniverse/$dir" ] && [ -f "duniverse/$dir/dune-project" ]; then
