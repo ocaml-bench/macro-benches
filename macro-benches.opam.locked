@@ -103,6 +103,7 @@ depends: [
   "lwt" {= "6.1.0" & ?vendor}
   "lwt-dllist" {= "1.1.0" & ?vendor}
   "lwt_ppx" {= "6.1.0" & ?vendor}
+  "memtrace" {= "0.2.3" & ?vendor}
   "menhir" {= "20250912" & ?vendor}
   "menhirCST" {= "20250912" & ?vendor}
   "menhirLib" {= "20250912" & ?vendor}
@@ -709,6 +710,10 @@ pin-depends: [
   [
     "lwt_ppx.6.1.0"
     "https://github.com/ocsigen/lwt/archive/refs/tags/6.1.0.tar.gz"
+  ]
+  [
+    "memtrace.0.2.3"
+    "https://github.com/janestreet/memtrace/archive/refs/tags/v0.2.3.tar.gz"
   ]
   [
     "menhir.20250912"
@@ -1442,6 +1447,13 @@ x-opam-monorepo-duniverse-dirs: [
     "jst-config"
     [
       "sha256=2cf345e33bed0ee4c325667e77dfc5bee8f12afd56318b7c9acf81ec875ecf6e"
+    ]
+  ]
+  [
+    "https://github.com/janestreet/memtrace/archive/refs/tags/v0.2.3.tar.gz"
+    "memtrace"
+    [
+      "sha256=fa47379e78be5dbb3066cf96962d18a05d1defb4530588c14e5bc0289e0df520"
     ]
   ]
   [
