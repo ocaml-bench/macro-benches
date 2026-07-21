@@ -34,6 +34,11 @@
  (depends
   (devkit (>= 1.20240429))))
 
+; cmdliner (2.x, for jsoo's Arg.Completion) and the dune_ lang level are both
+; handled post-pull in setup-monorepo.sh ([2.3] / [3]) — opam-monorepo ignores
+; version pins on these base/overlay packages anyway, and a `dune = 3.22.2` pin
+; here actually makes the solve UNSAT (the set wants 3.23.1, which the [3] lang
+; patch builds fine on the 3.22.1 binaries).  So jsoo stays unconstrained.
 (package
  (name macro-bench-jsoo)
  (allow_empty)
@@ -111,3 +116,20 @@
   (ppx_deriving_yojson (>= 3.0))
   (ppx_deriving_yaml (>= 0.2.0))
   (ppx_inline_test (>= 0.17.0))))
+
+; goblint: static analyser (ocaml#13733 regression reproducer).  Vendored
+; via opam-monorepo (goblint + goblint-cil + deps are pure dune).  apron is
+; REQUIRED by the svcomp config but is non-dune (configure/make + camlidl),
+; so it is listed opam-provided (see the .opam.template) to keep the lock
+; from trying to vendor it; it is supplied instead from a vendored,
+; per-runtime prefix built by scripts/vendor-apron.sh (see
+; benchmarks/goblint/goblint.build.sh).
+(package
+ (name macro-bench-goblint)
+ (allow_empty)
+ (depends
+  (goblint (= 2.7.1))
+  ; catapult's core lib copies Bare_encoding + runs bare-codegen at build time,
+  ; but catapult's opam doesn't declare it (optional there); name it so the
+  ; lock vendors it.
+  (bare_encoding (>= 0.3.0))))
