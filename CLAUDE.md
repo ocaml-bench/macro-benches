@@ -1,15 +1,20 @@
 # CLAUDE.md — working notes for agents & contributors on `macro-benches`
 
-Auto-loaded context for Claude Code (and a quick orientation for humans). Keep it
-short and current.
+Auto-loaded context for Claude Code (and a reference for contributors). The
+human-facing docs are `README.md` and the per-benchmark pages under
+`docs/benchmarks/<name>.md`. This file holds the operational and machine-facing
+detail that doesn't belong in either: the build-script contract, the in-process
+iteration and ring-size mechanics, the vendored-source patch table, the
+runtime-feature coverage matrix and gaps, the gotchas, and the backlog.
 
 ## What this is
 
 - A **dune monorepo** of real-world OCaml programs used as macro-benchmarks (coq,
-  frama-c, alt-ergo, goblint, menhir, cpdf, owl, jsoo, irmin, liquidsoap, ocamlformat,
-  decompress, eio, sedlex, yojson, zarith, pplacer, devkit, …). All third-party deps
-  are **vendored** under `duniverse/` (opam-monorepo), so every runtime compiles
-  byte-identical source.
+  frama-c, goblint, alt-ergo, menhir, cpdf, owl, jsoo, irmin, liquidsoap,
+  ocamlformat, decompress, eio, sedlex, yojson, zarith, pplacer, devkit, …). All
+  third-party deps are **vendored** under `duniverse/` (opam-monorepo), so every
+  runtime compiles byte-identical source. 20 active tools, 31 programs; `merlin`
+  and `lavyek` ship in the tree but are disabled (see their doc pages).
 - Driven by `~/running-ng` (suite type `OCamlBenchmarkSuite`, **not** the
   satellite-switch path): each benchmark has `benchmarks/<tool>/<tool>.build.sh` that
   runs `dune build` with the runtime compiler on PATH, into a **per-runtime build dir**
@@ -27,27 +32,38 @@ short and current.
   binary so running-ng rebuilds it.
 - **Don't commit `_build-*/`, `_rocq_prefix/`, big inputs, or vendored-source churn**
   casually. `duniverse/` is generated (opam-monorepo); regenerate via `scripts/`.
-- Keep documentation files (eg. README.md) consistent with every commit. 
-
+- Keep documentation consistent with every commit: `README.md`, the relevant
+  `docs/benchmarks/<name>.md`, and this file.
 
 ## Where things live (read first)
 
 - `benchmarks/<tool>/` — `<tool>.build.sh` (called by running-ng) + input data.
+- `docs/benchmarks/<name>.md` — human-facing page per benchmark.
 - `duniverse/` — vendored dependency sources (the actual compiled code).
-- `vendor/` — manually vendored bits (camlpdf, cpdf-source, zarith, pplacer, …).
+- `vendor/` — manually vendored bits (camlpdf, cpdf-source, zarith, pplacer, frama-c, apron, …).
 - `scripts/` — `setup-monorepo.sh`, `vendor-*.sh` (coq, apron, frama-c, cpdf, …).
 - `sources.yml`, `macro-bench-*.opam(.template)`, `dune-workspace`, `dune-overlays`.
 - `_build-<runtime>/` — per-runtime dune build output (gitignored).
 
 ## Build / run
 
-- running-ng calls `<tool>.build.sh` with the runtime compiler on PATH and these env
-  vars: `RUNNING_OCAML_OUTPUT` (where to put the binary), `RUNNING_OCAML_BENCH_DIR`,
-  `RUNNING_OCAML_RUNTIME_NAME`, `RUNNING_OCAML_SWITCH`. Scripts `unset` opam/OCAML env
-  vars to avoid cross-runtime `.cmi` contamination, then `dune build --root <monorepo>
-  --build-dir _build-<runtime> --profile release <target>` and copy the result out.
-- Standalone usage (no running-ng): set `RUNNING_MACRO_BENCH_DIR=~/macro-benches` and
-  drive `~/running-ng`'s `build_ocaml_binaries_gc_sweep.sh` / `run_ocaml_bench_gc_sweep.sh`.
+running-ng calls `<tool>.build.sh` with the runtime compiler on PATH and the env
+vars below. Scripts `unset` opam/OCAML env vars to avoid cross-runtime `.cmi`
+contamination, then `dune build --root <monorepo> --build-dir _build-<runtime>
+--profile release <target>` and copy the result out. Because every benchmark
+lives at `benchmarks/<tool>/`, each script derives the monorepo root from
+`BENCH_DIR` (`$(cd "${BENCH_DIR}/../.." && pwd)`); no macro-specific env var is
+needed, and the contract matches `~/benches/` name-for-name.
+
+| Variable | Meaning | Fallback when unset |
+|----------|---------|---------------------|
+| `RUNNING_OCAML_BENCH_DIR` | Directory with this benchmark's sources (`benchmarks/<tool>/`) | the script's own directory |
+| `RUNNING_OCAML_OUTPUT` | Path where the built binary must be written | `${BENCH_DIR}/<tool>-${RUNTIME_NAME}` |
+| `RUNNING_OCAML_RUNTIME_NAME` | Runtime identifier (e.g. `ocaml-5.4.1`) | `runtime` |
+| `RUNNING_OCAML_SWITCH` | Opam switch name (when applicable) | unset |
+
+Standalone usage (no running-ng): set `RUNNING_MACRO_BENCH_DIR=~/macro-benches` and
+drive `~/running-ng`'s `build_ocaml_binaries_gc_sweep.sh` / `run_ocaml_bench_gc_sweep.sh`.
 
 ## Gotchas (hard-won — don't rediscover)
 
@@ -61,18 +77,397 @@ short and current.
 - **dune caches configurator probes in `_build`** (e.g. `lwt_features.h`, `*.sexp`).
   An env-var change (e.g. `LIBRARY_PATH`) alone won't re-probe — needs a clean build dir.
 - **The duniverse builds across multiple compilers** (5.4.1, `d8bb46c`, trunk,
-  5.5.0-rc1, ocaml-mmtk). All 31 programs build on stock 5.5.0-rc1.
-- **External C deps:** apron (goblint) needs camlidl; owl needs openblas/cblas; cpdf
-  needs camlpdf; these come via `vendor/` + `scripts/vendor-*.sh`.
+  5.5.0-rc1, ocaml-mmtk). All programs build on stock 5.5.0-rc1.
+- **External C deps:** apron (goblint) needs camlidl + gmp/mpfr; owl needs
+  openblas/cblas; cpdf needs camlpdf; these come via `vendor/` + `scripts/vendor-*.sh`.
 - **Under ocaml-mmtk** (built via running-ng's `OCamlMMTk`): all 31 *build* (the
-  runtime supplies `LIBRARY_PATH`+heap), but a few **crash at run** — alt-ergo
-  (SIGSEGV, moving-GC) and pplacer (SIGABRT, channel-finalizer) — see the
-  ocaml-mmtk issues; exclude them from minheap/sweeps.
+  runtime supplies `LIBRARY_PATH`+heap), but a few **crash at run** — see MMTk notes.
 
 ## Per-session workflow
 
 1. Identify which benchmark/tool you're touching; its build glue is
-   `benchmarks/<tool>/<tool>.build.sh`; its source is under `duniverse/` or `vendor/`.
+   `benchmarks/<tool>/<tool>.build.sh`; its source is under `duniverse/` or `vendor/`;
+   its human doc is `docs/benchmarks/<tool>.md`.
 2. Build via running-ng with `RUNNING_MACRO_BENCH_DIR` set; don't hand-delete `_build`
    internals.
-3. Commit only when asked; `Co-Authored-By: Claude` is fine; don't commit build output.
+3. Commit only when asked; don't commit build output.
+
+---
+
+## Iteration counts (in-process loops)
+
+A few benchmarks have per-invocation work that's too short to measure reliably —
+startup overhead dominates and observability tools (olly, perf) lose precision.
+Two patterns are in use.
+
+**Shell-loop wrapper** (legacy, *broken for olly*). Some build scripts generate a
+wrapper that runs the binary `N` times in a shell loop (`for _ in $(seq 1 N); do
+"$REAL_EXE"; done`). This works for wall-time aggregation but breaks olly's
+runtime_events attach model: olly sees one OCaml process at a time. With short
+per-child work the events files stack in `/tmp` and olly aggregates them; with
+longer per-child work (e.g. `pplacer_testsuite` at ~3.5 s/child) olly attaches to
+the first child only and silently misses the other N−1.
+
+**Env-var / argv in-process loop** (recommended). The OCaml entry point reads a
+count and runs the work N times inside the same process; the wrapper just sets the
+count and `exec`s the binary. The orchestrator's positional arg becomes the loop
+count, one process does N iterations, olly observes the whole thing.
+
+In use by:
+
+| Benchmark | Count via | Notes |
+|---|---|---|
+| `pplacer_testsuite` | `PPLACER_TEST_LOOP` env var | OUnit runner; env var avoids clashing with OUnit's argv parsing |
+| `owl_gc` | `Sys.argv.(1)` | plain main; argv otherwise unused (default 1) |
+| `devkit_stre` | `Sys.argv.(1)` | loops the 8 sub-benches (default 1) |
+| `devkit_gzip` | `Sys.argv.(1)` | same shape as stre |
+| `devkit_network` | `Sys.argv.(1)` | same shape as stre |
+| `liq_video_frames_pool` | `Sys.argv.(1)` | number of frames (source default 1; runner passes ~30000) |
+
+Note: `devkit_htmlstream` is **not** in this list — it runs fixed internal
+`for _ = 1 to 10` loops and is copied out as a standalone binary, so it ignores
+`Sys.argv`. (The top summary table in older READMEs over-generalised this.)
+
+**Ring-size interaction.** One process accumulating events across N iterations
+needs a bigger `runtime_events` ring than N separate processes. For
+allocation-heavy benches (owl_gc especially) large counts overflow the ring and
+olly reports lost events plus a corrupted `wall_time`. Convention: `re-25` (32 MB)
+for the in-process-loop benches; bump to `re-26` (64 MB) if a new one hits the
+limit. Empirical owl_gc sizing: `re-23` (8 MB) starts corrupting `wall_time` at
+arg 5; `re-25` is clean through arg 6 (~16s), the current setting.
+
+When porting a benchmark to this pattern: wrap the entry point with a count
+(default 1; env var if it already parses argv, else `Sys.argv.(1)`), drop the
+shell `for` loop in the build script, set the orchestrator `args:` to the count,
+and if the entry point is upstream code record the patch in `setup-monorepo.sh` so
+it survives a re-vendor.
+
+## MMTk (`ocaml-mmtk`) notes
+
+Built via running-ng's `OCamlMMTk` runtime type (OCaml 5.5 + the MMTk collector).
+All 31 programs build; 27 run cleanly under both native plans (Immix,
+StickyImmix). Known MMTk-only issues:
+
+- **Crashes (4 programs).** `alt_ergo_{fill,yyll,unsat_smt2}` SIGSEGV (the moving
+  collector relocates a value a C stub holds a raw pointer to, via zarith→GMP; runs
+  fine under a non-moving MMTk build, so it's a moving-GC / object-pinning gap) and
+  `pplacer_testsuite` SIGABRT (a channel finaliser locks an already-closed channel
+  mutex during GC). Both are excluded from the running-ng MMTk configs.
+- **Off-heap is not GC-paced.** `MMTK_HEAP_SIZE_MB` bounds only on-heap memory.
+  Custom-block off-heap data (Bigarray bulk data in `owl_gc`, GMP limbs in
+  `zarith_pi`) is freed by the block's finaliser only when the proxy is collected,
+  but MMTk paces on on-heap occupancy, so off-heap bytes accumulate with the heap
+  budget: `owl_gc` RSS goes from ~130 MB at a 3 MB heap to ~12 GB at a 16 GB heap
+  with the same live set. Stock OCaml paces the major GC on off-heap memory via
+  `caml_alloc_custom_mem`; under MMTk that path is currently inert. These benches
+  are poor footprint signals under MMTk.
+
+## Benchmark quick-reference cross-table
+
+| Benchmark | wall (s) | gc% | Allocation profile | Strongest signal for |
+|---|---|---|---|---|
+| `coqc_corelib_stress` | 52 | 94 | minor-saturation | minor-GC fast path |
+| `eio_fiber_stream` | 6 | 10 | promotion-heavy | OCaml 5 effects, fiber scheduler |
+| `irmin_mem_rw` | 12 | 11 | medium | Lwt, persistent hash-tree |
+| `liq_parse_typecheck` | 26 | 22 | promotion-heavy (48%) | AST + minor-to-major copy |
+| `ydump_repeat` | 5.5 | 4.5 | promotion-heavy (65%) | recursive variants, JSON tree |
+| `test_decompress` | 5 | 2.4 | promotion-heavy + Bigstring | Bigstring header allocation |
+| `pplacer_testsuite` | 13 | 70 | major-heavy (FFI) | gsl/sqlite3, tree allocation |
+| `owl_gc` | 16 | 50 | off-heap (Bigarray, small) | Bigarray finalisation, OpenBLAS stubs |
+| `zarith_pi` | 8 | 27 | off-heap (GMP custom blocks) | custom-block path, GMP stubs |
+| `liq_video_frames_pool` | 4-20 | low | off-heap (Bigarray, refcounted pool) | custom_major_ratio pacer, refcounted-pool free lunch (#14533) |
+| `devkit_gzip` | 10 | 1 | compute-bound | codegen, zlib stubs |
+| `devkit_stre` | 14 | 5.5 | minor + retention | string allocator, generational copy |
+| `devkit_network` | 17 | 4.5 | minor (Int32) | int32 boxing, Hashtbl |
+| `devkit_htmlstream` | 25 | 3.3 | minor + retention | Buffer allocator |
+| `sedlex_tokenize` | 5 | 40 | minor-saturation | string allocation, PPX DFA |
+| `ocamlformat_rocq` | 5 | 30 | minor + AST | Format module, AST allocation |
+| `cpdf_merge` / `_blacktext` / `_squeeze` | 6-9 | 20-40 | minor + Bytes | Bytes mutation, codegen |
+| `cpdf_scale` | 36 | 19 | minor (compute) | codegen of geometry transforms |
+| `alt_ergo_fill` | 14 | 40 | promotion-medium | SMT theory backends |
+| `alt_ergo_yyll` | 19 | 6 | minor (compute) | native frontend, theory backends |
+| `alt_ergo_unsat_smt2` | 15 | 7 | minor (compute) | Dolmen frontend, theory backends |
+| `menhir_ocamly` | 33 | 20 | minor (canonical LR) | Hashtbl scale, large arrays |
+| `menhir_sql_parser` | 3.3 | 29 | minor (LALR + verbose) | menhir internals |
+| `menhir_sysver` | 20 | 33 | minor (table) | Hashtbl growth |
+| `ocamlc_self_compile` | 8.6 | 33 | minor-heavy + Marshal | Marshal (`.cmi`/`.cmo`), Hashtbl, Bigarray emit buffer, AST allocation |
+| `jsoo` | 7.2 | 33 | minor + IR construction | jsoo bytecode parser, SSA dataflow, JS codegen |
+| `goblint` | 0.2-1 | high alloc | high allocation / churn (~1.3GB, 5.6KB input) | allocated_bytes (#13733), hash-consing, apron FFI |
+
+(`merlin_bench` and `lavyek_kv_*` omitted — disabled.)
+
+## Runtime-feature coverage matrix
+
+Tags are assigned from **source-grounded** inspection of each benchmark's hot path
+(read the driver `.ml`, `grep` the vendored tool for actual uses). We do not trust
+upstream feature lists, only what is reachable from the workload we run. A tag whose
+hot-path set is empty is a **coverage gap** (listed below). running-ng exposes these
+through a `RUNNING_TAG` selector.
+
+| Tag | Runtime mechanism | hot-path benchmarks | cold |
+|---|---|---|---|
+| **minor-gc** | `caml_alloc_small` fast path, young-ptr bump | coqc_corelib_stress, menhir_*, alt_ergo_*, zarith_pi, sedlex_tokenize, devkit_{network,htmlstream,stre}, cpdf_*, ydump_repeat, liq_parse_typecheck, ocamlc_self_compile, jsoo, ocamlformat_rocq, goblint | — |
+| **major-promotion** | minor→major copy, slice work | liq_parse_typecheck, ydump_repeat, test_decompress, eio_fiber_stream | most allocation-light benches |
+| **custom-block finalisation** | `caml_alloc_custom_mem` + `finalize` cb; `caml_ba_finalize` | zarith_pi (`Z.t`, `caml_z.c:323`), owl_gc (`Bigarray.Array2`), liq_video_frames_pool (Y/U/V Bigarrays + `pool_stubs.c`), test_decompress (Bigstringaf), devkit_gzip (`z_stream`, `zlibstubs.c:61`), pplacer (GSL Vector/Matrix, sqlite3 handles) | — |
+| **explicit `Gc.finalise`** | `caml_final_register` from user OCaml | pplacer (`gsl-ocaml/src/sum.ml`, `rng.ml`, `odeiv.ml`, `eigen.ml`, `integration.ml`) | merlin_bench (`mreader_extend.ml:52`, not the query path) |
+| **`Bigarray` allocation** | `caml_ba_alloc` (custom block + off-heap bytes) | owl_gc (100×100 Float64 Array2), liq_video_frames_pool (1280×720 YUV420), test_decompress (Bigstringaf), ocamlc_self_compile (`emitcode.ml:53` emit buffer) | — |
+| **off-heap accounting / `custom_major_ratio` (M)** | `caml_alloc_custom_mem` → pacer | liq_video_frames_pool (the only bench whose wall+RSS Pareto front moves with M — the #14533 repro) | owl_gc, zarith_pi, test_decompress (custom blocks too small to swing pacer policy) |
+| **ephemeron GC machinery** (alloc + per-domain ephe list + `caml_ephe_clean` key scan) | `caml_ephe_create`, `caml_ephe_clean` | alt_ergo_{fill,yyll,unsat_smt2}, frama_c_eva_*, goblint — via `Weak.Make`. `Weak.*` is not a separate path: `runtime/weak.c` routes `caml_weak_*` through `caml_ephe_*` (a weak array is an ephemeron with no data field), so these drive ephemeron alloc + key-cleaning on the hot path (the path that regressed on OCaml 5, #11733). | — |
+| **ephemeron *data-field*** (`Ephemeron.K1`-with-data) | `caml_ephe_set_data`/`get_data` + data branch of `caml_ephe_clean` | — (**verified gap, narrowed**) | merlin_bench `saved_parts.ml:3` (cold, disabled), coq `clib/cEphemeron.ml` (VM backend, unreached). No bench sets a data field hot. |
+| **`Weak.Make` / weak hashsets** | `caml_ephe_*` | frama_c_eva_sqlite (CIL AST + EVA state via `State_builder.Hashconsing_tbl_weak`, largest weak workload, 460MB RSS), alt_ergo_{fill,yyll,unsat_smt2} (`hconsing.ml:51`), goblint (CIL hash-consing) | — |
+| **`Marshal.{to,from}_*`** | `caml_output_value*` / `caml_input_value*` | ocamlc_self_compile (`.cmi` `cmi_format.ml:87`; `.cmo` `emitcode.ml:33`) | liquidsoap-lang (`cache.ml:75`, off by default), jsoo (`parse_bytecode.ml:462`, one-shot), coq (`nativevalues.ml`, native backend unused), merlin `persistent_env` (cold), alt-ergo (`satml.ml:2206`, commented out) |
+| **`Effect.perform` (OCaml 5)** | `caml_perform_*`, deep `try_with` | eio_fiber_stream (`suspend.ml:6`, `fiber.ml:11`, `cancel.ml`) | lavyek_kv_*d (disabled), merlin_bench cancellation (disabled) |
+| **`Domain.spawn` / `join`** | `caml_domain_*` | — (**gap**: only lavyek_kv_{2,4,8}d and merlin_bench, both disabled) | lavyek_kv_{2,4,8}d, merlin_bench when re-enabled |
+| **`Atomic.*` (hot)** | `caml_atomic_*` | eio_fiber_stream (`sem_state.ml`, `lazy.ml`) | lavyek_kv_*d (disabled), merlin_bench (disabled); ocaml-re does Atomic only at regex compile time, so devkit_* see it only in init |
+| **kcas / lock-free MCAS** | n/a (library) | — (**verified gap**: lavyek imports `kcas`/`kcas_data` but never calls them; `REMOVED.md:22`) | — |
+| **`Sys.set_signal`** | `caml_install_signal_handler` | alt_ergo_unsat_smt2 (`--timelimit 15` arms SIGVTALRM, `signals_profiling.ml:32`) | alt_ergo_{fill,yyll} (handlers installed, never fire); coq SIGINT unused. No high-frequency signal delivery. |
+| **`Lazy.force` (hot)** | `caml_call_lazy` | liq_parse_typecheck (`typechecking.ml:386`), jsoo (`inline.ml:195,429,714`), menhir_* (`invariant.ml`) | many cold init lazies |
+| **`Format` (hot)** | `Format.{fprintf,pp_*}` | menhir_* (codegen + table dumps), ocamlformat_rocq (whole workload), liq_parse_typecheck (type printing), alt_ergo_*, zarith_pi (`Z.output`) | others use Format only on error paths |
+| **`Hashtbl` at scale** | `caml_hash` | menhir_* (`LRijkstraClassic.ml:849`), ocamlc_self_compile (`btype.ml:46 TypeHash`), alt_ergo_*, cpdf_* (`camlpdf/pdf.ml:118`), irmin_mem_rw (`irmin_mem.ml:44`), liq_parse_typecheck (`repr.ml`), pplacer (`ptree.ml:4`), devkit_*, goblint | others touch Hashtbl only trivially |
+| **Lwt promises** | `Lwt.bind` continuations | irmin_mem_rw (every store op) | — |
+| **Eio fibers (effects layer)** | `Eio.Fiber.*`, `Eio.Stream`, `Eio.Switch` | eio_fiber_stream | lavyek_kv_*d (disabled) |
+| **io_uring (real syscalls)** | `Uring.t` via `eio_linux` | — (**gap**: only lavyek_kv_*d, disabled) | lavyek_kv_*d when re-enabled; eio_fiber_stream is pure in-memory (no io_uring) |
+| **CPU pinning** | `pthread_setaffinity_np` via `ocaml-processor` | — (**gap**: only lavyek_kv_*d, disabled) | lavyek_kv_*d (`lavyek_bench.ml:59`) when re-enabled |
+| **OpenBLAS / GMP / GSL / sqlite3 / zlib C stubs in inner loop** | bulk FFI | owl_gc (OpenBLAS), zarith_pi (GMP), pplacer (GSL+sqlite3), devkit_gzip (zlib), goblint (apron/GMP) | test_decompress is pure-OCaml zlib (FFI-free counterpart) |
+| **`Gc.compact` / `Gc.full_major` forced** | `caml_compact_heap`, `caml_finish_major_cycle` | — (**verified gap**) | eio `bench/` calls `Gc.full_major` outside the hot path |
+| **`Gc.alarm` callbacks** | alarm register | — (**verified gap**) | — |
+
+### Per-benchmark tag summary (reverse index, hot-path tags only)
+
+| Benchmark | Hot-path tags |
+|---|---|
+| `coqc_corelib_stress` | minor-gc, constructor-alloc |
+| `eio_fiber_stream` | effects, atomics, eio-fibers, major-promotion |
+| `merlin_bench` *(disabled)* | domains, effects, atomics, hashtbl, format; cold: ephemerons, Gc.finalise |
+| `lavyek_kv_1d` *(disabled)* | atomics, effects, eio-fibers, io-uring, pthread-affinity, hashtbl |
+| `lavyek_kv_{2,4,8}d` *(disabled)* | domains, atomics, effects, eio-fibers, io-uring, pthread-affinity, hashtbl |
+| `liq_parse_typecheck` | hashtbl, lazy, format, major-promotion, minor-gc |
+| `ydump_repeat` | minor-gc, major-promotion, recursive-variants |
+| `test_decompress` | bigarray, custom-block-finalisation (Bigstringaf), major-promotion |
+| `pplacer_testsuite` | Gc.finalise, custom-block-finalisation (GSL+sqlite3), ffi-stubs, hashtbl, minor-gc |
+| `owl_gc` | bigarray, custom-block-finalisation (Array2), ffi-stubs (OpenBLAS), minor-gc |
+| `liq_video_frames_pool` | bigarray, custom-block-finalisation, off-heap accounting (M-sweep) |
+| `zarith_pi` | custom-block-finalisation (`Z.t`), ffi-stubs (GMP), minor-gc, format(cold) |
+| `devkit_gzip` | custom-block-finalisation (z_stream), ffi-stubs (zlib), hashtbl, buffer |
+| `devkit_stre` | hashtbl, minor-gc, buffer, string-allocator |
+| `devkit_network` | hashtbl, int32-boxing, minor-gc |
+| `devkit_htmlstream` | hashtbl, buffer, minor-gc |
+| `sedlex_tokenize` | bytes, ppx-match, string-allocator, minor-gc |
+| `ocamlformat_rocq` | format, buffer, minor-gc |
+| `cpdf_{merge,blacktext,scale,squeeze}` | hashtbl (object map), bytes mutation, minor-gc; camlpdf C stubs (flate/zlib, AES, SHA-2) hit when decoding/re-compressing streams (squeeze), otherwise pure OCaml |
+| `alt_ergo_fill, alt_ergo_yyll` | weak-refs (Weak.Make hash-consing), hashtbl, format |
+| `alt_ergo_unsat_smt2` | weak-refs, hashtbl, format, signals (SIGVTALRM armed by `--timelimit 15`) |
+| `frama_c_eva_{t,sqlite}` | weak-refs / ephemeron-backed hash-consing (Weak.Make at scale), hashtbl, recursive-variants (CIL AST), minor-gc, max-rss (sqlite, #11733) |
+| `goblint` | high allocation / minor-gc churn (~1.3GB for a 5.6KB input), hash-consing, apron relational domains (C/GMP FFI), recursive-variants (CIL AST), allocated-bytes (#13733) |
+| `menhir_{ocamly,sql_parser,sysver}` | hashtbl, format, lazy, minor-gc |
+| `ocamlc_self_compile` | hashtbl, marshal (`.cmi`+`.cmo` writeout), bigarray (emit buffer), minor-gc |
+| `jsoo` | hashtbl, lazy, marshal(cold) |
+
+## Coverage gaps — verified
+
+A regression in any of these areas would **not** be caught by the current suite.
+Each was checked by `grep -rn` against the actual vendored source.
+
+- **Multi-domain parallelism (`Domain.spawn`/`join`), real io_uring syscall traffic,
+  and per-domain CPU pinning** — gaps because the only benchmarks that exercised them
+  are disabled: `lavyek_kv_*` (private repo) covered all three, `merlin_bench` covered
+  the 2-domain case. `eio_fiber_stream` still exercises single-domain effects, fibers,
+  and Atomic, but nothing drives N>2 domains, io_uring, or affinity pinning. Re-enabling
+  lavyek or importing a Sandmark `parallel_*` benchmark would close these.
+- **Ephemeron data-field semantics** — verified gap, narrowed. `runtime/weak.c` routes
+  `caml_weak_*` through `caml_ephe_*` (a weak array is an ephemeron with no data field),
+  so the ephemeron machinery (alloc, per-domain list, `caml_ephe_clean` key-scan) is
+  covered on the hot path by the `Weak.Make` workloads: `frama_c_eva_sqlite`, `alt_ergo_*`,
+  and now `goblint`. What remains uncovered is only the data-field path (`Ephemeron.K1`
+  with data, `caml_ephe_set_data`/`get_data` + the data-clearing branch). No bench sets
+  an ephemeron data field hot.
+- **kcas / lock-free MCAS** — verified gap. Even when lavyek was enabled it didn't call
+  kcas (`REMOVED.md:22`). A small standalone benchmark wrapping `kcas` would close it.
+- **Domainslib work-stealing pools** — uncovered (eio uses fibers; lavyek dispatched via
+  a manual `Atomic.fetch_and_add` counter).
+- **`Gc.compact` / `Gc.full_major` in a hot loop** — no benchmark forces a full GC.
+- **`Gc.alarm` / `Gc.create_alarm`** — no benchmark registers one.
+- **High-frequency signal delivery in tight loops** — alt-ergo registers handlers but
+  they fire at most once per run.
+- **Pure-OCaml hot inner-loop float (flambda)** — owl_gc defers to OpenBLAS, so flambda
+  has nothing to optimise in the inner loop. A pure-OCaml numerical kernel would catch it.
+- **`Bigarray` slicing / reshape patterns** — owl_gc doesn't slice; liq_video_frames_pool
+  fills planes without slicing.
+- **Polling-points / safe-point density** — nothing stresses cooperative cancellation.
+- **Direct user `Effect` handlers (outside Eio)** — every effect-perform goes through Eio.
+
+If a runtime change touches one of these areas, flag the gap explicitly when proposing it.
+
+## Vendored source patches
+
+Applied automatically by `scripts/setup-monorepo.sh`.
+
+| # | Target | What | Why |
+|---|--------|------|-----|
+| 1 | `duniverse/alt-ergo/.../theories.ml` | Fix ppx_blob paths | ppx_blob resolves from workspace root |
+| 2 | `duniverse/alt-ergo/.../text/dune` | Rewrite dune file | Remove public_name/package (vendored exec) |
+| 3 | `duniverse/dune_/dune-project` | `3.22` → `3.21`, rm test/ | dune 3.22 features not in installed dune |
+| 4 | `duniverse/ppxlib/` | Replace with git main | Adds Ast_506 for OCaml 5.6 trunk |
+| 5 | `duniverse/lwt/` | Replace with git main | Fixes socketaddr.h for OCaml 5.6 |
+| 6 | `duniverse/devkit/lwt_engines.ml` | Add `engine_id` type + method | lwt 6.1.1 added virtual `id` method |
+| 7 | `vendor/libevent/libevent.ml` | Add `~persist`, `~signal` labels | OCaml 5.x strict label matching |
+| 8 | `duniverse/js_of_ocaml/.../dune` | Remove public_name | Vendored executable |
+| 9 | `duniverse/ocamlformat/.../dune` | Remove public_name | Vendored executable |
+| 10 | `duniverse/owl/.../exponpow.c` | Fix `std_gaussian_rvs` calls | Upstream C bug: function takes no args |
+| 11 | `duniverse/batteries-included/.../batGc.mli` | Add `live_stacks_words` field | OCaml 5.6 added field to `Gc.stat` |
+| 12 | `vendor/pplacer/mcl/caml/caml_mcl.c` | Add `#include <stdint.h>` | OCaml 5.6 trunk headers need it |
+| 13 | `vendor/pplacer/tests/tests.ml` | Add `PPLACER_TEST_LOOP` env-var loop | Run the suite N times in one process (see Iteration counts) |
+| 14 | `duniverse/analyzer/.../runtime/include/goblint.h` | `__goblint_assume_join` arg type | GCC 14+/C23 conflicting-types vs the `.c` definition |
+| 15 | `duniverse/cpu/` | Run `autoconf; autoheader; ./configure` | Generates `src/config.h` its C stub needs (opam runs this; dune doesn't) |
+| 16 | `duniverse/json-data-encoding/.../json_repr.{ml,mli}` | Add `` `Tuple ``/`` `Variant `` to `Json_repr.Yojson` | dune-universe fork narrows the type; goblint treats it as `Yojson.Safe.t` both ways |
+| 17 | `duniverse/bare-ocaml/src/dune` | Install `Bare_encoding.ml`/`.mli` | catapult copies them via `%{lib:bare_encoding:…}` (needs source installed) |
+| 18 | `duniverse/analyzer/.../control.ml` | Annotate `(module CFG : CfgBidirSkip)` | OCaml ≥ 5.5 can't infer the packaged-module signature otherwise |
+
+## Known limitations
+
+- **Rocq symlink**: setup creates a symlink at
+  `<parent_of_monorepo>/install/default/lib/rocq-runtime` pointing at `_rocq_prefix/`,
+  because dune's generated `.vo` rules use relative paths that resolve outside the
+  monorepo. `make clean-all` removes it.
+- **melange**: parked. Needs the `(using melange 0.1)` dune extension; can't benchmark
+  standalone.
+- **Frama-C / dune-site**: EVA is linked statically (`-linkall`) and run with
+  `-no-autoload-plugins`, so dune-site plugin discovery is never used (the `.cmxs` path
+  doesn't work for a relocated, uninstalled build). Its resource sites are empty in an
+  uninstalled build, so `frama-c.build.sh` sets `DUNE_DIR_LOCATIONS` at `vendor/frama-c`.
+  WP is excluded (its `why3` dep caps OCaml < 5.5); EVA needs neither.
+- **goblint / apron**: apron is non-dune (configure/make + camlidl), so it can't join the
+  unified dune build. `scripts/vendor-apron.sh` builds the camlidl/mlgmpidl/apron chain
+  per-runtime from pinned source into a self-contained prefix (opam-free: active compiler
+  + gcc + ocamlfind + make), and `goblint.build.sh` exposes it via `OCAMLPATH`. Runtime
+  stubs are found via `pre.custom_includes` since dune-site sites aren't populated in an
+  uninstalled build. On trunk goblint builds from `fb4f451` onward (the late-May
+  `cfb30145` snapshot hit a since-fixed `Ctype.Unify` compiler bug).
+- **OxCaml**: only menhir, test_decompress, and zarith_pi work; others fail on
+  locality-type annotation errors in vendored packages.
+- **Trunk (5.6) support**: depends on ppxlib and lwt git main (patches 4+5). When ppxlib
+  releases a 5.6-compatible version, these can be dropped and the lock file updated.
+- **pplacer**: vendored manually (not in opam); needs `libgsl-dev` and `libsqlite3-dev`.
+- **frama-c**: vendored manually (`scripts/vendor-frama-c.sh`); 32.1 isn't in opam and only
+  a trimmed kernel+EVA is built. Needs `libyaml`/`pkg-config` and a C preprocessor. The
+  vendor script fills Frama-C's empty `*.opam` placeholders so opam-monorepo can scan.
+
+## Updating dependencies
+
+```bash
+# 1. Modify dune-project if adding/removing packages
+# 2. Re-lock in a switch that has the opam-monorepo plugin
+#    (OPAMSWITCH selects it for this one command without changing your shell's switch)
+OPAMSWITCH=<tools-switch> opam monorepo lock
+# 3. Rebuild from scratch
+make clean-all && make setup
+# 4. Commit the updated lock file
+git add macro-benches.opam.locked dune-project *.opam
+git commit -m "Update vendored dependencies"
+```
+
+## Adding a new benchmark
+
+1. Add a `(package ...)` declaration in `dune-project`.
+2. Create an `.opam.template` if non-dune deps need `x-opam-monorepo-opam-provided`.
+3. Re-lock: `opam monorepo lock`.
+4. Create `benchmarks/<tool>/` with `<tool>.build.sh`, a `dune` file (if custom `.ml`),
+   and input files.
+5. Register it in your orchestrator config (running-ng's experiment YAML).
+6. Add it to the test-build list in `scripts/setup-monorepo.sh`.
+7. Add a human page at `docs/benchmarks/<tool>.md`.
+8. Test: `make clean-all && make setup`.
+
+---
+
+## Backlog
+
+Follow-up benchmarking work carried over from the old `TODO.md`. Append entries with
+date, owner if known, and enough context that someone else can pick it up. The
+coverage-gaps section above is the current authority on what the suite misses; the
+first entry here is the prioritised plan for closing those gaps.
+
+### Close runtime-feature coverage gaps — filed 2026-05-15
+
+A source-grounded audit of every benchmark against the runtime mechanisms it exercises
+turned up ten mechanisms no benchmark exercises hot (see "Coverage gaps" above). The
+running-ng `RUNNING_TAG=ephemerons` and `RUNNING_TAG=kcas` selectors already error
+loudly when invoked, which keeps those two discoverable; the rest live only in docs.
+
+Since filing, frama-c and goblint landed and cover the **ephemeron machinery** on the
+hot path via `Weak.Make`, so gap #1 has narrowed to the ephemeron **data-field** path
+only. The remaining gaps and candidate closures:
+
+- Ephemeron data-field (`Ephemeron.K1.Hashtbl`): small dedicated benchmark, ~100-200 lines.
+- kcas / lock-free MCAS: standalone benchmark wrapping `Kcas_data.Hashtbl`/`Queue` under
+  N-domain contention, ~150 lines; can vendor as a sibling to lavyek.
+- Domainslib work-stealing: Sandmark `parallel_binarytrees` import (~200 lines).
+- Forced `Gc.compact`/`Gc.full_major`: a `_compact` variant wrapping an existing
+  allocation-heavy driver (compaction-vs-finalisers is the interesting story for owl_gc
+  and liq_video_frames_pool).
+- `Gc.alarm` callbacks: synthetic ~50-line driver.
+- High-frequency `Sys.set_signal`: itimer-driven SIGALRM at ~1ms combined with an
+  allocator-heavy driver.
+- Pure-OCaml flambda-sensitive float kernel: Sandmark `nbody`/`raytracer`/`mandelbrot`
+  import (~200 lines each; `nbody` is the canonical flambda one).
+- `Bigarray` slicing/reshape: a `Genarray.slice_left`/`Array1.sub` micro-stressor, or
+  fork owl_gc to slice-based access.
+- Polling-points / safe-point density: tight no-alloc loop under an `Eio.Switch` with
+  periodic cancellation pokes.
+- Direct user `Effect.Deep.try_with` outside Eio: Sandmark `effects` microbench (~80 lines).
+
+Suggested order, cheapest signal first: `Gc.alarm` synthetic → `Gc.compact` variant →
+Sandmark `nbody` → ephemeron data-field synthetic → kcas synthetic → Sandmark
+`parallel_binarytrees`. Status: not started.
+
+### Investigate `ocamlc_self_compile` allocation regression on d8b — filed 2026-05-06
+
+`ocamlc_self_compile` regresses ~+8% wall on d8bb46c across all flag combos but only drops
+~5% RSS, unlike sibling RSS-winners (cpdf_*, menhir_sysver) that drop 20-40% RSS. On the
+2026-05-03 monolith N=3 run, d8b allocates ~1.3 GB more minor-heap bytes for the same
+deterministic compile (8.57 → 9.90 GB total, minor collections +15.6%, major −25%, RSS
+−4.9%). By contrast cpdf_merge's total allocation is identical across versions and only RSS
+moves (the canonical pacer story). So this is the workload allocating differently between
+versions, not the pacer.
+
+The old ephemeron hypothesis was **invalidated 2026-05-15**: `grep -rn Ephemeron typing/
+bytecomp/ driver/ utils/` returns nothing in 5.4.1 and trunk; `btype.ml:46` uses
+`Hashtbl.Make`. Leading hypotheses now: stdlib growth (more modules to typecheck per
+compile), `Hashtbl` resize/per-entry overhead in `TypeHash`, `Marshal`/`Compression`
+buffer behaviour for `.cmi`/`.cmo`, or the `Bigarray.Array1` emit-buffer growth policy.
+Next steps: `OCAMLRUNPARAM=v=0x400` per-cycle GC log to see when the extra allocation lands;
+reduce the workload to one module to test per-node vs fixed offset; statmemprof diff; bisect
+5.4 → d8b. Status: not started.
+
+### Domainslib / work-stealing N-domain benchmark — filed 2026-05-01, updated 2026-05-15
+
+Lavyek (when enabled) provided N>2 domain shared-heap GC under contention plus io_uring, so
+the remaining gap is specifically **work-stealing scheduler load**: nothing consumes
+`Domainslib.Task.{run,parallel_for,async}`. Options: Sandmark `parallel_binarytrees` import
+(preferred, ~200 lines, established shape), a synthetic tree-of-tasks driver under
+`Domainslib.Task` (~150 lines), or Meta's `infer` (largest; open questions on
+opam/dune-buildability and work-distribution pattern). Status: open; overlaps the
+coverage-gaps entry.
+
+### Re-enable `merlin_bench` once the upstream race is fixed — filed 2026-05-01
+
+`merlin_bench` is vendored from the merlin-domains branch (PR #1890) and is the only
+2-domain steady-state workload (main + typer worker). It's disabled: the typer-domain
+handoff has a non-deterministic race that fires `Types.rev_log → Invalid -> assert false`
+at N≥2 iterations on both 5.4.1 and d8bb46c. Full repro in
+`benchmarks/merlin/UPSTREAM_BUG.md`. When picking up: watch PR #1890, re-vendor, flip the
+programs list back on in running-ng, and re-validate (7 cram queries, ~16s at arg=4, ~1 GB
+RSS, ~24% gc_overhead). Re-enabling moves `domains`/`effects`/`atomics` tags from cold to
+exercised. Status: waiting on upstream fix.
+
+### GC-parameter sweep on `liq_video_frames_pool` and related — filed 2026-05-01
+
+Steps 1-2 resolved 2026-05-14: on the real liquidsoap pipeline (Ryzen 9 9950X), `M=250`
+trades +10% RSS for −17% CPU, the predicted #14533 free-lunch shape in the large-M regime
+(repro in the `offheap_M_o_sweep_2026_05_13.yml` results). Still pending: extend the sweep
+to one bench per allocation-profile bucket (owl_gc, zarith_pi, liq_parse_typecheck,
+ocamlc_self_compile — the last re-characterised 2026-05-15 as minor-heavy Hashtbl + Marshal
++ Bigarray, not ephemeron), then re-run the 8-variant cross-runtime comparison with each
+bench at its per-runtime optimal `(s, o)` to see whether the apparent `zarith_pi` (16%) and
+`ocamlc_self_compile` (10%) regressions shrink. Tooling: the `gc_sweep_all_versions.yml` and
+`offheap_M_o_sweep_*.yml` running-ng configs. Status: steps 3-4 pending.
