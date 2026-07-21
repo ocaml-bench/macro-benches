@@ -221,12 +221,16 @@ echo "[2.4/9] Vendoring lavyek + multicore deps... SKIPPED (private repo)."
 # echo "(dirs src)" > duniverse/lavyek/dune
 echo ""
 
-# ---- Patch dune_ version (3.22 → 3.21) ----
-echo "[3/9] Patching duniverse/dune_/dune-project (lang dune 3.22 → 3.21)..."
-if grep -q 'lang dune 3.22' duniverse/dune_/dune-project 2>/dev/null; then
-  sed -i 's/lang dune 3.22/lang dune 3.21/' duniverse/dune_/dune-project
+# ---- Patch dune_ lang (3.2x → 3.21) ----
+# The switch dune binaries are 3.22.1 (5.4.1/5.5/tools) and can't parse a
+# `lang dune 3.23` dune-project (which the lock's dune now pulls).  Lower
+# whatever 3.2x the lock produced to 3.21 so every switch's dune can build it.
+echo "[3/9] Patching duniverse/dune_/dune-project (lang dune 3.2x → 3.21)..."
+if grep -qE 'lang dune 3\.2[0-9]' duniverse/dune_/dune-project 2>/dev/null && \
+   ! grep -q 'lang dune 3.21' duniverse/dune_/dune-project 2>/dev/null; then
+  sed -i -E 's/lang dune 3\.2[0-9]+/lang dune 3.21/' duniverse/dune_/dune-project
   rm -rf duniverse/dune_/test
-  echo "  Patched."
+  echo "  Patched ($(head -1 duniverse/dune_/dune-project))."
 else
   echo "  Already patched (or version differs). Skipping."
 fi
@@ -496,6 +500,141 @@ elif [ -f "$PPLACER_TESTS_ML" ]; then
   echo "  [13] pplacer tests.ml: already patched."
 else
   echo "  [13] pplacer: not vendored. Skipping."
+fi
+
+# Patch 14: goblint runtime header — GCC 14+/C23 conflicting-types error.
+# goblint.h declares __goblint_assume_join() with no args (= void(void) under
+# C23), but goblint.c defines it taking a pthread_t, so modern gcc rejects the
+# mismatch.  Make the declaration match the definition; pthread_t is unsigned
+# long on Linux/glibc, so we avoid pulling pthread.h into the header (which the
+# upstream comment deliberately avoids).
+GOBLINT_H="duniverse/analyzer/lib/goblint/runtime/include/goblint.h"
+if [ -f "$GOBLINT_H" ] && grep -q '__goblint_assume_join(/\* pthread_t' "$GOBLINT_H" 2>/dev/null; then
+  sed -i 's|void __goblint_assume_join(/\* pthread_t thread \*/);.*|void __goblint_assume_join(unsigned long thread); // pthread_t is unsigned long on Linux; avoids pthread.h vs kernel headers|' "$GOBLINT_H"
+  echo "  [14] goblint.h: patched __goblint_assume_join signature (GCC 14+/C23)."
+elif [ -f "$GOBLINT_H" ]; then
+  echo "  [14] goblint.h: already patched."
+else
+  echo "  [14] goblint: not vendored. Skipping."
+fi
+
+# Patch 15: cpu (goblint dep) — generate config.h.  cpu's opam build runs
+# `autoconf; autoheader; ./configure` before dune, which produces src/config.h
+# that its C stub (#include "config.h") needs.  opam-monorepo vendors the
+# source but not that build step, so generate it here.  Idempotent.
+CPU_DIR="duniverse/cpu"
+if [ -f "$CPU_DIR/configure.ac" ] && [ ! -f "$CPU_DIR/src/config.h" ]; then
+  ( cd "$CPU_DIR" && autoconf && autoheader && ./configure ) >/dev/null 2>&1 \
+    && echo "  [15] cpu: generated src/config.h (autoconf/autoheader/configure)." \
+    || echo "  [15] cpu: configure FAILED — check autoconf availability."
+elif [ -f "$CPU_DIR/src/config.h" ]; then
+  echo "  [15] cpu: config.h already present."
+else
+  echo "  [15] cpu: not vendored. Skipping."
+fi
+echo ""
+
+# Patch 16: json-data-encoding (goblint dep) — re-align the dune-universe fork's
+# Json_repr.Yojson type with upstream / Yojson.Safe.t.  opam-monorepo vendors the
+# pirbo +dune fork, which narrows `yojson` to 8 constructors (drops `Tuple` /
+# `Variant`).  Goblint treats Json_repr.Yojson.value and Yojson.Safe.t as the
+# SAME type (and converts both directions), so it won't typecheck against the
+# narrowed fork.  Add the two missing tags (making it = Yojson.Safe.t) plus the
+# matching view / to_basic cases.  goblint config values never contain
+# Tuple/Variant, so the added converter arms are unreachable.  Idempotent.
+JR_ML="duniverse/json-data-encoding/src/json_repr.ml"
+if [ -f "$JR_ML" ] && ! grep -qF "Tuple of value list" "$JR_ML" 2>/dev/null; then
+  python3 - <<'PY'
+ml = "duniverse/json-data-encoding/src/json_repr.ml"; s = open(ml).read()
+s = s.replace(
+"""    | `Intlit of string
+    | `List of value list
+    | `Null
+    | `String of string ]""",
+"""    | `Intlit of string
+    | `List of value list
+    | `Null
+    | `String of string
+    | `Tuple of value list
+    | `Variant of (string * value option) ]""", 1)
+s = s.replace(
+"""    | `Null -> `Null
+    | `Bool b -> `Bool b
+
+  let repr""",
+"""    | `Null -> `Null
+    | `Bool b -> `Bool b
+    | `Tuple l -> `A l
+    | `Variant (s, _) -> `String s
+
+  let repr""", 1)
+s = s.replace(
+"""    | `Null -> `Null
+    | `Bool b -> `Bool b
+  in
+  (* Rename `Assoc, `Int and `List *)""",
+"""    | `Null -> `Null
+    | `Bool b -> `Bool b
+    | `Tuple _ | `Variant _ -> assert false  (* goblint configs never produce these *)
+  in
+  (* Rename `Assoc, `Int and `List *)""", 1)
+open(ml, "w").write(s)
+mli = "duniverse/json-data-encoding/src/json_repr.mli"; s = open(mli).read()
+s = s.replace(
+"""  | `List of yojson list  (** A JS array. *)
+  | `Null  (** The [null] constant. *)
+  | `String of string  (** An UTF-8 encoded string. *) ]""",
+"""  | `List of yojson list  (** A JS array. *)
+  | `Null  (** The [null] constant. *)
+  | `String of string  (** An UTF-8 encoded string. *)
+  | `Tuple of yojson list
+  | `Variant of (string * yojson option) ]""", 1)
+open(mli, "w").write(s)
+PY
+  echo "  [16] json-data-encoding: re-aligned Json_repr.Yojson with Yojson.Safe.t."
+elif [ -f "$JR_ML" ]; then
+  echo "  [16] json-data-encoding: already aligned."
+else
+  echo "  [16] json-data-encoding: not vendored. Skipping."
+fi
+echo ""
+
+# Patch 17: bare_encoding (goblint/catapult dep) — install its source .ml/.mli.
+# catapult's core lib does `(copy %{lib:bare_encoding:Bare_encoding.ml} ...)`,
+# which needs the (capitalised) source installed under the package's lib dir;
+# the plain (library) stanza doesn't install source, so add an install stanza.
+BARE_DUNE="duniverse/bare-ocaml/src/dune"
+if [ -f "$BARE_DUNE" ] && ! grep -qF "Bare_encoding.ml" "$BARE_DUNE" 2>/dev/null; then
+  cat >> "$BARE_DUNE" <<'DUNE_EOF'
+
+; Goblint's catapult dep copies Bare_encoding.ml/.mli via %{lib:bare_encoding:..}
+; which needs the source installed under the lib dir (capitalised module name).
+(install
+ (section lib)
+ (package bare_encoding)
+ (files (bare_encoding.ml as Bare_encoding.ml) (bare_encoding.mli as Bare_encoding.mli)))
+DUNE_EOF
+  echo "  [17] bare_encoding: added source install stanza."
+elif [ -f "$BARE_DUNE" ]; then
+  echo "  [17] bare_encoding: already patched."
+else
+  echo "  [17] bare_encoding: not vendored. Skipping."
+fi
+echo ""
+
+# Patch 18: goblint control.ml — first-class-module signature inference.
+# `analyze_loop` takes `(module CFG : CfgBidirSkip)`; the two call sites pack
+# `(module CFG)` without annotation.  OCaml >= 5.5's stricter typechecker can't
+# infer the packaged-module signature there ("signature for this packaged module
+# couldn't be inferred"), so annotate the packs.  Harmless on 5.4.1.
+GOBLINT_CTRL="duniverse/analyzer/src/framework/control.ml"
+if [ -f "$GOBLINT_CTRL" ] && ! grep -qF "(module CFG : CfgBidirSkip)" "$GOBLINT_CTRL" 2>/dev/null; then
+  sed -i 's/analyze_loop (module CFG) file fs change_info/analyze_loop (module CFG : CfgBidirSkip) file fs change_info/g' "$GOBLINT_CTRL"
+  echo "  [18] goblint control.ml: annotated (module CFG : CfgBidirSkip) packs (OCaml >= 5.5)."
+elif [ -f "$GOBLINT_CTRL" ]; then
+  echo "  [18] goblint control.ml: already annotated."
+else
+  echo "  [18] goblint control.ml: not vendored. Skipping."
 fi
 echo ""
 

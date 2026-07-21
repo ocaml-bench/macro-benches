@@ -18,7 +18,7 @@ Designed to work two ways:
 
 ## Benchmarks
 
-19 active tools, 30 benchmark programs, 17 categories.  Target runtime:
+20 active tools, 31 benchmark programs, 17 categories.  Target runtime:
 5-25s per benchmark (DaCapo sweet spot; a few of the heavier compiler/proof
 workloads run longer — see the table).  Two further tools, `merlin` and
 `lavyek`, ship in the tree but are currently disabled (see their notes).
@@ -43,6 +43,7 @@ workloads run longer — see the table).  Two further tools, `merlin` and
 | **liquidsoap-lang** | DSL compiler | 1 (parse+typecheck 50k iterations) | 26s | Jane Street PPX (≥ 5.3) |
 | **liq-video-frames** | GC pacer / off-heap | 1 (`pool` — refcounted-pool Bigarrays, 30k 1280×720 YUV420 frames) | 4-20s | Probes [#14533](https://github.com/ocaml/ocaml/issues/14533) — 3-plane YUV420 Bigarrays per frame (mm-faithful, POOL=1+TOUCH=full); env knobs `LIQ_POOL`, `LIQ_DW_MB`, `LIQ_CHURN`, `LIQ_PACE_FPS` |
 | **frama-c** | Static analysis | 2 (eva_t, eva_sqlite) | 7-8s | EVA abstract interpretation; `eva_sqlite` parses+analyses the 258k-line SQLite amalgamation — heavy `Weak.Make` hash-consing, 460MB RSS, probes [#11733](https://github.com/ocaml/ocaml/issues/11733). Static-linked kernel+EVA (32.1); `FRAMAC_EVA_SLEVEL` knob |
+| **goblint** | Static analysis | 1 (svcomp) | ~0.2-1s | SV-COMP abstract interpretation with apron; analyses one SV-COMP C file (`btor2c-lazyMod…`). Allocation-heavy: **~1.3GB allocated** for a 5.6KB input. Reproduces [#13733](https://github.com/ocaml/ocaml/issues/13733) (Goblint 4.14→5.x ~4× alloc/CPU regression) — sibling of frama-c's #11733. goblint 2.7.1 + goblint-cil via duniverse; apron vendored opam-free per-runtime (`scripts/vendor-apron.sh`) |
 | **merlin** | IDE / domains+effects | 1 (7 cram queries × N) | 16s | merlin-domains branch; **DISABLED — upstream race** |
 | **js_of_ocaml** | Compilers | 1 (compile runtime's ocamlc.byte to JS) | 7-9s | jsoo `ocaml-5.6` branch + cmdliner 2.1.0 |
 | **lavyek** | Multi-domain KV / Eio + Atomic + io_uring | 4 (kv_1d, kv_2d, kv_4d, kv_8d) | 6-25s | **DISABLED — private repo.** OCaml ≥ 5.2; per-domain CPU pinning via `ocaml-processor`. (Note: imports `kcas`/`kcas_data` in `dune-project` but the in-memory index is actually hand-rolled `Atomic.*` — kcas is unused in source) |
@@ -51,13 +52,13 @@ workloads run longer — see the table).  Two further tools, `merlin` and
 
 | Runtime | Working benchmarks |
 |---------|-------------------|
-| **OCaml 5.4.1** | All 19 active tools (30 programs) |
-| **OCaml d8bb46c (5.5-beta)** | All 19 active tools |
-| **OCaml trunk (5.6)** | All 19 active tools — ppxlib+lwt upgraded from git |
+| **OCaml 5.4.1** | All 20 active tools (31 programs) |
+| **OCaml d8bb46c (5.5-beta)** | All 20 active tools |
+| **OCaml trunk (5.6)** | All 20 active tools — ppxlib+lwt upgraded from git |
 | **OxCaml** | menhir (3), test_decompress, zarith_pi (5 programs) |
-| **OCaml 5.4.1 ± fp ± flambda** | All 19 active tools (the `-fp` / `-flambda` build variants) |
-| **OCaml d8bb46c ± fp ± flambda** | All 19 active tools (the `-fp` / `-flambda` build variants) |
-| **OCaml 5.5+mmtk (MMTk GC)** | 26/30 programs run under Immix + StickyImmix (see [MMTk notes](#mmtk-ocaml-mmtk)) |
+| **OCaml 5.4.1 ± fp ± flambda** | All 20 active tools (the `-fp` / `-flambda` build variants) |
+| **OCaml d8bb46c ± fp ± flambda** | All 20 active tools (the `-fp` / `-flambda` build variants) |
+| **OCaml 5.5+mmtk (MMTk GC)** | 27/31 programs run under Immix + StickyImmix (see [MMTk notes](#mmtk-ocaml-mmtk)) |
 
 ### MMTk (`ocaml-mmtk`)
 
@@ -65,7 +66,7 @@ The monorepo builds and runs under [ocaml-mmtk](https://github.com/fplaunchpad/o
 — OCaml 5.5 with the [MMTk](https://www.mmtk.io/) collector instead of the stock
 runtime — as a drop-in runtime in running-ng (`type: OCamlMMTk`). See
 [running-ng's MMTk section](https://github.com/udesou/running-ng#mmtk-ocaml-mmtk)
-for how to run, the plans, and the heap knobs. All 30 programs **build**; **26 run
+for how to run, the plans, and the heap knobs. All 31 programs **build**; **27 run
 cleanly** under both native plans (Immix, StickyImmix). Known MMTk-only issues:
 
 - **Crashes (4 programs):** `alt_ergo_{fill,yyll,unsat_smt2}` → SIGSEGV (the moving
@@ -738,6 +739,53 @@ interpreter or minor-GC allocation.  Pairs with `alt_ergo_*` (the other
 `Weak.Make` workload): movement on Frama-C *and* alt-ergo but nothing
 else → strongly suspect weak/ephemeron-pointer cleaning.
 
+#### `goblint` — SV-COMP abstract interpretation
+
+**What it does.** Runs the [Goblint](https://github.com/goblint/analyzer)
+static analyser (abstract interpretation of C, with the apron relational
+domains) over one SV-COMP task —
+`btor2c-lazyMod.vcegar_QF_BV_itc99_b13_p02.c`, an extreme outlier from
+[ocaml#13733](https://github.com/ocaml/ocaml/issues/13733).  Despite a
+tiny 5.6 KB input it builds a large analysis state and allocates heavily.
+Single observable OCaml process; invoked via the issue's command
+(`--conf svcomp.json --sets ana.specification unreach-call.prp
+--sets exp.architecture 64bit … bench.c`).
+
+**How it's built.** Goblint 2.7.1 + goblint-cil 2.0.9 + ~60 deps are
+vendored via opam-monorepo (`duniverse/analyzer`, `duniverse/cil`).
+**apron is required** (the svcomp config + autotuner enable it) but is
+non-dune (configure/make + camlidl), so it can't join the unified dune
+build: `scripts/vendor-apron.sh` builds the `camlidl`/`mlgmpidl`/`apron`
+chain per-runtime from pinned source into a self-contained prefix using
+only the active compiler + gcc + ocamlfind + make (no opam/solver/repos —
+so it works on arbitrary runtimes), and `goblint.build.sh` exposes that
+prefix to the otherwise-hermetic build via `OCAMLPATH`.  Five vendored-
+source patches make it build on a modern toolchain (see *Vendored source
+patches*): `goblint.h` (GCC 14+/C23), `cpu` autoconf `config.h`,
+`bare_encoding` source-install (catapult's `%{lib:…}` copy),
+`json-data-encoding` fork re-alignment to `Yojson.Safe.t`, and a
+first-class-module annotation in `control.ml` (OCaml ≥ 5.5).  Runtime
+data (libc/sv-comp/linux stubs) is found via `pre.custom_includes` since
+the dune-site sites aren't populated in an uninstalled build.
+
+**Profile.** ~0.2-1s wall on modern hardware, **~1.3 GB allocated** for
+the 5.6 KB input (≈ 48 MB peak RSS — almost all churn, not live set), i.e.
+a high-allocation / minor-GC-pressure workload.  Builds + runs on 5.4.1
+and 5.5-beta1 (`d8bb46c`); on trunk it builds from `fb4f451` onward (the
+late-May `cfb30145` snapshot hit a since-fixed `Ctype.Unify` compiler
+bug, the same one worked around for dolmen).
+
+**Diagnostic value.** The suite's second independent abstract-interpreter
+for C (after frama-c), and the reproducer for
+[ocaml#13733](https://github.com/ocaml/ocaml/issues/13733) — Goblint's
+~4× CPU + allocation regression from 4.14 to OCaml 5.x.  sim642 explicitly
+links it to frama-c's [#11733](https://github.com/ocaml/ocaml/issues/11733):
+both are CIL-based C analysers, so movement on **`allocated_bytes` /
+`wall_time`** here plus on `frama_c_eva_*` → a shared 5.x GC/allocation
+cause; movement on goblint alone → its own hash-consing / solver path.
+Headline signal is **total allocation** (the documented regression
+manifests as ~4× more allocated bytes for identical analysis output).
+
 #### `menhir_sql_parser` and `menhir_sysver`
 
 **What they do.** Generate parsers from `sql-parser.mly` (5846 lines, with `keywords.mly`, `--base sql-parser`) and `sysver.mly` (12 735 lines, `--table` table-driven LR(1)).
@@ -862,6 +910,7 @@ Reverse index for quick lookup. Hot-path tags only.
 | `alt_ergo_fill, alt_ergo_yyll` | **weak-refs (Weak.Make hash-consing)**, hashtbl, format |
 | `alt_ergo_unsat_smt2` | **weak-refs**, hashtbl, format, **signals (SIGVTALRM armed by `--timelimit 15`)** |
 | `frama_c_eva_{t,sqlite}` | **weak-refs / ephemeron-backed hash-consing (`Weak.Make` at scale)**, hashtbl, recursive-variants (CIL AST), minor-gc, **max-rss (sqlite, #11733)** |
+| `goblint` | **high allocation / minor-gc churn** (~1.3GB for a 5.6KB input), hash-consing, apron relational domains (C/GMP FFI), recursive-variants (CIL AST), **allocated-bytes (#13733)** |
 | `menhir_{ocamly,sql_parser,sysver}` | hashtbl, format, lazy, minor-gc |
 | `ocamlc_self_compile` | hashtbl, **marshal (`.cmi`+`.cmo` writeout)**, bigarray (emit buffer), minor-gc |
 | `jsoo` | hashtbl, lazy, marshal(cold) |
@@ -1009,6 +1058,11 @@ for reference and for manual application if needed.
 | 11 | `duniverse/batteries-included/.../batGc.mli` | Add `live_stacks_words` field | OCaml 5.6 added field to `Gc.stat` |
 | 12 | `vendor/pplacer/mcl/caml/caml_mcl.c` | Add `#include <stdint.h>` | OCaml 5.6 trunk headers need it |
 | 13 | `vendor/pplacer/tests/tests.ml` | Add `PPLACER_TEST_LOOP` env-var loop | Run the test suite N times in one process so olly observes the full benchmark — see §"Iteration counts" |
+| 14 | `duniverse/analyzer/.../runtime/include/goblint.h` | `__goblint_assume_join` arg type | GCC 14+/C23 conflicting-types vs the `.c` definition |
+| 15 | `duniverse/cpu/` | Run `autoconf; autoheader; ./configure` | Generates `src/config.h` its C stub needs (opam runs this; dune doesn't) |
+| 16 | `duniverse/json-data-encoding/.../json_repr.{ml,mli}` | Add `` `Tuple ``/`` `Variant `` to `Json_repr.Yojson` (= `Yojson.Safe.t`) | The dune-universe fork narrows the type; goblint treats it as `Yojson.Safe.t` both ways |
+| 17 | `duniverse/bare-ocaml/src/dune` | Install `Bare_encoding.ml`/`.mli` | catapult copies them via `%{lib:bare_encoding:…}` (needs source installed) |
+| 18 | `duniverse/analyzer/.../control.ml` | Annotate `(module CFG : CfgBidirSkip)` | OCaml ≥ 5.5 can't infer the packaged-module signature otherwise |
 
 ## Known limitations
 
