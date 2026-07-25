@@ -134,3 +134,45 @@
   ; but catapult's opam doesn't declare it (optional there); name it so the
   ; lock vendors it.
   (bare_encoding (>= 0.3.0))))
+
+; infer: Meta's multi-language static analyzer, built java-only (clang /
+; erlang / hack / python / rust / swift disabled).  Infer's own build is
+; autoconf + make that *generates* its dune files, so it is not an
+; opam-monorepo-buildable opam package; the source (with java-only dune
+; files generated at vendor time) is vendored manually via
+; scripts/vendor-infer.sh, and its OCaml deps are declared here.  The
+; system libs (sqlite3, zlib, gmp) are opam-provided (see .opam.template).
+; The core / ppx_* v0.17 band matches what the lock already pins (base
+; v0.17.3, ppx_compare v0.17.0), so adding infer pushes only lower bounds.
+(package
+ (name macro-bench-infer)
+ (allow_empty)
+ (depends
+  (ANSITerminal (>= 0.7))
+  (atdgen (>= 2.15.0))
+  (base64 (>= 3.0.0))
+  bheap
+  (cmdliner (>= 1.0.0))
+  (core (and (>= v0.17.1) (< v0.18)))
+  (fmt (>= 0.9.0))
+  iter
+  (javalib (>= 3.2.1))
+  (memtrace (>= 0.1.2))
+  (menhir (>= 20220210))
+  (mtime (>= 2))
+  ocamlgraph
+  (parmap (>= 1.0-rc8))
+  ppx_blob
+  (ppx_compare (and (>= v0.17) (< v0.18)))
+  (ppx_enumerate (and (>= v0.17) (< v0.18)))
+  (ppx_expect (and (>= v0.17) (< v0.18)))
+  (ppx_fields_conv (and (>= v0.17) (< v0.18)))
+  (ppx_yojson_conv (and (>= v0.17) (< v0.18)))
+  (sawja (>= 1.5.11))
+  (sedlex (>= 3.0))
+  (spawn (>= v0.17.0))
+  sqlite3
+  (tdigest (>= 2.0.0))
+  (xmlm (>= 1.2.0))
+  (yojson (>= 1.7.0))
+  (zarith (>= 1.7))))
