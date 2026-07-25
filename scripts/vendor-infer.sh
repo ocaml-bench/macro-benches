@@ -68,6 +68,15 @@ rm -rf \
   "${INFER_DIR}/_build" \
   "${INFER_DIR}"/_build_logs 2>/dev/null || true
 
+# opam-monorepo scans the whole vendored tree.  Two things trip it up:
+#   - infer/opam/{infer,infer-tests}.opam duplicate infer/infer.opam ("defined
+#     multiple times"); drop the opam/ packaging dir, keeping infer/infer.opam
+#     (neutralized below) as the single package decl that dune public_names need.
+#   - infer/bin/infer-* and infer/lib/wrappers/* are dangling symlinks to the
+#     (not-yet-built) infer binary; opam-monorepo errors trying to stat them.
+rm -rf "${INFER_DIR}/opam"
+find "${INFER_DIR}" -xtype l -delete 2>/dev/null || true
+
 # Disabled-frontend OCaml source dirs.  NOTE: the java-only exe STILL links
 # ClangFrontend (infer/src/clang) — analyzer selection drops python/rust/
 # erlang/swift from the link line but not clang — so clang MUST be kept (its

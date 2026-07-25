@@ -144,6 +144,12 @@
 ; system libs (sqlite3, zlib, gmp) are opam-provided (see .opam.template).
 ; The core / ppx_* v0.17 band matches what the lock already pins (base
 ; v0.17.3, ppx_compare v0.17.0), so adding infer pushes only lower bounds.
+; javalib + sawja are non-dune (native configure/Makefile) and are NOT
+; declared anywhere in the lock (infer is manually vendored, so its deps are
+; under our control; marking them opam-provided drags their opam dep cone
+; into the global opam-provided solve and collides with devkit's libevent).
+; They are built per-runtime into a prefix by scripts/vendor-javalib-sawja.sh
+; and exposed to infer's dune build via OCAMLPATH (apron model).
 (package
  (name macro-bench-infer)
  (allow_empty)
@@ -156,7 +162,6 @@
   (core (and (>= v0.17.1) (< v0.18)))
   (fmt (>= 0.9.0))
   iter
-  (javalib (>= 3.2.1))
   (memtrace (>= 0.1.2))
   (menhir (>= 20220210))
   (mtime (>= 2))
@@ -168,7 +173,6 @@
   (ppx_expect (and (>= v0.17) (< v0.18)))
   (ppx_fields_conv (and (>= v0.17) (< v0.18)))
   (ppx_yojson_conv (and (>= v0.17) (< v0.18)))
-  (sawja (>= 1.5.11))
   (sedlex (>= 3.0))
   (spawn (>= v0.17.0))
   sqlite3

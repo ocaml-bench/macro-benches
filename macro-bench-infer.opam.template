@@ -4,6 +4,14 @@ x-opam-monorepo-opam-provided: [
   "conf-gmp"
   "conf-pkg-config"
 ]
+# NOTE: javalib + sawja are intentionally NOT declared anywhere in the lock
+# (neither depends nor opam-provided).  They are non-dune (native
+# configure/Makefile) and, unlike goblint's apron, infer is manually vendored
+# so its deps are fully under our control here.  Declaring them opam-provided
+# drags their opam dep cone into the global opam-provided co-installability
+# solve, which collides with another benchmark's libevent pin.  Instead they
+# are built per-runtime into a prefix by scripts/vendor-javalib-sawja.sh and
+# exposed to infer's dune build via OCAMLPATH (see benchmarks/infer/infer.build.sh).
 x-opam-monorepo-opam-repositories: [
   "git+https://github.com/dune-universe/opam-overlays.git#efd742d67b0d49b2d6f491ffbbf205ca42977a6e"
   "git+https://github.com/ocaml/opam-repository.git#b860455781b24ea862ab687f6345d8bc6c8a3a82"
