@@ -23,7 +23,7 @@ You can use it two ways:
 
 ## The benchmarks
 
-22 tools (20 active; `merlin` and `lavyek` disabled — see below). Each active
+23 tools (21 active; `merlin` and `lavyek` disabled — see below). Each active
 tool has an **input-size ladder** — `small` / `default` / `large` (a couple also
 `huge`) rungs whose input is chosen so each reaches a different GC/runtime
 regime, not just a bigger copy of the one below. A bare run
@@ -57,6 +57,7 @@ benches.
 | [liq-video-frames](docs/benchmarks/liq-video-frames.md) | A refcounted pool of YUV420 video frames (reproduces [#14533](https://github.com/ocaml/ocaml/issues/14533)) | 4-20s |
 | [frama-c](docs/benchmarks/frama-c.md) | Frama-C EVA value analysis on zlib and the SQLite amalgamation (reproduces [#11733](https://github.com/ocaml/ocaml/issues/11733)) | 7-8s |
 | [goblint](docs/benchmarks/goblint.md) | Goblint SV-COMP analysis with apron (reproduces [#13733](https://github.com/ocaml/ocaml/issues/13733)) | 0.2-1s |
+| [infer](docs/benchmarks/infer.md) | Infer's multicore Java analysis (Pulse) over a fixed slice of a real bytecode corpus (guava, byte-buddy, lucene, bcprov) | ~15-25s |
 | [js_of_ocaml](docs/benchmarks/js_of_ocaml.md) | Compiles the runtime's own `ocamlc.byte` to JavaScript | 7-9s |
 
 Two more tools ship in the tree but are currently disabled:
