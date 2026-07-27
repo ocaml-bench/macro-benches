@@ -27,6 +27,9 @@ prefix (see Phase-2 commit message / docs).
 - Tools switch with `opam-monorepo` (the suite's `running-ng-tools`).
 - System packages: the suite's usual set plus `libsqlite3-dev`, `zlib1g-dev` (Infer links
   sqlite3 + zlib), a JDK is **not** required (capture is JVM-free), `unzip`, `zip`, `curl`.
+- `cppo` in **each runtime switch** you build under: `vendor-javalib-sawja.sh` builds extlib
+  1.8.0, whose dune build preprocesses with cppo (`opam install --switch <runtime> cppo`).
+  The prefix build is otherwise opam-free.  `vendor-javalib-sawja.sh` preflight-checks this.
 
 ## One-time setup
 
@@ -101,3 +104,16 @@ output as well as `_build-<runtime>` (see the top-level CLAUDE.md gotcha).
   exits immediately doing nothing.
 - `--keep-going` does **not** rescue an uncaught `Sawja_pack.Bir.Bad_stack` — vet corpus jars.
 - Don't commit `vendor/.infer-*` (corpus, prefix, capture) — all under the git-ignored `vendor/`.
+- **`oUnit` vs `ounit2` (hermetic build):** Infer's generated dune links findlib library `oUnit`
+  (the legacy deprecated alias a normal opam switch provides via the transitional `ounit`
+  package). The hermetic duniverse ships only the `ounit2` public name, so the overlay dune files
+  (`dune-overlays/infer/infer/src/{clang,unit}/dune`, `src/dune`) were changed to link `ounit2`
+  (same library, present name). This is why the build worked piecewise on a full macOS switch but
+  not in the hermetic build.
+- **extlib / camlzip duplicate:** javalib/sawja link `extlib` + `zip`, supplied by the per-runtime
+  prefix; the duniverse *also* ships them (devkit depends on both), and dune rejects two libraries
+  with the same public name. The clash is only visible while the prefix is on `OCAMLPATH` (infer's
+  build), so `infer.build.sh` hides `duniverse/{ocaml-extlib,camlzip}` for the duration of its dune
+  build and restores them via a trap. Caveat: don't build infer and devkit **concurrently** in the
+  same tree — the hide window would break a parallel devkit build. running-ng's sequential
+  `buildbms` is fine.

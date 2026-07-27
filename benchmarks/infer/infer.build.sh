@@ -55,10 +55,39 @@ JS_SRC="${MONOREPO_DIR}/vendor/.infer-js-src" JS_PREFIX="${JS_PREFIX}" \
 #    come from the in-tree dune workspace; only the javalib/sawja prefix is
 #    exposed via OCAMLPATH (all C stubs are statically linked, so the wrapper
 #    needs no runtime library path).
+#
+#    extlib + camlzip/zip collision: javalib/sawja link extlib and zip, which
+#    the prefix supplies (built by vendor-javalib-sawja.sh).  But the duniverse
+#    ALSO ships extlib (ocaml-extlib) and zip (camlzip) because devkit depends
+#    on them, and dune rejects two libraries with the same public name in one
+#    build ("Conflict between the following libraries: extlib ...").  The clash
+#    is *only* visible while this prefix is on OCAMLPATH — devkit's own build
+#    never sets it, so it always sees the duniverse copies.  We therefore hide
+#    the duniverse duplicates for the duration of infer's build and restore
+#    them on exit (same source/version as the prefix copies, so nothing else
+#    is affected).  A trap restores them even if the build fails or is killed.
 unset OPAM_SWITCH_PREFIX OCAMLTOP_INCLUDE_PATH CAML_LD_LIBRARY_PATH OCAMLLIB
 export OCAMLPATH="${JS_PREFIX}/lib"
+
+_INFER_HIDDEN_DIR="$(mktemp -d "${MONOREPO_DIR}/vendor/.infer-hidden-dups.XXXXXX")"
+_infer_restore_dups() {
+  for d in ocaml-extlib camlzip; do
+    [ -d "${_INFER_HIDDEN_DIR}/${d}" ] && [ ! -e "${MONOREPO_DIR}/duniverse/${d}" ] \
+      && mv "${_INFER_HIDDEN_DIR}/${d}" "${MONOREPO_DIR}/duniverse/${d}"
+  done
+  rmdir "${_INFER_HIDDEN_DIR}" 2>/dev/null || true
+}
+trap _infer_restore_dups EXIT
+for d in ocaml-extlib camlzip; do
+  [ -d "${MONOREPO_DIR}/duniverse/${d}" ] \
+    && mv "${MONOREPO_DIR}/duniverse/${d}" "${_INFER_HIDDEN_DIR}/${d}"
+done
+
 dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" --profile release \
   vendor/infer/infer/src/infer.exe
+
+_infer_restore_dups
+trap - EXIT
 REAL_EXE="${BUILD_DIR}/default/vendor/infer/infer/src/infer.exe"
 
 # 4. Capture the corpus once with THIS runtime's binary (JVM-free: javalib

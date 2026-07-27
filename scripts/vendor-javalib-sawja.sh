@@ -41,6 +41,16 @@ export OCAMLPATH="$PREFIX/lib" OCAMLFIND_DESTDIR="$PREFIX/lib" PATH="$PREFIX/bin
 mkdir -p "$OCAMLFIND_DESTDIR"
 echo "compiler: $(ocaml -version)"
 
+# extlib 1.8.0's dune build preprocesses with cppo, so it must be on PATH in the
+# active runtime switch (this prefix build is otherwise opam-free).  Fail early
+# with a clear message rather than the cryptic "Program cppo not found in PATH".
+command -v cppo >/dev/null 2>&1 || {
+  echo "ERROR: cppo not found on PATH.  extlib (a javalib build dep) needs it." >&2
+  echo "       Install it into the runtime switch, e.g.:" >&2
+  echo "         opam install --switch <runtime-switch> cppo" >&2
+  exit 1
+}
+
 echo "[1/4] extlib (dune build @install)"
 # --root isolates the build so dune doesn't adopt the enclosing macro-benches
 # workspace (vendor/ lives inside it), as vendor-apron.sh does.
