@@ -45,7 +45,7 @@ shared-heap GC overhead is exactly the runtime behaviour worth measuring.
 ## The build
 
 `infer.build.sh` has three vendored pieces. **Infer itself** is vendored manually
-(`scripts/vendor-infer.sh`, pinned to the `remove-frontends` branch): its upstream build is
+(`scripts/vendor-infer.sh`, pinned to the `inferbench-v1.0` tag): its upstream build is
 autoconf+make that *generates* dune files, so it cannot join the opam-monorepo lock; instead a
 java-only pre-generated dune overlay (`dune-overlays/infer/`) is laid down at vendor time and it
 builds as an ordinary in-tree dune project. **javalib + sawja** are Infer's only non-dune deps;

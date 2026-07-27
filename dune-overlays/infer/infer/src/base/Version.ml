@@ -20,7 +20,7 @@ let patch = 0
 
 let commit = "5ea35c6b82"
 
-let branch = "remove-frontends"
+let branch = "inferbench-v1.0"
 
 type build_platform = Linux | Darwin | Windows
 

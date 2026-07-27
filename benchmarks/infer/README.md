@@ -12,7 +12,7 @@ lock produces. Treat this list as the finish-line checklist.
 
 | File | Role |
 |------|------|
-| `scripts/vendor-infer.sh` | clone java-only Infer (`ngorogiannis/infer @ remove-frontends`, pinned SHA) into `vendor/infer`, lay down the `dune-overlays/infer/` dune files |
+| `scripts/vendor-infer.sh` | clone java-only Infer (`ngorogiannis/infer @ inferbench-v1.0` tag) into `vendor/infer`, lay down the `dune-overlays/infer/` dune files |
 | `scripts/vendor-javalib-sawja.sh` | build extlib+camlzip+javalib+sawja into a per-runtime prefix (non-dune deps; apron model) |
 | `scripts/vendor-infer-corpus.sh` | fetch 4 pinned Maven Central jars + merge → `vendor/.infer-corpus/corpus.jar` |
 | `benchmarks/infer/roots.idx` | committed class subset selecting the workload size |
