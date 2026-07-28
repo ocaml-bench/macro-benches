@@ -236,6 +236,53 @@ else
 fi
 echo ""
 
+# ---- Drop rocq's dead Coq-Build-Language declarations ----
+# dune 3.24 deleted the `coq` language extension ("The Coq Build Language has
+# been replaced by the Rocq Build Language"), so a workspace containing
+# `(using coq 0.8)` fails to *parse* — every build in the monorepo dies, not
+# just rocq's:
+#   Error: Extension coq was deleted in the 3.24 version of the dune language
+#
+# Both declarations are dead weight here.  No active `dune` file in
+# duniverse/rocq contains a `coq.theory`/`coq.pp`/`coq.extraction` stanza --
+# rocq compiles its theories through its own tools/dune_rule_gen, and the only
+# files that would need the extension are two `dune.disabled` ones that dune
+# never reads.  The `(coq (flags ...))` env field is likewise only in the `dev`
+# profile, while the monorepo always builds `--profile release`.  So we remove
+# them rather than migrating to `(using rocq ...)`, which would mean porting
+# rocq's build language for no benefit.
+echo "[3b/9] Patching duniverse/rocq for dune >= 3.24 (dropping dead coq extension)..."
+_rocq_patched=0
+if grep -qE '^\(using coq [0-9.]+\)' duniverse/rocq/dune-project 2>/dev/null; then
+  # Also drop the comment that exists only to explain the declaration.
+  sed -i -E '/^; We need this for when we use the dune\.disabled files instead of our rule_gen$/d; /^\(using coq [0-9.]+\)$/d' \
+    duniverse/rocq/dune-project
+  _rocq_patched=1
+fi
+if grep -qE '^ *\(coq \(flags' duniverse/rocq/dune 2>/dev/null; then
+  # Remove the `(coq (flags ...))` field from the dev profile, closing the
+  # paren it leaves behind on the preceding (flags ...) line.
+  python3 - <<'PYEOF'
+import pathlib, re
+p = pathlib.Path("duniverse/rocq/dune")
+s = p.read_text()
+# `(dev (flags ...)\n  (coq (flags ...)))` -> `(dev (flags ...))`
+s2 = re.sub(r"(\(dev\s+\(flags[^\n]*?)\)\n\s*\(coq \(flags[^\n]*?\)\)\)\n",
+            r"\1))\n", s)
+if s2 == s:
+    raise SystemExit("rocq dune: dev-profile coq field not matched -- patch me")
+p.write_text(s2)
+PYEOF
+  _rocq_patched=1
+fi
+if [ "$_rocq_patched" = "1" ]; then
+  echo "  Patched (removed (using coq ...) and/or the dev-profile coq flags)."
+else
+  echo "  Already patched. Skipping."
+fi
+unset _rocq_patched
+echo ""
+
 # ---- Vendor cpdf + camlpdf ----
 echo "[4/9] Vendoring cpdf + camlpdf..."
 if [ -d vendor/camlpdf ] && [ -d vendor/cpdf-source ]; then
