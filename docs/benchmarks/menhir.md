@@ -46,18 +46,41 @@ All three are minor-GC-heavy and share the same shape of work:
 
 ## Reading the results
 
-Rough baseline numbers:
+## Knob-A ladder (grammar / automaton scale)
 
-- `menhir_ocamly`: wall around 33s, GC overhead around 20%, RSS around 2.7 GB. The
-  RSS really is that large; the canonical state table lives across the whole run.
-- `menhir_sql_parser`: wall around 3.3s, GC overhead around 29%. The small one.
-- `menhir_sysver`: wall around 20s, GC overhead around 33%, on the order of 8850 minor
-  / 50 major collections.
+The three grammars form menhir's Knob-A ladder: each rung builds a larger parser automaton
+than the one below, so the live set (the state tables, which live across the whole run) and
+RSS grow. Knob A here is the *combination* of grammar and generation mode — the three use
+different algorithms deliberately, but they are monotone in footprint. Measured on OCaml
+5.5.0, Ryzen 9 9950X (`fingerprint.sh` `v=0x400`; olly gc%/pause from `perf_grp1|re-25|md-2`):
 
-The three form a natural triple. If all three move together, suspect a menhir-internal
-regression. If only a subset moves, it points at something specific to that generation
-algorithm. Because they differ mostly in scale of `Hashtbl` and array growth, sysver
-is the most sensitive to `Hashtbl` growth cost.
+| rung | program | grammar / mode | wall | gc% | RSS | live heap (top_heap_words) | max pause |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `small` | `menhir_sql_parser` | sql-parser, LALR `-v -t` | 1.2s | 27% | 0.31 GB | 39 M | 15 ms |
+| `default` | `menhir_sysver` | sysver, table `-v --table` | 7.8s | 32% | 0.72 GB | 93 M | 12 ms |
+| `large` | `menhir_ocamly` | ocaml, canonical `--list-errors --canonical` | 12.7s | 21% | 2.76 GB | 353 M | 21 ms |
+
+RSS and live heap grow monotonically (0.31 → 0.72 → 2.76 GB; 39 → 93 → 353 M words), so each
+rung reaches a bigger automaton-construction footprint. gc% is *not* monotone — the canonical
+`ocamly` rung is more compute-bound (its `--list-errors` reachability + canonical state
+construction dominate), so its gc% (21 %) is lower than the two smaller rungs.
+
+Two caveats worth recording:
+
+- **Time band vs the old numbers.** Earlier docs quoted ~3.3 / 20 / 33 s for these three.
+  That was stale: on current hardware the *same* binaries (including the 5.4.1 one) run in
+  ~1.2 / 7.8 / 13 s — the workload is unchanged (RSS and collection counts match the old
+  figures exactly; only the old walls were anomalous, likely measured under contention or
+  thermal throttle). So the menhir ladder is monotone by **footprint** but its wall times are
+  compressed into ~1–13 s (tiny → default); it does not reach the 1–3 min "large" time band.
+- **A time-large would need `--canonical` on a bigger grammar**, but that knob is a fragile,
+  structure-dependent state explosion: `sysver --canonical` is 33 s / 4 GB, yet the *smaller*
+  `sql-parser --canonical` blows up to 268 s / 40 GB. So it is left out of the ladder (a
+  bigger/huge rung is deferred).
+
+If all three move together, suspect a menhir-internal regression. If only a subset moves, it
+points at something specific to that generation algorithm; sysver is the most sensitive to
+`Hashtbl` growth cost.
 
 ## Notes
 
