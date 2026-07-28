@@ -16,6 +16,7 @@ _rocq_prefix/
 *-oxcaml-*
 *-mmtk
 *-mmtk-nm
+*-ci-timing
 
 # Coq compilation artifacts (produced by running the coq benchmarks)
 benchmarks/coq/*.vo
@@ -27,6 +28,7 @@ benchmarks/coq/.*.aux
 # Editor / OS
 *~
 .DS_Store
+scripts/.switch-inventory-backup-*.txt
 
 # Generated alt-ergo benchmark inputs (built by alt-ergo.build.sh)
 benchmarks/alt-ergo/fill_x*.why
