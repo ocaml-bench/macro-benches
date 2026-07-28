@@ -81,9 +81,55 @@ FINDLIB_CONF_ABS="${BENCH_DIR}/findlib-${RUNTIME_TAG}.conf"
 } > "${FINDLIB_CONF_ABS}"
 echo "  findlib conf:  ${FINDLIB_CONF_ABS}"
 
+# --- Knob-A ladder workloads -------------------------------------------------
+# Knob A for jsoo is the SIZE of the input bytecode.  jsoo is a whole-program
+# compiler (it holds the entire program IR in memory), so RSS/live-heap grow
+# with the input — a genuine footprint ladder, unlike the per-module compiler
+# benches.  But jsoo's cost is driven by program STRUCTURE, not raw bytes: a
+# synthetic file of thousands of tiny top-level closures is pathological (a
+# 1 MB such file took 88 s).  So we build the rung inputs from REAL code: the
+# 20 JSOO classic benchmark sources (boyer/nucleic/fft/...) wrapped in unique
+# modules and replicated R times (the same generator ocamlc_self_compile uses),
+# then compiled to a bytecode executable with THIS runtime's ocamlc so the
+# magic matches (exactly as the legacy ocamlc.byte workload is per-runtime).
+# Sizes (5.5.0 / Ryzen 9950X): small 30 reps ~5 MB ~5s / 0.5GB, default 80 reps
+# ~13 MB ~16s / 1.7GB, large 200 reps ~34 MB ~50s / 7.8GB.  (huge deferred.)
+# The .ml is runtime-independent; the .byte is per-runtime.  Both gitignored.
+JSOO_SRC="${MONOREPO_DIR}/duniverse/js_of_ocaml/benchmarks/sources/ml"
+RT_OCAMLC="${RUNTIME_PREFIX}/bin/ocamlc.opt"
+[[ -x "${RT_OCAMLC}" ]] || RT_OCAMLC="${RUNTIME_PREFIX}/bin/ocamlc"
+for spec in "small:30" "default:80" "large:200"; do
+  rung="${spec%%:*}"; reps="${spec##*:}"
+  ML="${BENCH_DIR}/jsoo_wl_${rung}.ml"
+  BYTE="${BENCH_DIR}/jsoo_wl_${rung}-${RUNTIME_TAG}.byte"
+  if [[ ! -s "${ML}" ]] || ! head -1 "${ML}" 2>/dev/null | grep -q "REPS=${reps}"; then
+    python3 - "${JSOO_SRC}" "${ML}" "${reps}" <<'PY'
+import os, glob, sys
+sd, dst, r = sys.argv[1], sys.argv[2], int(sys.argv[3])
+files = sorted(glob.glob(f"{sd}/*.ml"))
+out = [f"(* GENERATED REPS={r}; do not edit. *)"]
+for rep in range(r):
+    for p in files:
+        b = os.path.splitext(os.path.basename(p))[0]
+        c = "".join(x if x.isalnum() else "_" for x in b)
+        m = (c[0].upper() + c[1:]) + f"_{rep}"
+        out += [f"module {m} = struct", open(p).read(), "end"]
+open(dst, "w").write("\n".join(out) + "\n")
+PY
+  fi
+  if [[ ! -s "${BYTE}" || "${ML}" -nt "${BYTE}" ]]; then
+    echo "  compiling ladder workload ${rung} (reps=${reps}) with ${RT_OCAMLC}"
+    "${RT_OCAMLC}" -w -a -o "${BYTE}" "${ML}" 2>/dev/null \
+      || echo "  WARN: could not compile ${rung} workload (rung will be unavailable)"
+    rm -f "${BENCH_DIR}/jsoo_wl_${rung}.cmi" "${BENCH_DIR}/jsoo_wl_${rung}.cmo"
+  fi
+done
+
 # Wrapper: each invocation compiles to a scratch dir which the trap
 # cleans up — no source-tree pollution. OCAMLPATH + OCAMLFIND_CONF
-# point at the runtime's libraries via absolute paths.
+# point at the runtime's libraries via absolute paths.  The first arg
+# selects the workload: small/default/large -> the generated ladder
+# bytecode; anything else (incl. empty) -> the legacy ocamlc.byte.
 mkdir -p "$(dirname "${OUT}")"
 cat > "${OUT}" << WRAPPER
 #!/usr/bin/env bash
@@ -92,7 +138,11 @@ WORK_TMPDIR="\$(mktemp -d -t jsoo_bench.XXXXXX)"
 trap 'rm -rf "\$WORK_TMPDIR"' EXIT
 export OCAMLPATH="${RUNTIME_LIB}"
 export OCAMLFIND_CONF="${FINDLIB_CONF_ABS}"
-exec "${REAL_EXE}" "${WORKLOAD}" -o "\$WORK_TMPDIR/out.js"
+case "\${1:-}" in
+  small|default|large) WL="${BENCH_DIR}/jsoo_wl_\${1}-${RUNTIME_TAG}.byte" ;;
+  *) WL="${WORKLOAD}" ;;
+esac
+exec "${REAL_EXE}" "\$WL" -o "\$WORK_TMPDIR/out.js"
 WRAPPER
 chmod +x "${OUT}"
 
