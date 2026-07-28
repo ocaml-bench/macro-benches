@@ -84,6 +84,28 @@ non-dune dependencies (pplacer, apron, rocq), and test-builds every binary. The
 first run takes around ten minutes; later runs skip the steps that are already
 done. It is idempotent, so you can rerun it any time without `make clean`.
 
+#### dune compatibility
+
+Verified with dune **3.22.1** and **3.24.0**.
+
+dune 3.24 deleted the `coq` language extension ("The Coq Build Language has been
+replaced by the Rocq Build Language"), and vendored rocq still declared
+`(using coq 0.8)`. Because that is a *parse* error, it broke every build in the
+workspace, not just rocq's — `dune build benchmarks/decompress/...` failed with
+`Error: Extension coq was deleted in the 3.24 version of the dune language`.
+
+Setup step 3b removes that declaration and the matching `(coq (flags ...))`
+field from rocq's `dev` profile. Both are dead configuration here: no active
+`dune` file under `duniverse/rocq` contains a `coq.theory` / `coq.pp` /
+`coq.extraction` stanza, because rocq compiles its theories through its own
+`tools/dune_rule_gen` (which emits plain `(rule (action (run rocq c ...)))`),
+and the only files that would need the extension are two `dune.disabled` ones
+that dune never reads. So the fix removes the declarations rather than porting
+rocq to `(using rocq ...)`.
+
+If you already have a populated `duniverse/`, rerun `make setup` to pick this
+up — the step is skipped once applied.
+
 ### Run one benchmark by hand
 
 Each benchmark has a build script that writes its binary to
@@ -123,7 +145,9 @@ make setup          # repopulate from the lock file
 2. `opam monorepo pull` downloads all of them into `duniverse/`. No solver, no
    `opam install`.
 3. `setup-monorepo.sh` applies a handful of source patches for newer compilers
-   and known upstream bugs.
+   and known upstream bugs. One of them keeps the workspace parseable by
+   dune >= 3.24, which deleted the `coq` language extension that vendored rocq
+   still declared — see "dune compatibility" below.
 4. The few packages that aren't opam/dune (pplacer, apron, rocq) are vendored
    and built by their own scripts.
 5. `dune build` compiles everything from local source with whichever compiler is
