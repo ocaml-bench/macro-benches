@@ -10,6 +10,7 @@ unset OPAM_SWITCH_PREFIX OCAMLTOP_INCLUDE_PATH CAML_LD_LIBRARY_PATH OCAMLLIB
 export OCAMLPATH=""
 dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" --profile release benchmarks/yojson/ydump_repeat.exe
 mkdir -p "$(dirname "${OUT}")"
+rm -f "${OUT}"
 cp "${BUILD_DIR}/default/benchmarks/yojson/ydump_repeat.exe" "${OUT}"
 chmod +x "${OUT}"
 echo "ydump_repeat built: ${OUT}"

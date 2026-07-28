@@ -73,7 +73,12 @@ module Mat = Owl_dense_matrix_d
 
 let num_sample_pts = 100
 
-let dim = 100
+(* Knob A = matrix dimension.  Each of the num_sample_pts sample points is a
+   dim x dim Float64 matrix, so the off-heap live set is num_sample_pts * dim^2
+   * 8 bytes and the per-pair Gromov-Wasserstein compute is ~O(dim^3); raising
+   dim grows RSS (quadratically) and off-heap custom-block major-GC pressure.
+   Set via OWL_MATRIX_DIM (default 100, the legacy value). *)
+let dim = try int_of_string (Sys.getenv "OWL_MATRIX_DIM") with _ -> 100
 let () = Random.init 0
 let rand () =
   let a = Bigarray.Array2.create Bigarray.Float64 Bigarray.C_layout dim dim in
@@ -86,7 +91,11 @@ let rand () =
 
 let icdms = Array.init num_sample_pts (fun _ -> rand ())
 
-let u = Gw.uniform_dist num_sample_pts
+(* The probability distribution over one space has one weight per point, so its
+   length is the space size (dim), matching the dim x dim distance matrices.
+   (The legacy code used num_sample_pts here, which only worked because dim ==
+   num_sample_pts == 100; decoupled so dim is an independent Knob A.) *)
+let u = Gw.uniform_dist dim
 
 let gw_by_index gw_dmat i j () =
   let (a, _) = Gw.gw_uniform icdms.(i) u icdms.(j) u in
