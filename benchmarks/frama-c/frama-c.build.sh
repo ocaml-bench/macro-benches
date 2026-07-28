@@ -15,12 +15,21 @@
 #
 # Two workloads, selected by the wrapper's first argument:
 #   t       (default) : EVA on t.c (zlib, ~17.5k lines) — abstract-interp
-#                       focused, ~6s.
-#   sqlite            : EVA on the SQLite amalgamation (sqlite3.c, ~258k
+#                       focused, fast (~0.4s on 5.5.0). Small/simple: EVA never
+#                       accumulates enough abstract states for slevel/precision
+#                       to matter, so this is a fixed fast standalone, NOT a
+#                       Knob-A ladder rung.
+#   sqlite [PREC]     : EVA on the SQLite amalgamation (sqlite3.c, ~258k
 #                       lines) via a small driver — stresses the weak/
 #                       ephemeron hashconsing of a huge CIL AST + EVA state
-#                       (the OCaml-5 regression of ocaml#11733), ~7s / 460MB
-#                       at -eva-slevel 0; raise slevel to push wall+RSS.
+#                       (the OCaml-5 regression of ocaml#11733).  The optional
+#                       second arg PREC is the EVA precision level (-eva-precision
+#                       0..11; default 0 ≈ the legacy -eva-slevel 0 run, ~7s /
+#                       460MB).  Precision is the Knob-A axis: raising it keeps
+#                       more abstract states → bigger live heap + more
+#                       hash-consing (P0 7s/457MB → P2 18s/641MB → P3+ minutes).
+#                       NOTE: -eva-slevel does NOT scale this workload (measured
+#                       flat 0→500); -eva-precision does.
 # Any other arguments are passed straight through to the EVA executable.
 #
 # assigns:missing is downgraded from error→feedback for the sqlite run:
@@ -57,8 +66,11 @@ case "\${1:-t}" in
     exec "${REAL_EXE}" -no-autoload-plugins \\
       -eva -eva-no-results -eva-slevel "\$SLEVEL" "${BENCH_DIR}/t.c" ;;
   sqlite)
+    # Knob A = EVA precision (-eva-precision).  Level from \$2, else
+    # FRAMAC_EVA_PRECISION, else 0 (≈ legacy -eva-slevel 0 behaviour).
+    PREC="\${2:-\${FRAMAC_EVA_PRECISION:-0}}"
     exec "${REAL_EXE}" -no-autoload-plugins \\
-      -eva -eva-no-results -eva-slevel "\${FRAMAC_EVA_SLEVEL:-0}" -main main \\
+      -eva -eva-no-results -eva-precision "\$PREC" -main main \\
       -eva-warn-key assigns:missing=feedback \\
       "${BENCH_DIR}/sqlite_driver.c" "${BENCH_DIR}/sqlite3.c" ;;
   *)
