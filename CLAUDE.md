@@ -306,14 +306,27 @@ StickyImmix). Known MMTk-only issues:
 
 | Benchmark | wall (s) | gc% | Allocation profile | Strongest signal for |
 |---|---|---|---|---|
-| `coqc_corelib_stress` | 52 | 94 | minor-saturation | minor-GC fast path |
+| `coqc_corelib_stress` | 17 | 94 | minor-saturation | minor-GC fast path (mixed fib/ack/tree; old 52s stale) |
+| `coqc_tree_small` | 5.3 | 90 | minor-saturation (D=17, 0.57GB) | minor-GC fast path (Knob A = make_tree depth) |
+| `coqc_tree_default` | 19 | 94 | minor-saturation (D=18, 0.98GB) | as small, deeper reduction |
+| `coqc_tree_large` | 69 | 97 | minor-saturation (D=19, 1.89GB, 64ms max pause) | minor-GC saturation at scale (highest gc% in suite) |
 | `eio_fiber_stream` | 6 | 10 | promotion-heavy | OCaml 5 effects, fiber scheduler |
 | `irmin_mem_rw` | 12 | 11 | medium | Lwt, persistent hash-tree |
 | `liq_parse_typecheck` | 26 | 22 | promotion-heavy (48%) | AST + minor-to-major copy |
 | `ydump_repeat` | 5.5 | 4.5 | promotion-heavy (65%) | recursive variants, JSON tree |
+| `ydump_repeat_small` | 5.5 | 29 | promotion-heavy (28%, 3.25GB) | promotion + major-GC pauses on a boxed JSON tree (Knob A = doc size) |
+| `ydump_repeat_default` | 16 | 34 | promotion-heavy (10GB) | as small, bigger tree |
+| `ydump_repeat_large` | 33 | 40 | promotion-heavy (1.5GB doc, 20GB, 424ms max pause) | promotion throughput + largest major-GC pauses in suite (pointer-dense tree) |
 | `test_decompress` | 5 | 2.4 | promotion-heavy + Bigstring | Bigstring header allocation |
+| `test_decompress_small` | 5 | 0.8 | compute + Bigstring (80MB payload, 0.5GB) | DEFLATE codegen/compute (least GC-bound bench; Knob A = payload size) |
+| `test_decompress_default` | 16 | 0.8 | compute + Bigstring (256MB, 1.4GB) | as small, bigger payload |
+| `test_decompress_large` | 63 | 0.9 | compute + Bigstring (1GB, 5.7GB) | pure DEFLATE compute/codegen at scale (compute-bound control) |
 | `pplacer_testsuite` | 13 | 70 | major-heavy (FFI) | gsl/sqlite3, tree allocation |
 | `owl_gc` | 16 | 50 | off-heap (Bigarray, small) | Bigarray finalisation, OpenBLAS stubs |
+| `owl_gc_small` | 4 | 24 | off-heap (dim 300, 95MB) | Bigarray finalisation, off-heap footprint (Knob A = dim) |
+| `owl_gc_default` | 14 | 11 | off-heap (dim 500, 230MB) | as small, bigger live set |
+| `owl_gc_large` | 124 | 8 | off-heap (dim 1500, 1.9GB, 27ms max pause) | off-heap footprint + GC latency + custom-block pacer (M) |
+| `owl_gc_huge` | 453 | 8 | off-heap (dim 2400, 4.77GB, 53ms max pause / 25ms p99.9) | off-heap footprint at scale + GC latency + pacer (M) |
 | `zarith_pi` | 8 | 27 | off-heap (GMP custom blocks) | custom-block path, GMP stubs |
 | `liq_video_frames_pool` | 4-20 | low | off-heap (Bigarray, refcounted pool) | custom_major_ratio pacer, refcounted-pool free lunch (#14533) |
 | `devkit_gzip` | 10 | 1 | compute-bound | codegen, zlib stubs |
@@ -321,20 +334,36 @@ StickyImmix). Known MMTk-only issues:
 | `devkit_network` | 17 | 4.5 | minor (Int32) | int32 boxing, Hashtbl |
 | `devkit_htmlstream` | 25 | 3.3 | minor + retention | Buffer allocator |
 | `sedlex_tokenize` | 5 | 40 | minor-saturation | string allocation, PPX DFA |
+| `sedlex_tokenize_small` | 5 | 43 | minor + retained token list (2M lines, 2.7GB) | minor-GC + promotion under a growing live heap (Knob A = # lines) |
+| `sedlex_tokenize_default` | 17 | 49 | as small (6M lines, 8GB) | minor-GC/promotion throughput |
+| `sedlex_tokenize_large` | 74 | 61 | minor + retained list (20M lines, 27GB, 153ms max pause) | minor-GC/promotion + pause latency under a large mostly-live heap (gc% RISES with size; steepest pauses in suite) |
 | `ocamlformat_rocq` | 5 | 30 | minor + AST | Format module, AST allocation |
+| `ocamlformat_rocq_small` | 5 | 33 | minor + AST (40k lines, 0.6GB) | Format, AST allocation, minor-GC throughput (Knob A = # lines) |
+| `ocamlformat_rocq_default` | 13 | 32 | minor + AST (100k lines, 1.7GB) | as small, bigger live AST |
+| `ocamlformat_rocq_large` | 100 | 29 | minor + AST (500k lines, 8.4GB, 90ms max pause) | minor-GC throughput + major-GC scan latency on a multi-GB live AST |
 | `cpdf_merge` / `_blacktext` / `_squeeze` | 6-9 | 20-40 | minor + Bytes | Bytes mutation, codegen |
 | `cpdf_scale` | 36 | 19 | minor (compute) | codegen of geometry transforms |
 | `alt_ergo_fill` | 14 | 40 | promotion-medium | SMT theory backends |
 | `alt_ergo_yyll` | 19 | 6 | minor (compute) | native frontend, theory backends |
 | `alt_ergo_unsat_smt2` | 15 | 7 | minor (compute) | Dolmen frontend, theory backends |
-| `menhir_ocamly` | 33 | 20 | minor (canonical LR) | Hashtbl scale, large arrays |
-| `menhir_sql_parser` | 3.3 | 29 | minor (LALR + verbose) | menhir internals |
-| `menhir_sysver` | 20 | 33 | minor (table) | Hashtbl growth |
+| `menhir_sql_parser` | 1.2 | 27 | minor (LALR + verbose, 0.31GB) | menhir internals — Knob-A ladder rung **small** |
+| `menhir_sysver` | 7.8 | 32 | minor (table, 0.72GB) | Hashtbl growth — ladder rung **default** |
+| `menhir_ocamly` | 13 | 21 | minor (canonical LR, 2.76GB) | Hashtbl scale, large arrays — ladder rung **large** (footprint) |
 | `ocamlc_self_compile` | 8.6 | 33 | minor-heavy + Marshal | Marshal (`.cmi`/`.cmo`), Hashtbl, Bigarray emit buffer, AST allocation |
 | `jsoo` | 7.2 | 33 | minor + IR construction | jsoo bytecode parser, SSA dataflow, JS codegen |
+| `jsoo_small` | 5 | 33 | minor + IR (5.6MB bytecode, 0.5GB) | whole-program IR alloc + minor-GC (Knob A = bytecode size) |
+| `jsoo_default` | 16 | 31 | minor + IR (14MB, 1.7GB) | as small, bigger IR |
+| `jsoo_large` | 50 | 33 | minor + IR (36MB, 7.8GB, 129ms max pause) | IR-alloc throughput + major-GC scan latency on a large SSA graph |
 | `goblint` | 0.2-1 | high alloc | high allocation / churn (~1.3GB, 5.6KB input) | allocated_bytes (#13733), hash-consing, apron FFI |
+| `frama_c_eva_sqlite_small` | 7 | 13 | weak/ephemeron hash-consing (457MB RSS, promo 0.6%) | ephemeron key-scan (#11733), CIL AST hash-cons, `Weak.Make` at scale |
+| `frama_c_eva_sqlite_default` | 16 | 11 | as small, richer domains (641MB RSS, live 77M) | #11733 at higher precision |
+| `frama_c_eva_sqlite_large` | 113 | 3 | max ephemeron churn (165k minor GC, 695MB RSS, 3.3s gc_time, 11.5ms tail pause) | #11733 ephemeron-clean throughput + GC latency (widening thrash, precision 3) |
 
-(`merlin_bench` and `lavyek_kv_*` omitted — disabled.)
+(`merlin_bench` and `lavyek_kv_*` omitted — disabled. frama-c Knob A = `-eva-precision` (2nd
+wrapper arg); slevel is inert; no >5min huge rung reachable via EVA knobs — see
+`docs/benchmarks/frama-c.md`. gc% FALLS with size (13→11→3%, mutator-bound at large) while
+tail pause GROWS (3.1→8.9→11.5ms) — small/default GC-throughput-sensitive, large
+GC-latency-sensitive. olly re-25|md-2, 5.5.0, 2026-07-24.)
 
 ## Runtime-feature coverage matrix
 
@@ -350,11 +379,11 @@ through a `RUNNING_TAG` selector.
 | **major-promotion** | minor→major copy, slice work | liq_parse_typecheck, ydump_repeat, test_decompress, eio_fiber_stream | most allocation-light benches |
 | **custom-block finalisation** | `caml_alloc_custom_mem` + `finalize` cb; `caml_ba_finalize` | zarith_pi (`Z.t`, `caml_z.c:323`), owl_gc (`Bigarray.Array2`), liq_video_frames_pool (Y/U/V Bigarrays + `pool_stubs.c`), test_decompress (Bigstringaf), devkit_gzip (`z_stream`, `zlibstubs.c:61`), pplacer (GSL Vector/Matrix, sqlite3 handles) | — |
 | **explicit `Gc.finalise`** | `caml_final_register` from user OCaml | pplacer (`gsl-ocaml/src/sum.ml`, `rng.ml`, `odeiv.ml`, `eigen.ml`, `integration.ml`) | merlin_bench (`mreader_extend.ml:52`, not the query path) |
-| **`Bigarray` allocation** | `caml_ba_alloc` (custom block + off-heap bytes) | owl_gc (100×100 Float64 Array2), liq_video_frames_pool (1280×720 YUV420), test_decompress (Bigstringaf), ocamlc_self_compile (`emitcode.ml:53` emit buffer) | — |
-| **off-heap accounting / `custom_major_ratio` (M)** | `caml_alloc_custom_mem` → pacer | liq_video_frames_pool (the only bench whose wall+RSS Pareto front moves with M — the #14533 repro) | owl_gc, zarith_pi, test_decompress (custom blocks too small to swing pacer policy) |
+| **`Bigarray` allocation** | `caml_ba_alloc` (custom block + off-heap bytes) | owl_gc (dim×dim Float64 Array2; Knob A `OWL_MATRIX_DIM` scales it 100→2400, RSS 26MB→4.77GB), liq_video_frames_pool (1280×720 YUV420), test_decompress (Bigstringaf), ocamlc_self_compile (`emitcode.ml:53` emit buffer) | — |
+| **off-heap accounting / `custom_major_ratio` (M)** | `caml_alloc_custom_mem` → pacer | liq_video_frames_pool (the only bench whose wall+RSS Pareto front moves with M — the #14533 repro); owl_gc_{large,huge} (dim 1500/2400 → 18/46 MB Bigarrays, big enough to move the pacer — the Knob-A ladder now reaches this regime) | owl_gc (dim 100, ~80 KB blocks), zarith_pi, test_decompress (custom blocks too small to swing pacer policy) |
 | **ephemeron GC machinery** (alloc + per-domain ephe list + `caml_ephe_clean` key scan) | `caml_ephe_create`, `caml_ephe_clean` | alt_ergo_{fill,yyll,unsat_smt2}, frama_c_eva_*, goblint — via `Weak.Make`. `Weak.*` is not a separate path: `runtime/weak.c` routes `caml_weak_*` through `caml_ephe_*` (a weak array is an ephemeron with no data field), so these drive ephemeron alloc + key-cleaning on the hot path (the path that regressed on OCaml 5, #11733). | — |
 | **ephemeron *data-field*** (`Ephemeron.K1`-with-data) | `caml_ephe_set_data`/`get_data` + data branch of `caml_ephe_clean` | — (**verified gap, narrowed**) | merlin_bench `saved_parts.ml:3` (cold, disabled), coq `clib/cEphemeron.ml` (VM backend, unreached). No bench sets a data field hot. |
-| **`Weak.Make` / weak hashsets** | `caml_ephe_*` | frama_c_eva_sqlite (CIL AST + EVA state via `State_builder.Hashconsing_tbl_weak`, largest weak workload, 460MB RSS), alt_ergo_{fill,yyll,unsat_smt2} (`hconsing.ml:51`), goblint (CIL hash-consing) | — |
+| **`Weak.Make` / weak hashsets** | `caml_ephe_*` | frama_c_eva_sqlite{,_small,_default,_large} (CIL AST + EVA state via `State_builder.Hashconsing_tbl_weak`, largest weak workload; the `-eva-precision` ladder scales it 457→695MB RSS / 11k→182k minor GC), alt_ergo_{fill,yyll,unsat_smt2} (`hconsing.ml:51`), goblint (CIL hash-consing) | — |
 | **`Marshal.{to,from}_*`** | `caml_output_value*` / `caml_input_value*` | ocamlc_self_compile (`.cmi` `cmi_format.ml:87`; `.cmo` `emitcode.ml:33`) | liquidsoap-lang (`cache.ml:75`, off by default), jsoo (`parse_bytecode.ml:462`, one-shot), coq (`nativevalues.ml`, native backend unused), merlin `persistent_env` (cold), alt-ergo (`satml.ml:2206`, commented out) |
 | **`Effect.perform` (OCaml 5)** | `caml_perform_*`, deep `try_with` | eio_fiber_stream (`suspend.ml:6`, `fiber.ml:11`, `cancel.ml`) | lavyek_kv_*d (disabled), merlin_bench cancellation (disabled) |
 | **`Domain.spawn` / `join`** | `caml_domain_*` | — (**gap**: only lavyek_kv_{2,4,8}d and merlin_bench, both disabled) | lavyek_kv_{2,4,8}d, merlin_bench when re-enabled |
@@ -376,32 +405,32 @@ through a `RUNNING_TAG` selector.
 
 | Benchmark | Hot-path tags |
 |---|---|
-| `coqc_corelib_stress` | minor-gc, constructor-alloc |
+| `coqc_corelib_stress{,_tree_small,_tree_default,_tree_large}` | minor-gc, constructor-alloc; Knob A = numeral/make_tree depth → minor-GC-saturation ladder (RSS 0.57→1.89GB, gc% 90→97% = highest in suite) |
 | `eio_fiber_stream` | effects, atomics, eio-fibers, major-promotion |
 | `merlin_bench` *(disabled)* | domains, effects, atomics, hashtbl, format; cold: ephemerons, Gc.finalise |
 | `lavyek_kv_1d` *(disabled)* | atomics, effects, eio-fibers, io-uring, pthread-affinity, hashtbl |
 | `lavyek_kv_{2,4,8}d` *(disabled)* | domains, atomics, effects, eio-fibers, io-uring, pthread-affinity, hashtbl |
 | `liq_parse_typecheck` | hashtbl, lazy, format, major-promotion, minor-gc |
-| `ydump_repeat` | minor-gc, major-promotion, recursive-variants |
-| `test_decompress` | bigarray, custom-block-finalisation (Bigstringaf), major-promotion |
+| `ydump_repeat{,_small,_default,_large}` | minor-gc, major-promotion, recursive-variants; Knob A = doc size (argv.2 = generated record count, in-process) → promotion-heavy footprint ladder (RSS 3.25→20GB), 424ms max pause (largest in suite) |
+| `test_decompress{,_small,_default,_large}` | bigarray, custom-block-finalisation (Bigstringaf), major-promotion; Knob A = payload size (argv.2) → compute+Bigstring footprint ladder (RSS 0.5→5.7GB), gc% ~0.8% (compute-bound control) |
 | `pplacer_testsuite` | Gc.finalise, custom-block-finalisation (GSL+sqlite3), ffi-stubs, hashtbl, minor-gc |
-| `owl_gc` | bigarray, custom-block-finalisation (Array2), ffi-stubs (OpenBLAS), minor-gc |
+| `owl_gc{,_small,_default,_large,_huge}` | bigarray, custom-block-finalisation (Array2), ffi-stubs (OpenBLAS), minor-gc; Knob A = matrix dim (`OWL_MATRIX_DIM`, 2nd wrapper arg) → off-heap footprint ladder (RSS 95MB→4.77GB); large/huge also hit off-heap-accounting pacer |
 | `liq_video_frames_pool` | bigarray, custom-block-finalisation, off-heap accounting (M-sweep) |
 | `zarith_pi` | custom-block-finalisation (`Z.t`), ffi-stubs (GMP), minor-gc, format(cold) |
 | `devkit_gzip` | custom-block-finalisation (z_stream), ffi-stubs (zlib), hashtbl, buffer |
 | `devkit_stre` | hashtbl, minor-gc, buffer, string-allocator |
 | `devkit_network` | hashtbl, int32-boxing, minor-gc |
 | `devkit_htmlstream` | hashtbl, buffer, minor-gc |
-| `sedlex_tokenize` | bytes, ppx-match, string-allocator, minor-gc |
-| `ocamlformat_rocq` | format, buffer, minor-gc |
+| `sedlex_tokenize{,_small,_default,_large}` | bytes, ppx-match, string-allocator, minor-gc; Knob A = input size (argv.1 # lines) → retained-token-list footprint ladder (RSS 2.7→27GB), gc% RISES 43→61%, 153ms max pause (steepest in suite) |
+| `ocamlformat_rocq{,_small,_default,_large}` | format, buffer, minor-gc; Knob A = source size (# lines, generated N× workload.ml) → live-AST footprint ladder (RSS 0.6→8.4GB), constant ~30% gc% + growing major-GC scan pauses (90ms @ large) |
 | `cpdf_{merge,blacktext,scale,squeeze}` | hashtbl (object map), bytes mutation, minor-gc; camlpdf C stubs (flate/zlib, AES, SHA-2) hit when decoding/re-compressing streams (squeeze), otherwise pure OCaml |
 | `alt_ergo_fill, alt_ergo_yyll` | weak-refs (Weak.Make hash-consing), hashtbl, format |
 | `alt_ergo_unsat_smt2` | weak-refs, hashtbl, format, signals (SIGVTALRM armed by `--timelimit 15`) |
-| `frama_c_eva_{t,sqlite}` | weak-refs / ephemeron-backed hash-consing (Weak.Make at scale), hashtbl, recursive-variants (CIL AST), minor-gc, max-rss (sqlite, #11733) |
+| `frama_c_eva_{t,sqlite,sqlite_small,sqlite_default,sqlite_large}` | weak-refs / ephemeron-backed hash-consing (Weak.Make at scale), hashtbl, recursive-variants (CIL AST), minor-gc, max-rss (sqlite, #11733). Knob-A ladder = `-eva-precision` (2nd wrapper arg) on sqlite; slevel inert; t is a fixed fast standalone |
 | `goblint` | high allocation / minor-gc churn (~1.3GB for a 5.6KB input), hash-consing, apron relational domains (C/GMP FFI), recursive-variants (CIL AST), allocated-bytes (#13733) |
-| `menhir_{ocamly,sql_parser,sysver}` | hashtbl, format, lazy, minor-gc |
+| `menhir_{sql_parser,sysver,ocamly}` | hashtbl, format, lazy, minor-gc; Knob-A ladder = 3 grammars/modes (small/default/large), monotone by footprint RSS 0.31→0.72→2.76GB (times compressed 1.2→13s on current HW; old 3.3/20/33s were stale) |
 | `ocamlc_self_compile` | hashtbl, marshal (`.cmi`+`.cmo` writeout), bigarray (emit buffer), minor-gc |
-| `jsoo` | hashtbl, lazy, marshal(cold) |
+| `jsoo{,_small,_default,_large}` | hashtbl, lazy, marshal(cold); Knob A = input bytecode size (rung arg → generated per-runtime .byte from real JSOO sources × R replicas) → whole-program-IR footprint ladder (RSS 0.5→7.8GB), constant ~33% gc% + 129ms max pause @ large |
 
 ## Coverage gaps — verified
 
