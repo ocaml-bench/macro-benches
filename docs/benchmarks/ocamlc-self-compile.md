@@ -51,12 +51,43 @@ This is a minor-GC-heavy, allocation-heavy workload with a few specific extras:
 - `Bigarray.Array1`: the bytecode emit buffer is a byte `Bigarray`, grown with
   `blit`/`sub`. Small, but it sits in the hot bytecode-emission loop.
 
+## Why there is no size ladder — and the uucp companion
+
+Compilation is ~linear in program size, so scaling REPLICAS is **shape-invariant**:
+more replicas give proportionally more of an identical GC pattern (`promo_frac` pinned
+~0.11, major-GC count pinned ~13, everything else linear). It is *not* a DaCapo-style
+Knob A — bigger just means bigger, not a new regime. And real code can't rescue this:
+no self-contained OCaml program is large enough to reach the minute-scale bands (the
+biggest vendored codebase, merlin, is ~15s of ocamlc and isn't standalone-compilable
+anyway). So for a compiler, the useful axis is workload **character**, not size.
+
+Hence two real, self-contained companion workloads of opposite character:
+
+| | this bench (`ocamlc_self_compile`) | `ocamlc_compile_uucp` |
+|---|---|---|
+| input | JSOO numeric programs × REPLICAS | the real uucp Unicode library |
+| character | compute / allocation | data / constant tables |
+| heap | large, **monotonic** (~4 GB at R=130) | small, **collected** (~78 MB) |
+| major GC | barely runs (~13) | **active** (~154 cycles) |
+| gc% | ~40% | ~17% |
+| stresses | minor-GC fast path, holding a big live set, Marshal | major-GC cadence, promotion, constant/codegen emission |
+
+They exercise the collector in nearly opposite ways — see
+[ocamlc-compile-uucp.md](ocamlc-compile-uucp.md).
+
+**Rungs (5.5.0, Ryzen 9950X):** default = `ocamlc_self_compile` at REPLICAS=130
+(~15s / 17s under olly); small = `ocamlc_compile_uucp` (~2s). The build-script default
+stays REPLICAS=30 (~5s, legacy) for continuity with older results; activate the ~15s
+default with `OCAMLC_SELF_COMPILE_REPLICAS=130`.
+
 ## Reading the results
 
-On 5.4.1 baseline, expect wall time around 8.6s, GC overhead around 33%, roughly 1 GB
-RSS, and on the order of 4400 minor / 16 major collections with about 12% promotion.
-The spread across variants is small (roughly 8.3-10.0s) because the workload is
-identical everywhere.
+At REPLICAS=30 on 5.4.1, expect wall ~8.6s, GC overhead ~33%, ~1 GB RSS, ~4400 minor /
+16 major collections, ~12% promotion. On the 5.5.0 release (Ryzen) R=30 is ~3.4s; the
+R=130 default is ~15s with ~4.2 GB RSS. The spread across runtime variants is small
+because the workload is identical everywhere. Note: `max_rss_kb` from olly is accurate
+here (unlike allocation-churn benches) — ocamlc does few collections, so the
+runtime_events ring is barely resident (~4-18 MB); `max_rss_kb_excl_ring` confirms it.
 
 If this benchmark moves, the usual suspects are the minor-allocator fast path (if
 other allocation-heavy benchmarks move too), or something Marshal-specific if it moves
