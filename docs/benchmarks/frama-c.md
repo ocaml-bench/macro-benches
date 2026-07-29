@@ -71,3 +71,23 @@ points at weak / ephemeron-pointer cleaning.
 Frama-C is pinned at 32.1 and vendored by hand; the vendor script also fills in the
 `share`/`lib` resource trees the analysis needs (machine descriptions, the libc model that
 preprocesses the analysed C source).
+
+### The sqlite workload is host-toolchain dependent
+
+`sqlite3.c` is preprocessed with the host's C preprocessor, and it branches heavily on
+compiler feature macros — so **the program EVA analyses is not identical across
+machines**, and `frama_c_eva_sqlite` numbers are not strictly comparable between hosts
+with different compilers. Observed concretely: on gcc 15.2 the analysis takes SQLite's
+GCC-atomics path (`__atomic_load_n` / `__atomic_store_n`, which Frama-C reports as
+undeclared) while on gcc 13.3 it does not, and the two runs differ by hundreds of log
+lines. Keep the compiler fixed when comparing runtimes, which is the normal case since
+only the OCaml compiler is meant to vary.
+
+One consequence had to be pinned down explicitly. `sqlite3.c` decides at runtime whether
+to use long doubles via `sqlite3Config.bUseLongDouble = sizeof(LONGDOUBLE_TYPE)>8`. Where
+that gate is true, EVA enters the branch and Frama-C 32.1 aborts with
+`unimplemented feature ... Builtins for long double type` (exit 3). The wrapper therefore
+passes `-cpp-extra-args=-DLONGDOUBLE_TYPE=double`, SQLite's documented override, so the
+gate is false everywhere. Measured cost: `bUseLongDouble` becomes 0 and one alarm of 87
+disappears (a signed-overflow alarm inside the long-double detection code itself); the
+rest of the 12k-line analysis log is unchanged, and wall time is unaffected.

@@ -57,9 +57,20 @@ case "\${1:-t}" in
     exec "${REAL_EXE}" -no-autoload-plugins \\
       -eva -eva-no-results -eva-slevel "\$SLEVEL" "${BENCH_DIR}/t.c" ;;
   sqlite)
+    # -DLONGDOUBLE_TYPE=double: sqlite3.c gates its long-double code at runtime on
+    # \`sqlite3Config.bUseLongDouble = sizeof(LONGDOUBLE_TYPE)>8\`. Where that is
+    # true, EVA walks into the branch and Frama-C 32.1 aborts on an unimplemented
+    # feature ("Builtins for long double type"), exit 3. SQLite documents
+    # LONGDOUBLE_TYPE as an override, and setting it to double makes the gate
+    # false on every host. Measured effect on this analysis: bUseLongDouble drops
+    # to 0 and one alarm of 87 disappears (the signed-overflow alarm inside the
+    # long-double detection code itself) -- the other 12000+ log lines are
+    # identical, because the branch was never reached on a host where the gate was
+    # already false.
     exec "${REAL_EXE}" -no-autoload-plugins \\
       -eva -eva-no-results -eva-slevel "\${FRAMAC_EVA_SLEVEL:-0}" -main main \\
       -eva-warn-key assigns:missing=feedback \\
+      -cpp-extra-args=-DLONGDOUBLE_TYPE=double \\
       "${BENCH_DIR}/sqlite_driver.c" "${BENCH_DIR}/sqlite3.c" ;;
   *)
     exec "${REAL_EXE}" -no-autoload-plugins "\$@" ;;
