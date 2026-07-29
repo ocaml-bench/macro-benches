@@ -38,10 +38,15 @@ runtime-feature coverage matrix and gaps, the gotchas, and the backlog.
 ## Where things live (read first)
 
 - `benchmarks/<tool>/` — `<tool>.build.sh` (called by running-ng) + input data.
+- `benchmarks/manifest.yml` — **the program list**: name → tool, build script, args.
+  Needed because several build scripts derive their dune target from the *output
+  filename*, so the scripts alone don't say what programs exist. CI reads this.
 - `docs/benchmarks/<name>.md` — human-facing page per benchmark.
 - `duniverse/` — vendored dependency sources (the actual compiled code).
 - `vendor/` — manually vendored bits (camlpdf, cpdf-source, zarith, pplacer, frama-c, apron, …).
-- `scripts/` — `setup-monorepo.sh`, `vendor-*.sh` (coq, apron, frama-c, cpdf, …).
+- `scripts/` — `setup-monorepo.sh`, `vendor-*.sh` (coq, apron, frama-c, cpdf, …),
+  `ci-build-all.sh` / `ci-run-all.sh` / `ci-manifest.py` (the CI phases).
+- `.github/workflows/ci.yml` — master-only build + run-once gate (see §CI).
 - `sources.yml`, `macro-bench-*.opam(.template)`, `dune-workspace`, `dune-overlays`.
 - `_build-<runtime>/` — per-runtime dune build output (gitignored).
 
@@ -61,9 +66,85 @@ needed, and the contract matches `~/benches/` name-for-name.
 | `RUNNING_OCAML_OUTPUT` | Path where the built binary must be written | `${BENCH_DIR}/<tool>-${RUNTIME_NAME}` |
 | `RUNNING_OCAML_RUNTIME_NAME` | Runtime identifier (e.g. `ocaml-5.4.1`) | `runtime` |
 | `RUNNING_OCAML_SWITCH` | Opam switch name (when applicable) | unset |
+| `RUNNING_OCAML_SWITCH_PREFIX` | Prefix of the runtime's switch. Only `ocamlc-self-compile` and `jsoo` need it — they run the runtime's *own* `ocamlc` / `ocamlc.byte` as the workload, so they need the switch, not just a compiler on PATH | `~/.opam/running-ng-<RUNTIME_TAG>` if it exists, else the prefix of the `ocamlc` on PATH |
 
 Standalone usage (no running-ng): set `RUNNING_MACRO_BENCH_DIR=~/macro-benches` and
 drive `~/running-ng`'s `build_ocaml_binaries_gc_sweep.sh` / `run_ocaml_bench_gc_sweep.sh`.
+Or drive the build straight from the manifest: `bash scripts/ci-build-all.sh`.
+
+## CI
+
+`.github/workflows/ci.yml` runs on **pull requests into `master`** (plus a weekly
+cron and `workflow_dispatch`); nothing runs on branch pushes. Two matrix legs: the
+**latest stable release**, which gates, and the **`ocaml/ocaml` trunk tip**, which
+is `continue-on-error` because it tracks a moving compiler and needs ppxlib/lwt
+git `main` (patches 4+5 below). The trunk leg resolves the tip commit *before*
+creating the switch and folds the SHA into every cache key — otherwise a restored
+opam-root cache silently tests a stale trunk.
+
+The gate is enforced by branch protection on `master`: the required check is
+`build + run once (stable)`. The matrix `label` is deliberately version-free —
+GitHub matches required checks **by name**, so putting `5.5.0` in the label would
+orphan the requirement the moment the compiler is bumped.
+
+Three phases, all driven off `benchmarks/manifest.yml`:
+
+- `scripts/ci-manifest.py check` — runs first because it costs seconds. It compares
+  **sets**, not just counts, in five directions:
+  1. every manifest program's tool dir and build script exist;
+  2. every `benchmarks/*/*.build.sh` is claimed by a program or listed under
+     `disabled:` — this is what catches a whole new benchmark landing with no
+     manifest entry;
+  3. a build script that dispatches on the program name (`case "${BM_NAME}"`, i.e.
+     ahrefs-devkit today) accepts *exactly* the programs the manifest claims for it
+     — this is what catches a new program added to an **existing** tool, where the
+     build script already exists so (2) stays quiet. Both directions are errors: a
+     `case` arm with no manifest entry, and a manifest entry the `case` would reject
+     with `Unknown benchmark`;
+  4. every in-tree input path in a program's `args` exists, so a program can't be
+     added without committing its input. Generated inputs opt out with
+     `inputs_generated: true` (only `alt_ergo_fill`, whose `fill_x100.why` is built
+     by its build script and gitignored — a fresh checkout does not have it);
+  5. one `docs/benchmarks/<tool>.md` per tool, both directions.
+
+  It prints the counts it compared (`22 tools = 20 with programs + 2 disabled`,
+  `31 programs`, `22 docs pages`) so the log shows the numbers, then lists every
+  problem it found rather than stopping at the first.
+
+- `scripts/ci-build-all.sh` — builds every program into `_build-ci`. Deletes the
+  output binary first, so a stale wrapper can't make a build look successful (the
+  `exit 127` trap in §Gotchas).
+- `scripts/ci-run-all.sh` — runs each program once, with its manifest args, from a
+  fresh scratch cwd so relative outputs (menhir's `--base`, goblint's
+  `witness.yml`) don't land in the tree.
+
+Neither stops at the first failure: a hermeticity break usually takes several
+benchmarks with it, and one run should show all of them. Both write a table to
+`$GITHUB_STEP_SUMMARY` and leave per-program logs in `ci-logs/`.
+
+Notes for whoever touches this next:
+
+- **`args` in the manifest are copied verbatim from running-ng's `macro_base.yml`**
+  so the two lists can be diffed mechanically. Keep it that way.
+- **`expected_exit`** declares a by-design non-zero exit. Only `alt_ergo_unsat_smt2`
+  needs it today: `--timelimit 15` means the workload *is* "solve for 15 s", the goal
+  never closes, and alt-ergo dies of its own SIGVTALRM (128+14 = **142**) on every
+  run. Don't "fix" that by dropping the flag — the time limit is the workload.
+- **In the manifest rows, `args` is the last column on purpose.** Bash treats TAB as
+  whitespace-IFS, so an empty field mid-row collapses and shifts every later column;
+  the programs with no args would silently take the next field as their argv.
+- **Ladder rungs are deliberately absent.** The base rung is the signal CI needs,
+  and the big rungs don't fit a hosted runner (sedlex's large rung peaks near
+  27 GB RSS). When rungs land on master, list only the `_small` one.
+- **`SKIP_TEST_BUILD=1`** makes `setup-monorepo.sh` skip its `[9/9]` test build.
+  CI sets it because that step targets the default `_build/` while the build
+  scripts target `_build-<tag>/` — running both compiles the duniverse twice.
+- **Dune is pinned per leg**: `3.22.1` on stable (≥ 3.24 breaks vendored rocq),
+  git `main` on trunk (released dune can't bootstrap against 5.6).
+- The **weekly cron run skips the cache** on purpose. `setup-monorepo.sh` clones
+  ppxlib, lwt, merlin, jsoo, pplacer and mcl at a *branch HEAD*, so those six are
+  invisible to a cached run. Pinning them in `sources.yml` would make CI
+  reproducible; until then the cron is the drift detector.
 
 ## Gotchas (hard-won — don't rediscover)
 
@@ -373,10 +454,16 @@ git commit -m "Update vendored dependencies"
 3. Re-lock: `opam monorepo lock`.
 4. Create `benchmarks/<tool>/` with `<tool>.build.sh`, a `dune` file (if custom `.ml`),
    and input files.
-5. Register it in your orchestrator config (running-ng's experiment YAML).
-6. Add it to the test-build list in `scripts/setup-monorepo.sh`.
-7. Add a human page at `docs/benchmarks/<tool>.md`.
-8. Test: `make clean-all && make setup`.
+5. Add every program to `benchmarks/manifest.yml` **in the same commit** — CI fails
+   if a build script has no program entry (or vice versa). For a Knob-A ladder, list
+   only the `_small` rung. A tool that ships disabled goes under `disabled:` with a
+   reason instead.
+6. Register it in your orchestrator config (running-ng's experiment YAML), with the
+   same `args` string as the manifest.
+7. Add it to the test-build list in `scripts/setup-monorepo.sh`.
+8. Add a human page at `docs/benchmarks/<tool>.md`.
+9. Test: `make clean-all && make setup`, then
+   `ONLY="<prog>" bash scripts/ci-build-all.sh && ONLY="<prog>" bash scripts/ci-run-all.sh`.
 
 ---
 
