@@ -64,10 +64,16 @@ explain the details and what coverage they would add back.
 ### Prerequisites
 
 ```bash
-sudo apt install libgmp-dev libmpfr-dev libevent-dev libcurl4-openssl-dev \
-                 libpcre3-dev zlib1g-dev libopenblas-dev \
-                 libgsl-dev libsqlite3-dev
+sudo apt install build-essential autoconf automake m4 pkg-config \
+                 libgmp-dev libmpfr-dev libevent-dev libcurl4-openssl-dev \
+                 libpcre3-dev zlib1g-dev libopenblas-dev liblapacke-dev \
+                 libgsl-dev libsqlite3-dev libyaml-dev
 ```
+
+This is the same list CI installs, so it is the one that is actually exercised on
+a clean machine. Notably `liblapacke-dev` is separate from `libopenblas-dev` —
+owl links `-llapacke`, and without it the build fails at link time with
+`/usr/bin/ld: cannot find -llapacke`.
 
 You also need opam 2.3+ and a switch with `dune` and `ocamlfind` (one is created
 for you if needed).
