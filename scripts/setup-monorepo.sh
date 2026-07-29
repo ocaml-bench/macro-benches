@@ -669,7 +669,17 @@ if [ -f "$ROCQ_DIR/config/coq_config.ml" ] && [ -f "$ROCQ_DIR/theories/Corelib/d
   echo "  Config and dunestrap files already exist. Skipping."
 else
   export PATH="$TOOLS_BIN:$PATH"
-  export OCAMLPATH="$("$_OPAM" var prefix --switch="$TOOLS_SWITCH")/lib:$("$_OPAM" var prefix --switch="$TOOLS_SWITCH")/lib/ocaml"
+  # `_build/install/default/lib` first: rocq's dunestrap rules run
+  # tools/dune_rule_gen/gen_rules.exe, which resolves the `rocq-runtime` findlib
+  # package to locate rocqworker (tools/coqdep/lib/fl.ml:101), and initialises
+  # findlib from $OCAMLPATH alone (tools/coqdep/lib/common.ml:377). The rules
+  # already depend on %{workspace_root}/_build/install/%{context_name}/lib/
+  # rocq-runtime/META, so dune materialises the package there — but nothing put
+  # that directory on OCAMLPATH, so on a switch without rocq installed gen_rules
+  # died with:
+  #   [gen_rules] Fatal error: Anomaly
+  #   "Uncaught exception Fl_package_base.No_such_package("rocq-runtime", "")."
+  export OCAMLPATH="$MONOREPO_DIR/_build/install/default/lib:$("$_OPAM" var prefix --switch="$TOOLS_SWITCH")/lib:$("$_OPAM" var prefix --switch="$TOOLS_SWITCH")/lib/ocaml"
 
   # Generate coq_config.ml via dune fallback rule
   echo "  Building rocq configure..."
@@ -699,7 +709,10 @@ if [ -f "$ROCQ_PREFIX/rocq/lib/coq/theories/Init/Prelude.vo" ]; then
 else
   echo "  Installing rocq-runtime + rocq-core to _rocq_prefix/..."
   export PATH="$TOOLS_BIN:$PATH"
-  export OCAMLPATH="$("$_OPAM" var prefix --switch="$TOOLS_SWITCH")/lib:$("$_OPAM" var prefix --switch="$TOOLS_SWITCH")/lib/ocaml"
+  # Same reason as the dunestrap step above: building rocq-core compiles the
+  # theories with coqc/coqdep, which resolve the in-workspace `rocq-runtime`
+  # through findlib, and findlib only reads $OCAMLPATH.
+  export OCAMLPATH="$MONOREPO_DIR/_build/install/default/lib:$("$_OPAM" var prefix --switch="$TOOLS_SWITCH")/lib:$("$_OPAM" var prefix --switch="$TOOLS_SWITCH")/lib/ocaml"
 
   # Build and install rocq-runtime
   dune build duniverse/rocq/rocq-runtime.install --profile release
