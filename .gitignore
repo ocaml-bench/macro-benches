@@ -17,6 +17,12 @@ _rocq_prefix/
 *-mmtk
 *-mmtk-nm
 *-ci-timing
+# CI artifacts: benchmark binaries/wrappers built under the `ci` runtime tag by
+# scripts/ci-build-all.sh, the findlib conf jsoo.build.sh emits per tag, and the
+# per-program logs both CI scripts write.
+*-ci
+findlib-*.conf
+ci-logs/
 
 # Coq compilation artifacts (produced by running the coq benchmarks)
 benchmarks/coq/*.vo

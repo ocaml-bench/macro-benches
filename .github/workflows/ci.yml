@@ -1,0 +1,151 @@
+name: CI
+
+# Pull requests into master only: the gate is "this change keeps master buildable
+# and runnable", checked before the merge rather than after. Nothing runs on
+# branch pushes, so work-in-progress branches don't burn runner time.
+on:
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+  schedule:
+    # Weekly cold run: no cache, so the vendored sources are re-pulled from
+    # scratch. This is what catches upstream drift — setup-monorepo.sh clones
+    # ppxlib/lwt/merlin/jsoo/pplacer/mcl at a branch HEAD rather than a pinned
+    # commit, so a cached run cannot see those move.
+    - cron: "0 4 * * 1"
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-run:
+    name: build + run once (${{ matrix.label }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    # The trunk leg is informational: it tracks a moving compiler and depends on
+    # ppxlib/lwt git main (patch 4+5 in CLAUDE.md), so it can go red for reasons
+    # that have nothing to do with a change here. It reports; it does not gate.
+    continue-on-error: ${{ matrix.required == false }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # `label` becomes the check name that branch protection requires, so
+          # keep it free of version numbers — bumping the compiler below must not
+          # silently orphan the required check.
+          - label: "stable"
+            ocaml: "5.5.0"
+            required: true
+            # Released dune >= 3.24 breaks the vendored rocq build.
+            dune: "3.22.1"
+          - label: "trunk"
+            ocaml: "ocaml-variants.5.6.0+trunk"
+            required: false
+            # Released dune can't bootstrap against 5.6 trunk; use git main.
+            dune: "dev"
+
+    env:
+      # Picks the build dir (_build-ci) and the output binary suffix.
+      RUNNING_OCAML_RUNTIME_NAME: ci
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # For the trunk leg, resolve the tip commit BEFORE creating the switch and
+      # fold it into every cache key. Without this, a restored opam-root cache
+      # would hand us a stale trunk switch and the run would silently not be
+      # testing the tip at all.
+      - name: Resolve compiler identity
+        id: compiler
+        run: |
+          if [[ "${{ matrix.ocaml }}" == *trunk* ]]; then
+            sha="$(curl -fsSL https://api.github.com/repos/ocaml/ocaml/commits/trunk \
+                   | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"][:12])')"
+            echo "id=trunk-${sha}" >> "$GITHUB_OUTPUT"
+            echo "### Compiler: ocaml/ocaml trunk @ \`${sha}\`" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "id=${{ matrix.ocaml }}" >> "$GITHUB_OUTPUT"
+            echo "### Compiler: OCaml ${{ matrix.ocaml }}" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            build-essential autoconf automake m4 pkg-config \
+            libgmp-dev libmpfr-dev libevent-dev libcurl4-openssl-dev \
+            libpcre3-dev zlib1g-dev libopenblas-dev libgsl-dev \
+            libsqlite3-dev libyaml-dev
+
+      - uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: ${{ matrix.ocaml }}
+          cache-prefix: ${{ steps.compiler.outputs.id }}
+
+      # Cheap and first: fails in seconds on a benchmark that was added without a
+      # manifest entry (or vice versa), rather than 40 minutes into a build.
+      - name: Validate the manifest against the tree
+        run: python3 scripts/ci-manifest.py check
+
+      - name: Install dune (${{ matrix.dune }})
+        run: |
+          eval "$(opam env)"
+          if [ "${{ matrix.dune }}" = "dev" ]; then
+            opam pin add --yes dune --dev-repo
+          else
+            opam pin add --yes --no-action dune ${{ matrix.dune }}
+            opam install --yes dune.${{ matrix.dune }}
+          fi
+          dune --version
+
+      # duniverse/, vendor/ and _rocq_prefix/ are the output of the setup phase
+      # (opam-monorepo pull, the vendor-*.sh scripts, the 18 source patches and
+      # the rocq bootstrap). They only change when the lock file, sources.yml or
+      # the scripts change — but vendor/ also holds the per-runtime apron prefix,
+      # so the compiler identity is part of the key too.
+      - name: Cache vendored sources
+        if: github.event_name != 'schedule'
+        uses: actions/cache@v4
+        with:
+          path: |
+            duniverse
+            vendor
+            _rocq_prefix
+          key: vendor-${{ steps.compiler.outputs.id }}-${{ hashFiles('macro-benches.opam.locked', 'sources.yml', 'dune-project', 'scripts/setup-monorepo.sh', 'scripts/vendor-*.sh') }}
+
+      - name: Set up the monorepo (vendor sources, patch, bootstrap rocq)
+        run: |
+          # setup-monorepo.sh defaults to a switch named running-ng-tools; in CI
+          # the switch setup-ocaml just made is both the tools switch and the
+          # runtime under test. SKIP_TEST_BUILD avoids compiling the duniverse a
+          # second time into the default _build/ — ci-build-all.sh does that work
+          # in _build-ci/ immediately below.
+          eval "$(opam env)"
+          TOOLS_SWITCH="$(opam switch show)" SKIP_TEST_BUILD=1 \
+            bash scripts/setup-monorepo.sh
+
+      - name: Build every benchmark
+        run: |
+          eval "$(opam env)"
+          bash scripts/ci-build-all.sh
+
+      - name: Run every benchmark once
+        run: |
+          eval "$(opam env)"
+          bash scripts/ci-run-all.sh
+
+      - name: Disk and cache usage
+        if: always()
+        run: |
+          df -h /
+          du -sh duniverse vendor _rocq_prefix _build-ci 2>/dev/null || true
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-logs-${{ steps.compiler.outputs.id }}
+          path: ci-logs/
+          retention-days: 14
+          if-no-files-found: ignore

@@ -116,6 +116,22 @@ make clean-all      # remove everything generated (duniverse/, vendor/, _rocq_pr
 make setup          # repopulate from the lock file
 ```
 
+### Build and run everything locally
+
+The same two phases CI runs, driven off
+[`benchmarks/manifest.yml`](benchmarks/manifest.yml) (the program list):
+
+```bash
+python3 scripts/ci-manifest.py check             # manifest vs. tree (seconds)
+bash scripts/ci-build-all.sh                     # build every program
+bash scripts/ci-run-all.sh                       # run each once, from a scratch cwd
+ONLY="jsoo goblint" bash scripts/ci-build-all.sh # or just a few
+```
+
+When you add a benchmark, add it to the manifest in the same commit as its build
+script — `check` fails if the two disagree, including when a new program is added
+to a tool that already has a build script. See [CLAUDE.md](CLAUDE.md) §CI.
+
 ## How it works
 
 1. Dependencies are locked once (`opam monorepo lock`) into

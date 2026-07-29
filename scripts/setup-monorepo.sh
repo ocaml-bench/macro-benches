@@ -700,6 +700,17 @@ fi
 echo ""
 
 # ---- Test build ----
+# SKIP_TEST_BUILD=1 skips this step. CI sets it because scripts/ci-build-all.sh
+# builds every program straight after, and this step targets the default _build/
+# rather than the per-runtime _build-<tag>/ — running both means compiling the
+# duniverse twice (~2.5 GB and several CPU-minutes of duplicate work).
+if [ "${SKIP_TEST_BUILD:-0}" = "1" ]; then
+  echo "[9/9] Test build SKIPPED (SKIP_TEST_BUILD=1)."
+  echo ""
+  echo "=== Setup complete! ==="
+  exit 0
+fi
+
 echo "[9/9] Test build of all benchmark binaries..."
 export PATH="$TOOLS_BIN:$PATH"
 export OCAMLPATH="$("$_OPAM" var prefix --switch="$TOOLS_SWITCH")/lib:$("$_OPAM" var prefix --switch="$TOOLS_SWITCH")/lib/ocaml"
