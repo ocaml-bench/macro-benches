@@ -19,13 +19,12 @@ set -euo pipefail
 SRC="${APRON_SRC:-$(pwd)/vendor-apron-src}"
 PREFIX="${APRON_PREFIX:?set APRON_PREFIX to the per-runtime prefix dir}"
 
-# --- pinned tags (these ARE the version pins) ---
-clone() { [ -d "$SRC/$2" ] || git clone --depth 1 -b "$3" "$1" "$SRC/$2" >/dev/null 2>&1; }
+# --- pins live in sources.yml (by commit, not by tag: a tag can be re-pointed) ---
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/scripts/lib-sources.sh"
 mkdir -p "$SRC"
-clone https://github.com/mirage/bigarray-compat.git bigarray-compat v1.1.0
-clone https://github.com/xavierleroy/camlidl.git     camlidl         camlidl113
-clone https://github.com/nberth/mlgmpidl.git         mlgmpidl        1.3.0
-clone https://github.com/antoinemine/apron.git       apron           v0.9.15
+for _pkg in bigarray-compat camlidl mlgmpidl apron; do
+  clone_pinned "$_pkg" "$SRC/$_pkg"
+done
 
 # --- per-runtime build into PREFIX, opam-free ---
 rm -rf "$PREFIX"; mkdir -p "$PREFIX/lib/caml" "$PREFIX/lib/stublibs" "$PREFIX/bin"

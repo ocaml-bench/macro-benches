@@ -23,6 +23,9 @@ set -euo pipefail
 MONOREPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$MONOREPO_DIR"
 
+# src_field / clone_pinned — every version and commit comes from sources.yml.
+source "$MONOREPO_DIR/scripts/lib-sources.sh"
+
 _OPAM=$([[ -x /usr/local/bin/opam ]] && echo /usr/local/bin/opam || command -v opam)
 TOOLS_SWITCH="${TOOLS_SWITCH:-running-ng-tools}"
 TOOLS_BIN="$("$_OPAM" var prefix --switch="$TOOLS_SWITCH" 2>/dev/null)/bin"
@@ -47,15 +50,9 @@ else
 fi
 echo ""
 
-# ---- Vendor merlin (merlin-domains branch, not in opam-monorepo lockfile) ----
-echo "[2.1/9] Vendoring merlin (merlin-domains branch)..."
-if [ -d duniverse/merlin ] && [ -f duniverse/merlin/dune-project ]; then
-  echo "  duniverse/merlin/ already populated. Skipping clone."
-else
-  git clone --depth 1 -b merlin-domains \
-    https://github.com/ocaml/merlin.git duniverse/merlin
-  echo "  Cloned."
-fi
+# ---- Vendor merlin (not in opam-monorepo lockfile) ----
+echo "[2.1/9] Vendoring merlin (pinned)..."
+clone_pinned merlin duniverse/merlin
 # Patch gen_config.ml: the upstream merlin-domains branch only enumerates
 # OCaml versions up to 5.3 in its variant type, so 5.4.1 / 5.5-beta / trunk
 # all fail to compile. Extend the variant list to cover them. Idempotent:
@@ -140,23 +137,15 @@ else
 fi
 echo ""
 
-# ---- Vendor js_of_ocaml (ocaml-5.6 branch, not in opam-monorepo lockfile) ----
-# The opam-monorepo pull would give us js_of_ocaml 6.2.0 which rejects
+# ---- Vendor js_of_ocaml (not in opam-monorepo lockfile) ----
+# The opam-monorepo pull would give us a released js_of_ocaml, which rejects
 # OCaml >= 5.5 outright (explicit failwith in compiler/lib/magic_number.ml).
-# The `ocaml-5.6` branch (PR #2227) extends the upper bound to < 5.7 and
-# adds the bytecode-magic + WASM/JS runtime support for OCaml 5.6,
-# covering 5.4.1, 5.5-beta, and trunk in our matrix.
-echo "[2.2/9] Vendoring js_of_ocaml (ocaml-5.6 branch)..."
-if [ -d duniverse/js_of_ocaml ] && \
-   [ -f duniverse/js_of_ocaml/dune-project ] && \
-   grep -q '\[ 5; 7 \] >= 0' duniverse/js_of_ocaml/compiler/lib/magic_number.ml 2>/dev/null; then
-  echo "  duniverse/js_of_ocaml/ already on ocaml-5.6 branch. Skipping."
-else
-  rm -rf duniverse/js_of_ocaml
-  git clone --depth 1 -b ocaml-5.6 \
-    https://github.com/ocsigen/js_of_ocaml.git duniverse/js_of_ocaml
-  echo "  Cloned."
-fi
+# The 5.6 support (bytecode magic + WASM/JS runtime, upper bound < 5.7) landed on
+# master, so the pin is a master commit — see sources.yml. It used to track the
+# `ocaml-5.6` PR branch, which upstream squashed and deleted; cloning that branch
+# fails outright now, which is exactly the failure mode pinning removes.
+echo "[2.2/9] Vendoring js_of_ocaml (pinned)..."
+clone_pinned js_of_ocaml duniverse/js_of_ocaml
 
 # Cmdliner upgrade: jsoo's recent code uses Cmdliner.Arg.Completion, which
 # was added in Cmdliner 2.0. opam-monorepo gives us 1.3.0; replace with 2.1.0.
@@ -173,11 +162,12 @@ else
   # on subsequent runs.
   rm -rf duniverse/cmdliner
   mkdir -p duniverse/cmdliner
-  curl -fsSL "https://github.com/dune-universe/cmdliner/releases/download/v2.1.1%2Bdune/cmdliner-2.1.1.dune.tbz" \
-    -o /tmp/cmdliner-2.1.1.dune.tbz
-  tar xf /tmp/cmdliner-2.1.1.dune.tbz -C duniverse/cmdliner --strip-components=1
-  rm -f /tmp/cmdliner-2.1.1.dune.tbz
-  echo "  Fetched cmdliner 2.1.1+dune (dune-universe overlay)."
+  _cmdliner_url="$(src_field cmdliner-dune url)"
+  _cmdliner_tbz="$(mktemp -d)/cmdliner.tbz"
+  curl -fsSL "$_cmdliner_url" -o "$_cmdliner_tbz"
+  tar xf "$_cmdliner_tbz" -C duniverse/cmdliner --strip-components=1
+  rm -f "$_cmdliner_tbz"
+  echo "  Fetched cmdliner $(src_field cmdliner-dune version) (dune-universe overlay)."
 fi
 echo ""
 
@@ -328,27 +318,13 @@ fi
 # Patch 3: dune_ version — already done in step 3
 echo "  [3] dune_ version: done in step 3."
 
-# Patch 4: ppxlib 5.6 support (replace with main branch)
-if [ -f duniverse/ppxlib/astlib/ast_506.ml ]; then
-  echo "  [4] ppxlib 5.6 support: already has Ast_506."
-else
-  echo "  [4] ppxlib 5.6 support: replacing with main branch..."
-  rm -rf duniverse/ppxlib
-  git clone --depth=1 https://github.com/ocaml-ppx/ppxlib.git duniverse/ppxlib
-  rm -rf duniverse/ppxlib/.git
-  echo "  [4] ppxlib replaced."
-fi
+# Patch 4: ppxlib 5.6 support (replace the lockfile's ppxlib with a pinned commit)
+echo "  [4] ppxlib 5.6 support (Ast_506):"
+clone_pinned ppxlib duniverse/ppxlib
 
-# Patch 5: lwt 5.6 support (replace with latest)
-if grep -q 'caml_unix_get_sockaddr' duniverse/lwt/src/unix/unix_c/unix_recv_send_utils.h 2>/dev/null; then
-  echo "  [5] lwt 5.6 support: already has socketaddr fix."
-else
-  echo "  [5] lwt 5.6 support: replacing with latest..."
-  rm -rf duniverse/lwt
-  git clone --depth=1 https://github.com/ocsigen/lwt.git duniverse/lwt
-  rm -rf duniverse/lwt/.git
-  echo "  [5] lwt replaced."
-fi
+# Patch 5: lwt 5.6 support (replace the lockfile's lwt with a pinned commit)
+echo "  [5] lwt 5.6 support (socketaddr.h):"
+clone_pinned lwt duniverse/lwt
 
 # Patch 6: devkit lwt 6.x compat (engine_id extension)
 # Only needed if lwt >= 6.1.1 (which adds virtual method `id` to Lwt_engine.abstract).

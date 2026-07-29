@@ -8,10 +8,11 @@ on:
     branches: [master]
   workflow_dispatch:
   schedule:
-    # Weekly cold run: no cache, so the vendored sources are re-pulled from
-    # scratch. This is what catches upstream drift — setup-monorepo.sh clones
-    # ppxlib/lwt/merlin/jsoo/pplacer/mcl at a branch HEAD rather than a pinned
-    # commit, so a cached run cannot see those move.
+    # Weekly cold run: no cache, so every vendored source is re-fetched from
+    # scratch. Everything is commit-pinned (see sources.yml), so this is not
+    # looking for drift — it checks that a cold setup still *works*: that every
+    # pinned commit and tarball is still fetchable and the rocq bootstrap runs
+    # from nothing, rather than that being hidden by the cache all week.
     - cron: "0 4 * * 1"
 
 concurrency:

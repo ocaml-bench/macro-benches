@@ -5,19 +5,23 @@
 # files that let the monorepo build everything with `dune build`.
 set -euo pipefail
 
+# src_field — every version, URL and checksum below comes from sources.yml,
+# which is the single source of truth for what this repo vendors.
+source "$(cd "$(dirname "$0")/.." && pwd)/scripts/lib-sources.sh"
+
 MONOREPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 VENDOR_DIR="${MONOREPO_DIR}/vendor"
 DUNE_OVERLAY_DIR="${MONOREPO_DIR}/dune-overlays"
 
 # --- camlpdf (PDF library, dependency of cpdf) ---
-CAMLPDF_VERSION="2.8.1"
-CAMLPDF_URL="https://github.com/johnwhitington/camlpdf/archive/refs/tags/v${CAMLPDF_VERSION}.tar.gz"
-CAMLPDF_MD5="93883956f317d4037341b6a0da8a6d03"
+CAMLPDF_VERSION="$(src_field camlpdf version)"
+CAMLPDF_URL="$(src_field camlpdf url)"
+CAMLPDF_MD5="$(src_field camlpdf md5)"
 
 # --- cpdf-source (PDF command-line tool) ---
-CPDF_VERSION="2.8.1"
-CPDF_URL="https://github.com/johnwhitington/cpdf-source/archive/refs/tags/v${CPDF_VERSION}.tar.gz"
-CPDF_MD5="45ba51aae6b5d3ea6cb421037f8f73bb"
+CPDF_VERSION="$(src_field cpdf-source version)"
+CPDF_URL="$(src_field cpdf-source url)"
+CPDF_MD5="$(src_field cpdf-source md5)"
 
 # ---- helpers ----
 download_and_extract() {

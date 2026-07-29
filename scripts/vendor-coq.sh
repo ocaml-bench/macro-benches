@@ -7,19 +7,23 @@
 # System dependency: libgmp-dev (for zarith).
 set -euo pipefail
 
+# src_field — every version, URL and checksum below comes from sources.yml,
+# which is the single source of truth for what this repo vendors.
+source "$(cd "$(dirname "$0")/.." && pwd)/scripts/lib-sources.sh"
+
 MONOREPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 VENDOR_DIR="${MONOREPO_DIR}/vendor"
 DUNE_OVERLAY_DIR="${MONOREPO_DIR}/dune-overlays"
 
 # --- zarith (arbitrary-precision arithmetic, GMP wrapper) ---
-ZARITH_VERSION="1.14"
-ZARITH_URL="https://github.com/ocaml/Zarith/archive/refs/tags/release-${ZARITH_VERSION}.tar.gz"
-ZARITH_MD5="05ef6f78ebea92aa5c3ff35bbfd29bf9"
+ZARITH_VERSION="$(src_field zarith version)"
+ZARITH_URL="$(src_field zarith url)"
+ZARITH_MD5="$(src_field zarith md5)"
 
 # --- rocq (Coq proof assistant, renamed to Rocq in 9.0) ---
-ROCQ_VERSION="9.0.0"
-ROCQ_URL="https://github.com/rocq-prover/rocq/archive/refs/tags/V${ROCQ_VERSION}.tar.gz"
-ROCQ_MD5="e6c2f84353384300a47b2e90d6824229"
+ROCQ_VERSION="$(src_field rocq version)"
+ROCQ_URL="$(src_field rocq url)"
+ROCQ_MD5="$(src_field rocq md5)"
 
 # ---- helpers ----
 download_and_extract() {
