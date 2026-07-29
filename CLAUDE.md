@@ -38,10 +38,15 @@ runtime-feature coverage matrix and gaps, the gotchas, and the backlog.
 ## Where things live (read first)
 
 - `benchmarks/<tool>/` — `<tool>.build.sh` (called by running-ng) + input data.
+- `benchmarks/manifest.yml` — **the program list**: name → tool, build script, args.
+  Needed because several build scripts derive their dune target from the *output
+  filename*, so the scripts alone don't say what programs exist. CI reads this.
 - `docs/benchmarks/<name>.md` — human-facing page per benchmark.
 - `duniverse/` — vendored dependency sources (the actual compiled code).
 - `vendor/` — manually vendored bits (camlpdf, cpdf-source, zarith, pplacer, frama-c, apron, …).
-- `scripts/` — `setup-monorepo.sh`, `vendor-*.sh` (coq, apron, frama-c, cpdf, …).
+- `scripts/` — `setup-monorepo.sh`, `vendor-*.sh` (coq, apron, frama-c, cpdf, …),
+  `ci-build-all.sh` / `ci-run-all.sh` / `ci-manifest.py` (the CI phases).
+- `.github/workflows/ci.yml` — master-only build + run-once gate (see §CI).
 - `sources.yml`, `macro-bench-*.opam(.template)`, `dune-workspace`, `dune-overlays`.
 - `_build-<runtime>/` — per-runtime dune build output (gitignored).
 
@@ -61,9 +66,133 @@ needed, and the contract matches `~/benches/` name-for-name.
 | `RUNNING_OCAML_OUTPUT` | Path where the built binary must be written | `${BENCH_DIR}/<tool>-${RUNTIME_NAME}` |
 | `RUNNING_OCAML_RUNTIME_NAME` | Runtime identifier (e.g. `ocaml-5.4.1`) | `runtime` |
 | `RUNNING_OCAML_SWITCH` | Opam switch name (when applicable) | unset |
+| `RUNNING_OCAML_SWITCH_PREFIX` | Prefix of the runtime's switch. Only `ocamlc-self-compile` and `jsoo` need it — they run the runtime's *own* `ocamlc` / `ocamlc.byte` as the workload, so they need the switch, not just a compiler on PATH | `~/.opam/running-ng-<RUNTIME_TAG>` if it exists, else the prefix of the `ocamlc` on PATH |
 
 Standalone usage (no running-ng): set `RUNNING_MACRO_BENCH_DIR=~/macro-benches` and
 drive `~/running-ng`'s `build_ocaml_binaries_gc_sweep.sh` / `run_ocaml_bench_gc_sweep.sh`.
+Or drive the build straight from the manifest: `bash scripts/ci-build-all.sh`.
+
+## CI
+
+`.github/workflows/ci.yml` runs on **pull requests into `master`** (plus a weekly
+cron and `workflow_dispatch`); nothing runs on branch pushes. Two matrix legs: the
+**latest stable release**, which gates, and the **`ocaml/ocaml` trunk tip**, which
+is `continue-on-error` because it tracks a moving compiler and needs ppxlib/lwt
+git `main` (patches 4+5 below). The trunk leg resolves the tip commit *before*
+creating the switch and folds the SHA into every cache key — otherwise a restored
+opam-root cache silently tests a stale trunk.
+
+The gate is enforced by branch protection on `master`: the required check is
+`build + run once (stable)`. The matrix `label` is deliberately version-free —
+GitHub matches required checks **by name**, so putting `5.5.0` in the label would
+orphan the requirement the moment the compiler is bumped.
+
+Three phases, all driven off `benchmarks/manifest.yml`:
+
+- `scripts/ci-manifest.py check` — runs first because it costs seconds. It compares
+  **sets**, not just counts, in five directions:
+  1. every manifest program's tool dir and build script exist;
+  2. every `benchmarks/*/*.build.sh` is claimed by a program or listed under
+     `disabled:` — this is what catches a whole new benchmark landing with no
+     manifest entry;
+  3. a build script that dispatches on the program name (`case "${BM_NAME}"`, i.e.
+     ahrefs-devkit today) accepts *exactly* the programs the manifest claims for it
+     — this is what catches a new program added to an **existing** tool, where the
+     build script already exists so (2) stays quiet. Both directions are errors: a
+     `case` arm with no manifest entry, and a manifest entry the `case` would reject
+     with `Unknown benchmark`;
+  4. every in-tree input path in a program's `args` exists, so a program can't be
+     added without committing its input. Generated inputs opt out with
+     `inputs_generated: true` (only `alt_ergo_fill`, whose `fill_x100.why` is built
+     by its build script and gitignored — a fresh checkout does not have it);
+  5. one `docs/benchmarks/<tool>.md` per tool, both directions.
+
+  It prints the counts it compared (`22 tools = 20 with programs + 2 disabled`,
+  `31 programs`, `22 docs pages`) so the log shows the numbers, then lists every
+  problem it found rather than stopping at the first.
+
+- `scripts/ci-build-all.sh` — builds every program into `_build-ci`. Deletes the
+  output binary first, so a stale wrapper can't make a build look successful (the
+  `exit 127` trap in §Gotchas).
+- `scripts/ci-run-all.sh` — runs each program once, with its manifest args, from a
+  fresh scratch cwd so relative outputs (menhir's `--base`, goblint's
+  `witness.yml`) don't land in the tree.
+
+Neither stops at the first failure: a hermeticity break usually takes several
+benchmarks with it, and one run should show all of them. Both write a table to
+`$GITHUB_STEP_SUMMARY` and leave per-program logs in `ci-logs/`.
+
+Notes for whoever touches this next:
+
+- **`args` in the manifest are copied verbatim from running-ng's `macro_base.yml`**
+  so the two lists can be diffed mechanically. Keep it that way.
+- **`expected_exit`** declares a by-design non-zero exit. Only `alt_ergo_unsat_smt2`
+  needs it today: `--timelimit 15` means the workload *is* "solve for 15 s", the goal
+  never closes, and alt-ergo dies of its own SIGVTALRM (128+14 = **142**) on every
+  run. Don't "fix" that by dropping the flag — the time limit is the workload.
+- **In the manifest rows, `args` is the last column on purpose.** Bash treats TAB as
+  whitespace-IFS, so an empty field mid-row collapses and shifts every later column;
+  the programs with no args would silently take the next field as their argv.
+- **Ladder rungs are deliberately absent.** The base rung is the signal CI needs,
+  and the big rungs don't fit a hosted runner (sedlex's large rung peaks near
+  27 GB RSS). When rungs land on master, list only the `_small` one.
+- **`SKIP_TEST_BUILD=1`** makes `setup-monorepo.sh` skip its `[9/9]` test build.
+  CI sets it because that step targets the default `_build/` while the build
+  scripts target `_build-<tag>/` — running both compiles the duniverse twice.
+- **Dune is pinned per leg**: `3.22.1` on stable, git `main` on trunk (released
+  dune can't bootstrap against 5.6). Patch 19 is what lets the trunk leg work at
+  all — its dune is ≥ 3.24, which deleted the `coq` extension vendored rocq
+  declared. The stable pin is for determinism, not necessity: the workspace parses
+  under both 3.22.1 and 3.24 now, and pinning keeps the build environment fixed
+  the same way every source is pinned.
+- The **weekly cron run skips the cache** on purpose. Everything is pinned now
+  (see §Vendored source pins), so this is not a drift detector — it is a check
+  that a *cold* setup still works: that every pinned commit and tarball is still
+  fetchable, that the rocq bootstrap works from nothing, and that the cache we
+  rely on the rest of the week isn't hiding a broken setup path.
+
+## Vendored source pins
+
+`sources.yml` is the single source of truth for every third-party version this
+repo vendors, and `scripts/lib-sources.sh` is how the scripts read it:
+
+- `src_field <key> <field>` — one field out of `sources.yml`. Deliberately awk, not
+  PyYAML, so setup still works on a machine with only bash, git, curl and a
+  compiler.
+- `clone_pinned <key> <dir>` — clone a git source at its pinned commit. Idempotent
+  (no-op when the checkout is already at the pin), and it *re-clones when the pin
+  moves*, which the old "does the directory exist?" checks could not detect. It
+  keeps `.git`, so `git -C <dir> rev-parse HEAD` tells you what you have.
+
+Nothing tracks a branch HEAD any more. Six sources used to — ppxlib, lwt, merlin,
+js_of_ocaml, pplacer, mcl — which meant a cold `make setup` vendored whatever
+upstream had that morning, silently changing the benchmark binaries and therefore
+the measurements. When they were pinned, ppxlib had already drifted 7 weeks past
+the validated tree and lwt 3 months; the js_of_ocaml branch had been squashed and
+deleted upstream, so a cold clone failed outright.
+
+Consequences worth knowing:
+
+- **js_of_ocaml is pinned to a `master` commit**, not the old `ocaml-5.6` PR
+  branch: the 5.6 support landed on master (the `[ 5; 7 ]` bound in
+  `compiler/lib/magic_number.ml`) and the branch is gone. Bumping this pin changes
+  *two* benchmarks — `ocamlc_self_compile` takes its workload from
+  `duniverse/js_of_ocaml/benchmarks/sources/ml`.
+- **Pins are commits, never tags.** A tag can be re-pointed upstream. Watch for
+  annotated tags when resolving one: `git ls-remote <url> 'refs/tags/<t>^{}'`
+  gives the commit, while plain `refs/tags/<t>` gives the tag object.
+- **`clone_pinned` tries three fetches**: the commit directly (GitHub allows it);
+  else the recorded branch/tag shallow, then verifies the commit matches (GitLab
+  refuses bare commits — this is the frama-c path, and it is still pinned because
+  a moved ref fails the verify); else a full clone.
+- **`ci-manifest.py check` enforces this**: every `src_field`/`clone_pinned` key
+  must exist in `sources.yml` with the fields it asks for, every `commit:` must be
+  full 40-hex, and **no script may call `git clone` directly** (only
+  `lib-sources.sh`, for the fallback). That last rule is what stops an unpinned
+  clone creeping back in.
+- Bumping a pin is a one-line edit to `sources.yml` plus `make setup`. It shows up
+  in review and CI rebuilds and re-runs everything against it — which is the
+  entire point.
 
 ## Gotchas (hard-won — don't rediscover)
 
@@ -307,8 +436,8 @@ Applied automatically by `scripts/setup-monorepo.sh`.
 | 1 | `duniverse/alt-ergo/.../theories.ml` | Fix ppx_blob paths | ppx_blob resolves from workspace root |
 | 2 | `duniverse/alt-ergo/.../text/dune` | Rewrite dune file | Remove public_name/package (vendored exec) |
 | 3 | `duniverse/dune_/dune-project` | `3.22` → `3.21`, rm test/ | dune 3.22 features not in installed dune |
-| 4 | `duniverse/ppxlib/` | Replace with git main | Adds Ast_506 for OCaml 5.6 trunk |
-| 5 | `duniverse/lwt/` | Replace with git main | Fixes socketaddr.h for OCaml 5.6 |
+| 4 | `duniverse/ppxlib/` | Replace with a pinned commit (`sources.yml`) | Adds Ast_506 for OCaml 5.6 trunk |
+| 5 | `duniverse/lwt/` | Replace with a pinned commit (`sources.yml`) | Fixes socketaddr.h for OCaml 5.6 |
 | 6 | `duniverse/devkit/lwt_engines.ml` | Add `engine_id` type + method | lwt 6.1.1 added virtual `id` method |
 | 7 | `vendor/libevent/libevent.ml` | Add `~persist`, `~signal` labels | OCaml 5.x strict label matching |
 | 8 | `duniverse/js_of_ocaml/.../dune` | Remove public_name | Vendored executable |
@@ -322,6 +451,7 @@ Applied automatically by `scripts/setup-monorepo.sh`.
 | 16 | `duniverse/json-data-encoding/.../json_repr.{ml,mli}` | Add `` `Tuple ``/`` `Variant `` to `Json_repr.Yojson` | dune-universe fork narrows the type; goblint treats it as `Yojson.Safe.t` both ways |
 | 17 | `duniverse/bare-ocaml/src/dune` | Install `Bare_encoding.ml`/`.mli` | catapult copies them via `%{lib:bare_encoding:…}` (needs source installed) |
 | 18 | `duniverse/analyzer/.../control.ml` | Annotate `(module CFG : CfgBidirSkip)` | OCaml ≥ 5.5 can't infer the packaged-module signature otherwise |
+| 19 | `duniverse/rocq/dune-project` + `dune` | Drop `(using coq 0.8)` and the `dev`-profile `(coq (flags ...))` | dune 3.24 deleted the `coq` extension. It's a *parse* error, so it broke **every** build in the workspace, not just rocq's. Both declarations are dead here (rocq generates its theory rules via `tools/dune_rule_gen`; the only stanzas needing the extension are in `dune.disabled` files), so they're removed rather than ported to `(using rocq ...)` |
 
 ## Known limitations
 
@@ -354,6 +484,13 @@ Applied automatically by `scripts/setup-monorepo.sh`.
 
 ## Updating dependencies
 
+For a third-party source that is **not** in the lock file (the git pins and the
+tarballs — ppxlib, lwt, js_of_ocaml, pplacer, mcl, frama-c, the apron chain, cpdf,
+menhir, rocq, alt-ergo's deps, …), the bump is a one-line edit to `sources.yml`
+followed by `make setup`. Nothing else references the version.
+
+For the lock file itself:
+
 ```bash
 # 1. Modify dune-project if adding/removing packages
 # 2. Re-lock in a switch that has the opam-monorepo plugin
@@ -373,10 +510,16 @@ git commit -m "Update vendored dependencies"
 3. Re-lock: `opam monorepo lock`.
 4. Create `benchmarks/<tool>/` with `<tool>.build.sh`, a `dune` file (if custom `.ml`),
    and input files.
-5. Register it in your orchestrator config (running-ng's experiment YAML).
-6. Add it to the test-build list in `scripts/setup-monorepo.sh`.
-7. Add a human page at `docs/benchmarks/<tool>.md`.
-8. Test: `make clean-all && make setup`.
+5. Add every program to `benchmarks/manifest.yml` **in the same commit** — CI fails
+   if a build script has no program entry (or vice versa). For a Knob-A ladder, list
+   only the `_small` rung. A tool that ships disabled goes under `disabled:` with a
+   reason instead.
+6. Register it in your orchestrator config (running-ng's experiment YAML), with the
+   same `args` string as the manifest.
+7. Add it to the test-build list in `scripts/setup-monorepo.sh`.
+8. Add a human page at `docs/benchmarks/<tool>.md`.
+9. Test: `make clean-all && make setup`, then
+   `ONLY="<prog>" bash scripts/ci-build-all.sh && ONLY="<prog>" bash scripts/ci-run-all.sh`.
 
 ---
 

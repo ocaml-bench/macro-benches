@@ -2,11 +2,15 @@
 # vendor-menhir.sh — download and extract menhir sources into vendor/menhir/.
 set -euo pipefail
 
+# src_field — every version, URL and checksum below comes from sources.yml,
+# which is the single source of truth for what this repo vendors.
+source "$(cd "$(dirname "$0")/.." && pwd)/scripts/lib-sources.sh"
+
 MONOREPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 VENDOR_DIR="${MONOREPO_DIR}/vendor"
-VERSION="20260209"
-URL="https://gitlab.inria.fr/fpottier/menhir/-/archive/${VERSION}/archive.tar.gz"
-MD5="e993231085db95ab011ffe0cd606d9dd"
+VERSION="$(src_field menhir version)"
+URL="$(src_field menhir url)"
+MD5="$(src_field menhir md5)"
 
 DEST="${VENDOR_DIR}/menhir"
 

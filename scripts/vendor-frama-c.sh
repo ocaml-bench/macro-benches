@@ -16,20 +16,31 @@
 # dep caps at ocaml < 5.5).
 set -euo pipefail
 
-FRAMAC_TAG="32.1"
-FRAMAC_URL="https://git.frama-c.com/pub/frama-c.git"
+# src_field — every version, URL and checksum below comes from sources.yml,
+# which is the single source of truth for what this repo vendors.
+source "$(cd "$(dirname "$0")/.." && pwd)/scripts/lib-sources.sh"
+
+FRAMAC_TAG="$(src_field frama-c branch)"
+FRAMAC_URL="$(src_field frama-c repo)"
 
 MONOREPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 VENDOR_DIR="${MONOREPO_DIR}/vendor"
 FRAMAC_DIR="${VENDOR_DIR}/frama-c"
 
-if [ -d "${FRAMAC_DIR}" ] && [ -f "${FRAMAC_DIR}/dune-project" ]; then
-  echo "vendor/frama-c/ already exists. Remove it first to re-vendor."
+# The tree is heavily trimmed below, so "already vendored" can't be decided from
+# the pin alone: check for the marker file, and let clone_pinned decide the rest.
+if [ -d "${FRAMAC_DIR}" ] && [ -f "${FRAMAC_DIR}/dune-project" ] && \
+   [ "$(cat "${FRAMAC_DIR}/.pinned-commit" 2>/dev/null)" = "$(src_field frama-c commit)" ]; then
+  echo "vendor/frama-c/ already at the pinned commit. Skipping."
   exit 0
 fi
 
-echo "Cloning Frama-C ${FRAMAC_TAG}..."
-git clone --depth=1 --branch "${FRAMAC_TAG}" "${FRAMAC_URL}" "${FRAMAC_DIR}"
+echo "Cloning Frama-C ${FRAMAC_TAG} (pinned)..."
+rm -rf "${FRAMAC_DIR}"
+clone_pinned frama-c "${FRAMAC_DIR}"
+# Record the pin, then drop .git: the trimming below rewrites the tree, so a
+# retained .git would report the checkout as massively dirty and tell us nothing.
+src_field frama-c commit > "${FRAMAC_DIR}/.pinned-commit"
 rm -rf "${FRAMAC_DIR}/.git"
 
 # Strip dirs we never build, to cut tree size and avoid unrelated

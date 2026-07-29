@@ -40,13 +40,26 @@ dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
   duniverse/js_of_ocaml/compiler/bin-js_of_ocaml/js_of_ocaml.exe
 
 REAL_EXE="${BUILD_DIR}/default/duniverse/js_of_ocaml/compiler/bin-js_of_ocaml/js_of_ocaml.exe"
-RUNTIME_PREFIX="${HOME}/.opam/running-ng-${RUNTIME_TAG}"
-WORKLOAD="${RUNTIME_PREFIX}/bin/ocamlc.byte"
-RUNTIME_LIB="${RUNTIME_PREFIX}/lib"
+# Under running-ng the runtime under test lives in an opam switch named
+# running-ng-${RUNTIME_TAG}. Outside running-ng (CI, a hand-driven build) there
+# is no such switch, so derive the prefix from the ocamlc on PATH — the same
+# compiler this script's dune build is using.
+if [[ -n "${RUNNING_OCAML_SWITCH_PREFIX:-}" ]]; then
+  RUNTIME_PREFIX="${RUNNING_OCAML_SWITCH_PREFIX}"
+elif [[ -d "${HOME}/.opam/running-ng-${RUNTIME_TAG}" ]]; then
+  RUNTIME_PREFIX="${HOME}/.opam/running-ng-${RUNTIME_TAG}"
+else
+  _ocamlc="$(command -v ocamlc || true)"
+  [[ -n "${_ocamlc}" ]] && RUNTIME_PREFIX="$(cd "$(dirname "${_ocamlc}")/.." && pwd)"
+fi
+WORKLOAD="${RUNTIME_PREFIX:-/nonexistent}/bin/ocamlc.byte"
+RUNTIME_LIB="${RUNTIME_PREFIX:-/nonexistent}/lib"
 
 if [[ ! -f "${WORKLOAD}" ]]; then
   echo "ERROR: workload not found at ${WORKLOAD}" >&2
-  echo "  (expected ocamlc.byte in the runtime's switch)" >&2
+  echo "  (expected ocamlc.byte in the runtime's switch: tried" >&2
+  echo "   \$RUNNING_OCAML_SWITCH_PREFIX, ~/.opam/running-ng-${RUNTIME_TAG}," >&2
+  echo "   then the prefix of the ocamlc on PATH)" >&2
   exit 1
 fi
 echo "  workload: ${WORKLOAD} ($(wc -c <"${WORKLOAD}") bytes)"

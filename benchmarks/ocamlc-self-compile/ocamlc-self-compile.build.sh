@@ -33,13 +33,23 @@ echo "Building ocamlc-self-compile benchmark for runtime: ${RUNTIME_TAG}"
 # ----------------------------------------------------------------------
 # 1. Locate the runtime's ocamlc.
 #
-# Each variant has its own opam switch named running-ng-${RUNTIME_TAG}.
-# We want THAT variant's ocamlc, not the tools switch's ocamlc.
+# Under running-ng each variant has its own opam switch named
+# running-ng-${RUNTIME_TAG}, and we want THAT variant's ocamlc, not the tools
+# switch's. Outside running-ng (CI, a hand-driven build) there is no such
+# switch, so fall back to the compiler on PATH — which is by definition the
+# runtime under test, since that is how the build scripts get their ocamlopt.
 # ----------------------------------------------------------------------
-OCAMLC="${HOME}/.opam/running-ng-${RUNTIME_TAG}/bin/ocamlc"
-if [[ ! -x "${OCAMLC}" ]]; then
-  echo "ERROR: ocamlc not found at ${OCAMLC}" >&2
-  echo "  (expected ~/.opam/running-ng-<RUNTIME_TAG>/bin/ocamlc)" >&2
+if [[ -n "${RUNNING_OCAML_SWITCH_PREFIX:-}" ]]; then
+  OCAMLC="${RUNNING_OCAML_SWITCH_PREFIX}/bin/ocamlc"
+elif [[ -x "${HOME}/.opam/running-ng-${RUNTIME_TAG}/bin/ocamlc" ]]; then
+  OCAMLC="${HOME}/.opam/running-ng-${RUNTIME_TAG}/bin/ocamlc"
+else
+  OCAMLC="$(command -v ocamlc || true)"
+fi
+if [[ -z "${OCAMLC}" || ! -x "${OCAMLC}" ]]; then
+  echo "ERROR: ocamlc not found" >&2
+  echo "  (looked for \$RUNNING_OCAML_SWITCH_PREFIX/bin/ocamlc," >&2
+  echo "   ~/.opam/running-ng-${RUNTIME_TAG}/bin/ocamlc, then ocamlc on PATH)" >&2
   exit 1
 fi
 echo "  using ocamlc: ${OCAMLC}"
@@ -119,6 +129,11 @@ fi
 # ----------------------------------------------------------------------
 OCAMLC_REAL="$(readlink -f "${OCAMLC}")"  # follow ocamlc → ocamlc.opt
 STAGED_OCAMLC="${BENCH_DIR}/ocamlc_self_compile_bin-${RUNTIME_TAG}"
+# Remove any previous staging first: if it is already a hardlink to this same
+# ocamlc.opt, both `ln -f` and `cp -f` refuse with "are the same file", so a
+# second build of the same runtime would fail. (Removing a hardlink does not
+# touch the switch's binary.)
+rm -f "${STAGED_OCAMLC}"
 ln -f "${OCAMLC_REAL}" "${STAGED_OCAMLC}" 2>/dev/null \
   || cp -f "${OCAMLC_REAL}" "${STAGED_OCAMLC}"
 echo "  staged ocamlc binary: ${STAGED_OCAMLC}"
