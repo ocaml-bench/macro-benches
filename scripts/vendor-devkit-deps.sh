@@ -7,19 +7,23 @@
 # System dependencies: libevent-dev, libcurl4-openssl-dev (or libcurl4-gnutls-dev)
 set -euo pipefail
 
+# src_field — every version, URL and checksum below comes from sources.yml,
+# which is the single source of truth for what this repo vendors.
+source "$(cd "$(dirname "$0")/.." && pwd)/scripts/lib-sources.sh"
+
 MONOREPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 VENDOR_DIR="${MONOREPO_DIR}/vendor"
 DUNE_OVERLAY_DIR="${MONOREPO_DIR}/dune-overlays"
 
 # --- libevent OCaml bindings ---
-LIBEVENT_VERSION="0.9.0"
-LIBEVENT_URL="https://ygrek.org/p/release/ocaml-libevent/ocaml-libevent-${LIBEVENT_VERSION}.tar.gz"
-LIBEVENT_MD5="00851213da0c9ecf37fbd3984a266789"
+LIBEVENT_VERSION="$(src_field libevent version)"
+LIBEVENT_URL="$(src_field libevent url)"
+LIBEVENT_MD5="$(src_field libevent md5)"
 
 # --- ocurl (OCaml bindings to libcurl) ---
-OCURL_VERSION="0.9.2"
-OCURL_URL="https://ygrek.org/p/release/ocurl/ocurl-${OCURL_VERSION}.tar.gz"
-OCURL_MD5="8a4149c6cfa79dabdfde24f308ad1f0c"
+OCURL_VERSION="$(src_field ocurl version)"
+OCURL_URL="$(src_field ocurl url)"
+OCURL_MD5="$(src_field ocurl md5)"
 
 download_and_extract() {
   local name="$1" url="$2" md5="$3" dest="$4"

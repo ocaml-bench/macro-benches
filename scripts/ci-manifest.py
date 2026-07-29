@@ -89,6 +89,65 @@ def dispatched_program_names(script):
     return names or None
 
 
+def check_pins():
+    """Nothing this repo vendors may float.
+
+    sources.yml is the single source of truth: every version, URL, checksum and
+    commit lives there and the scripts read it through lib-sources.sh. This checks
+    that the two halves agree, and — the part that keeps it from rotting — that no
+    script has quietly gone back to cloning a branch HEAD. Six of them used to,
+    which is how the tree silently drifted away from what was validated.
+    """
+    problems = []
+    with (ROOT / "sources.yml").open() as f:
+        sources = yaml.safe_load(f) or {}
+
+    # Commits must be full 40-hex: an abbreviated or tag-shaped pin is ambiguous.
+    for key, entry in sources.items():
+        if not isinstance(entry, dict) or "commit" not in entry:
+            continue
+        commit = str(entry["commit"])
+        if not re.fullmatch(r"[0-9a-f]{40}", commit):
+            problems.append(
+                f"sources.yml: {key}.commit is not a full 40-hex commit: {commit!r}"
+            )
+
+    for script in sorted((ROOT / "scripts").glob("*.sh")):
+        text = script.read_text()
+        rel = script.relative_to(ROOT)
+        # Comments talk *about* these functions, so only scan actual code.
+        code = "\n".join(
+            l for l in text.splitlines() if not l.lstrip().startswith("#")
+        )
+
+        # Every key a script reads must exist, with the field it asks for.
+        for key, field in re.findall(r"src_field\s+([A-Za-z0-9._-]+)\s+([a-z0-9_]+)", code):
+            if key not in sources:
+                problems.append(f"{rel}: src_field reads '{key}', absent from sources.yml")
+            elif field not in (sources[key] or {}):
+                problems.append(f"{rel}: src_field reads {key}.{field}, absent from sources.yml")
+        for key in re.findall(r"clone_pinned\s+\"?([A-Za-z0-9._${}-]+)\"?", code):
+            if key.startswith("$"):
+                continue  # loop variable; the loop's literals are checked below
+            if key not in sources:
+                problems.append(f"{rel}: clone_pinned '{key}', absent from sources.yml")
+            elif "commit" not in (sources[key] or {}):
+                problems.append(f"{rel}: clone_pinned '{key}', which has no commit pin")
+
+        # And nothing may clone directly. lib-sources.sh is where the one allowed
+        # `git clone` lives (the full-clone fallback for hosts that refuse a
+        # fetch-by-commit), so it is exempt.
+        if script.name == "lib-sources.sh":
+            continue
+        for i, line in enumerate(text.splitlines(), 1):
+            if re.search(r"^\s*[^#]*\bgit clone\b", line):
+                problems.append(
+                    f"{rel}:{i}: direct `git clone` — use clone_pinned <sources.yml key> "
+                    f"so the commit is pinned and a bump shows up in review"
+                )
+    return problems
+
+
 def cmd_check():
     m, _, programs = load()
     disabled = m.get("disabled") or {}
@@ -168,6 +227,8 @@ def cmd_check():
                 f"{page.relative_to(ROOT)} documents a tool with no "
                 f"benchmarks/{page.stem}/*.build.sh"
             )
+
+    problems += check_pins()
 
     # The counts, always, so the log shows what was compared against what.
     with_programs = len({p["tool"] for p in programs.values()})

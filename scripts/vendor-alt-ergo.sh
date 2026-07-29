@@ -12,40 +12,44 @@
 # for details on what needs work.
 set -euo pipefail
 
+# src_field — every version, URL and checksum below comes from sources.yml,
+# which is the single source of truth for what this repo vendors.
+source "$(cd "$(dirname "$0")/.." && pwd)/scripts/lib-sources.sh"
+
 MONOREPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 VENDOR_DIR="${MONOREPO_DIR}/vendor"
 DUNE_OVERLAY_DIR="${MONOREPO_DIR}/dune-overlays"
 
 # ---- package definitions: name, version, url, md5 ----
 # Alt-ergo itself
-AE_VERSION="2.6.2"
-AE_URL="https://github.com/OCamlPro/alt-ergo/archive/refs/tags/v${AE_VERSION}.tar.gz"
-AE_MD5="e4b1ffc9541d75bee8e02a5e40b68cc0"
+AE_VERSION="$(src_field alt-ergo version)"
+AE_URL="$(src_field alt-ergo url)"
+AE_MD5="$(src_field alt-ergo md5)"
 
 # Dolmen (SMT/TPTP/etc. parser + typechecker — core dep)
-DOLMEN_VERSION="0.10"
-DOLMEN_URL="https://github.com/Gbury/dolmen/archive/refs/tags/v${DOLMEN_VERSION}.tar.gz"
-DOLMEN_MD5="a89db80202d2f2d0cd7ea73c46d5e5e1"
+DOLMEN_VERSION="$(src_field dolmen version)"
+DOLMEN_URL="$(src_field dolmen url)"
+DOLMEN_MD5="$(src_field dolmen md5)"
 
 # ocplib-simplex (simplex solver — core dep)
-OCPLIB_SIMPLEX_VERSION="0.5.1"
-OCPLIB_SIMPLEX_URL="https://github.com/OCamlPro/ocplib-simplex/archive/refs/tags/v${OCPLIB_SIMPLEX_VERSION}.tar.gz"
-OCPLIB_SIMPLEX_MD5="b6cb1e4852046a6aecfcfbbb94ecee51"
+OCPLIB_SIMPLEX_VERSION="$(src_field ocplib-simplex version)"
+OCPLIB_SIMPLEX_URL="$(src_field ocplib-simplex url)"
+OCPLIB_SIMPLEX_MD5="$(src_field ocplib-simplex md5)"
 
 # psmt2-frontend (PSMT2 parser — parser dep)
-PSMT2_VERSION="0.4.0"
-PSMT2_URL="https://github.com/ACoquereau/psmt2-frontend/archive/refs/tags/${PSMT2_VERSION}.tar.gz"
-PSMT2_MD5="4fc9f9a68343b4614f120c1556bee644"
+PSMT2_VERSION="$(src_field psmt2-frontend version)"
+PSMT2_URL="$(src_field psmt2-frontend url)"
+PSMT2_MD5="$(src_field psmt2-frontend md5)"
 
 # cmdliner (CLI parsing — uses dune)
-CMDLINER_VERSION="1.3.0"
-CMDLINER_URL="https://github.com/dbuenzli/cmdliner/archive/refs/tags/v${CMDLINER_VERSION}.tar.gz"
-CMDLINER_MD5="49209ae417b18910eca24bd2ab6538da"
+CMDLINER_VERSION="$(src_field cmdliner version)"
+CMDLINER_URL="$(src_field cmdliner url)"
+CMDLINER_MD5="$(src_field cmdliner md5)"
 
 # ppx_blob (embed files as strings — PPX, uses dune)
-PPX_BLOB_VERSION="0.9.0"
-PPX_BLOB_URL="https://github.com/johnwhitington/ppx_blob/archive/refs/tags/${PPX_BLOB_VERSION}.tar.gz"
-PPX_BLOB_MD5="8dc76254a66ed47aaab6e612ce5e913c"
+PPX_BLOB_VERSION="$(src_field ppx_blob version)"
+PPX_BLOB_URL="$(src_field ppx_blob url)"
+PPX_BLOB_MD5="$(src_field ppx_blob md5)"
 
 # --- deps that need dune overlays (not yet integrated) ---
 # camlzip  rel113  https://github.com/xavierleroy/camlzip  (Makefile, needs zlib)

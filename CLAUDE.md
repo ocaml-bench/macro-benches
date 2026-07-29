@@ -141,10 +141,54 @@ Notes for whoever touches this next:
   scripts target `_build-<tag>/` — running both compiles the duniverse twice.
 - **Dune is pinned per leg**: `3.22.1` on stable (≥ 3.24 breaks vendored rocq),
   git `main` on trunk (released dune can't bootstrap against 5.6).
-- The **weekly cron run skips the cache** on purpose. `setup-monorepo.sh` clones
-  ppxlib, lwt, merlin, jsoo, pplacer and mcl at a *branch HEAD*, so those six are
-  invisible to a cached run. Pinning them in `sources.yml` would make CI
-  reproducible; until then the cron is the drift detector.
+- The **weekly cron run skips the cache** on purpose. Everything is pinned now
+  (see §Vendored source pins), so this is not a drift detector — it is a check
+  that a *cold* setup still works: that every pinned commit and tarball is still
+  fetchable, that the rocq bootstrap works from nothing, and that the cache we
+  rely on the rest of the week isn't hiding a broken setup path.
+
+## Vendored source pins
+
+`sources.yml` is the single source of truth for every third-party version this
+repo vendors, and `scripts/lib-sources.sh` is how the scripts read it:
+
+- `src_field <key> <field>` — one field out of `sources.yml`. Deliberately awk, not
+  PyYAML, so setup still works on a machine with only bash, git, curl and a
+  compiler.
+- `clone_pinned <key> <dir>` — clone a git source at its pinned commit. Idempotent
+  (no-op when the checkout is already at the pin), and it *re-clones when the pin
+  moves*, which the old "does the directory exist?" checks could not detect. It
+  keeps `.git`, so `git -C <dir> rev-parse HEAD` tells you what you have.
+
+Nothing tracks a branch HEAD any more. Six sources used to — ppxlib, lwt, merlin,
+js_of_ocaml, pplacer, mcl — which meant a cold `make setup` vendored whatever
+upstream had that morning, silently changing the benchmark binaries and therefore
+the measurements. When they were pinned, ppxlib had already drifted 7 weeks past
+the validated tree and lwt 3 months; the js_of_ocaml branch had been squashed and
+deleted upstream, so a cold clone failed outright.
+
+Consequences worth knowing:
+
+- **js_of_ocaml is pinned to a `master` commit**, not the old `ocaml-5.6` PR
+  branch: the 5.6 support landed on master (the `[ 5; 7 ]` bound in
+  `compiler/lib/magic_number.ml`) and the branch is gone. Bumping this pin changes
+  *two* benchmarks — `ocamlc_self_compile` takes its workload from
+  `duniverse/js_of_ocaml/benchmarks/sources/ml`.
+- **Pins are commits, never tags.** A tag can be re-pointed upstream. Watch for
+  annotated tags when resolving one: `git ls-remote <url> 'refs/tags/<t>^{}'`
+  gives the commit, while plain `refs/tags/<t>` gives the tag object.
+- **`clone_pinned` tries three fetches**: the commit directly (GitHub allows it);
+  else the recorded branch/tag shallow, then verifies the commit matches (GitLab
+  refuses bare commits — this is the frama-c path, and it is still pinned because
+  a moved ref fails the verify); else a full clone.
+- **`ci-manifest.py check` enforces this**: every `src_field`/`clone_pinned` key
+  must exist in `sources.yml` with the fields it asks for, every `commit:` must be
+  full 40-hex, and **no script may call `git clone` directly** (only
+  `lib-sources.sh`, for the fallback). That last rule is what stops an unpinned
+  clone creeping back in.
+- Bumping a pin is a one-line edit to `sources.yml` plus `make setup`. It shows up
+  in review and CI rebuilds and re-runs everything against it — which is the
+  entire point.
 
 ## Gotchas (hard-won — don't rediscover)
 
@@ -388,8 +432,8 @@ Applied automatically by `scripts/setup-monorepo.sh`.
 | 1 | `duniverse/alt-ergo/.../theories.ml` | Fix ppx_blob paths | ppx_blob resolves from workspace root |
 | 2 | `duniverse/alt-ergo/.../text/dune` | Rewrite dune file | Remove public_name/package (vendored exec) |
 | 3 | `duniverse/dune_/dune-project` | `3.22` → `3.21`, rm test/ | dune 3.22 features not in installed dune |
-| 4 | `duniverse/ppxlib/` | Replace with git main | Adds Ast_506 for OCaml 5.6 trunk |
-| 5 | `duniverse/lwt/` | Replace with git main | Fixes socketaddr.h for OCaml 5.6 |
+| 4 | `duniverse/ppxlib/` | Replace with a pinned commit (`sources.yml`) | Adds Ast_506 for OCaml 5.6 trunk |
+| 5 | `duniverse/lwt/` | Replace with a pinned commit (`sources.yml`) | Fixes socketaddr.h for OCaml 5.6 |
 | 6 | `duniverse/devkit/lwt_engines.ml` | Add `engine_id` type + method | lwt 6.1.1 added virtual `id` method |
 | 7 | `vendor/libevent/libevent.ml` | Add `~persist`, `~signal` labels | OCaml 5.x strict label matching |
 | 8 | `duniverse/js_of_ocaml/.../dune` | Remove public_name | Vendored executable |
@@ -434,6 +478,13 @@ Applied automatically by `scripts/setup-monorepo.sh`.
   vendor script fills Frama-C's empty `*.opam` placeholders so opam-monorepo can scan.
 
 ## Updating dependencies
+
+For a third-party source that is **not** in the lock file (the git pins and the
+tarballs — ppxlib, lwt, js_of_ocaml, pplacer, mcl, frama-c, the apron chain, cpdf,
+menhir, rocq, alt-ergo's deps, …), the bump is a one-line edit to `sources.yml`
+followed by `make setup`. Nothing else references the version.
+
+For the lock file itself:
 
 ```bash
 # 1. Modify dune-project if adding/removing packages
