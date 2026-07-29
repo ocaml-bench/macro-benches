@@ -57,6 +57,23 @@ case "\${1:-t}" in
     exec "${REAL_EXE}" -no-autoload-plugins \\
       -eva -eva-no-results -eva-slevel "\$SLEVEL" "${BENCH_DIR}/t.c" ;;
   sqlite)
+    # Two defines pin the *analysed program*, which otherwise depends on the host
+    # gcc. Frama-C preprocesses with \`gcc -E -undef -imacros __fc_builtin_macros.h\`,
+    # so __GNUC__ is stripped and sqlite3.c's GCC_VERSION is 0 on every host. Its
+    # atomics gate is therefore decided entirely by the second half of
+    #   #if GCC_VERSION>=4007000 || __has_extension(c_atomic)
+    # and sqlite3.c self-guards \`#ifndef __has_extension -> define it to 0\`. So on
+    # gcc >= 14 (which predefines __has_extension) EVA analyses AtomicLoad as an
+    # undeclared __atomic_load_n -- cheap and imprecise -- while on gcc 13 it
+    # analyses the real volatile/mutex code, an enormously bigger state space: the
+    # same benchmark took 7s here and blew past a 600s limit on a gcc 13.3 runner.
+    # -D__has_extension(x)=1 forces the intrinsics path everywhere, so every host
+    # analyses what the benchmark was characterised on. (Frama-C already passes
+    # -Wno-builtin-macro-redefined, so redefining it on gcc >= 14 is quiet, and
+    # nothing else in sqlite3.c or Frama-C's libc uses __has_extension.) The inner
+    # single quotes matter: Frama-C runs the preprocessor through a shell, so an
+    # unquoted \`(\` aborts with \`sh: Syntax error: "(" unexpected\`.
+    #
     # -DLONGDOUBLE_TYPE=double: sqlite3.c gates its long-double code at runtime on
     # \`sqlite3Config.bUseLongDouble = sizeof(LONGDOUBLE_TYPE)>8\`. Where that is
     # true, EVA walks into the branch and Frama-C 32.1 aborts on an unimplemented
@@ -70,7 +87,7 @@ case "\${1:-t}" in
     exec "${REAL_EXE}" -no-autoload-plugins \\
       -eva -eva-no-results -eva-slevel "\${FRAMAC_EVA_SLEVEL:-0}" -main main \\
       -eva-warn-key assigns:missing=feedback \\
-      -cpp-extra-args=-DLONGDOUBLE_TYPE=double \\
+      -cpp-extra-args="-DLONGDOUBLE_TYPE=double -D'__has_extension(x)=1'" \\
       "${BENCH_DIR}/sqlite_driver.c" "${BENCH_DIR}/sqlite3.c" ;;
   *)
     exec "${REAL_EXE}" -no-autoload-plugins "\$@" ;;
