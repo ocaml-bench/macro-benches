@@ -76,8 +76,8 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             build-essential autoconf automake m4 pkg-config \
             libgmp-dev libmpfr-dev libevent-dev libcurl4-openssl-dev \
-            libpcre3-dev zlib1g-dev libopenblas-dev libgsl-dev \
-            libsqlite3-dev libyaml-dev
+            libpcre3-dev zlib1g-dev libopenblas-dev liblapacke-dev \
+            libgsl-dev libsqlite3-dev libyaml-dev
 
       - uses: ocaml/setup-ocaml@v3
         with:

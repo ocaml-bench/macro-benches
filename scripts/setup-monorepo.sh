@@ -651,11 +651,19 @@ echo ""
 # infer the packaged-module signature there ("signature for this packaged module
 # couldn't be inferred"), so annotate the packs.  Harmless on 5.4.1.
 GOBLINT_CTRL="duniverse/analyzer/src/framework/control.ml"
-if [ -f "$GOBLINT_CTRL" ] && ! grep -qF "(module CFG : CfgBidirSkip)" "$GOBLINT_CTRL" 2>/dev/null; then
+# Guard on the *unannotated call*, not on the annotation appearing anywhere in the
+# file. Upstream already annotates the `let rec analyze_loop (module CFG :
+# CfgBidirSkip)` *definition*, so a "does the annotation exist?" check matches that
+# definition, skips, and leaves the two call sites bare — the build then fails with
+# "The signature for this packaged module couldn't be inferred". Still idempotent:
+# after the sed there is no unannotated call left to match.
+if [ -f "$GOBLINT_CTRL" ] && grep -qF "analyze_loop (module CFG) file fs change_info" "$GOBLINT_CTRL" 2>/dev/null; then
+  _n=$(grep -cF "analyze_loop (module CFG) file fs change_info" "$GOBLINT_CTRL")
   sed -i 's/analyze_loop (module CFG) file fs change_info/analyze_loop (module CFG : CfgBidirSkip) file fs change_info/g' "$GOBLINT_CTRL"
-  echo "  [18] goblint control.ml: annotated (module CFG : CfgBidirSkip) packs (OCaml >= 5.5)."
+  echo "  [18] goblint control.ml: annotated ${_n} (module CFG : CfgBidirSkip) call site(s) (OCaml >= 5.5)."
+  unset _n
 elif [ -f "$GOBLINT_CTRL" ]; then
-  echo "  [18] goblint control.ml: already annotated."
+  echo "  [18] goblint control.ml: no unannotated call sites. Skipping."
 else
   echo "  [18] goblint control.ml: not vendored. Skipping."
 fi
