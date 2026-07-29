@@ -12,30 +12,30 @@ MONOREPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 VENDOR_DIR="${MONOREPO_DIR}/vendor"
 PPLACER_DIR="${VENDOR_DIR}/pplacer"
 
-if [ -d "${PPLACER_DIR}" ] && [ -f "${PPLACER_DIR}/dune" ]; then
-  echo "vendor/pplacer/ already exists. Remove it first to re-vendor."
-  # Ensure mcl C libraries are built even if pplacer is already vendored
-  if [ ! -f "${PPLACER_DIR}/mcl/src/mcl/libmcl.a" ]; then
-    echo "  mcl C libraries not found — building..."
-    (cd "${PPLACER_DIR}/mcl" && ./configure --quiet && make -j"$(nproc)" --quiet)
-    echo "  mcl C libraries built."
-  fi
-  exit 0
+# src_field / clone_pinned — versions and commits come from sources.yml.
+source "${MONOREPO_DIR}/scripts/lib-sources.sh"
+
+# Both clones are pinned by commit, and clone_pinned is a no-op when the checkout
+# is already at the pin — so this whole script is cheap to re-run. It re-clones
+# when a pin is bumped in sources.yml, which the old "does the directory exist?"
+# check could not detect.
+echo "Vendoring pplacer (pinned)..."
+clone_pinned pplacer "${PPLACER_DIR}"
+rm -rf "${PPLACER_DIR}/docs/_build"
+
+# mcl is a git submodule declared with an SSH URL upstream; clone over HTTPS
+# ourselves instead. It lives inside pplacer's tree, so it has to come second.
+echo "Vendoring mcl (pplacer submodule, pinned)..."
+clone_pinned mcl "${PPLACER_DIR}/mcl"
+
+# Build mcl C libraries (autotools → static .a archives). Skipped when they are
+# already present, so a re-run of an unchanged pin costs nothing.
+if [ ! -f "${PPLACER_DIR}/mcl/src/mcl/libmcl.a" ]; then
+  echo "Building mcl C libraries..."
+  (cd "${PPLACER_DIR}/mcl" && ./configure --quiet && make -j"$(nproc)" --quiet)
+else
+  echo "  mcl C libraries already built. Skipping."
 fi
-
-echo "Cloning pplacer..."
-git clone --depth=1 https://github.com/matsen/pplacer.git "${PPLACER_DIR}"
-rm -rf "${PPLACER_DIR}/.git" "${PPLACER_DIR}/docs/_build"
-
-# mcl is a git submodule that uses SSH URLs; clone via HTTPS instead
-echo "Cloning mcl (pplacer submodule)..."
-rm -rf "${PPLACER_DIR}/mcl"
-git clone --depth=1 https://github.com/fhcrc/mcl.git "${PPLACER_DIR}/mcl"
-rm -rf "${PPLACER_DIR}/mcl/.git"
-
-# Build mcl C libraries (autotools → static .a archives)
-echo "Building mcl C libraries..."
-(cd "${PPLACER_DIR}/mcl" && ./configure --quiet && make -j"$(nproc)" --quiet)
 
 # Verify the expected static libraries exist
 for lib in src/mcl/libmcl.a src/impala/libimpala.a src/clew/libclew.a util/libutil.a; do

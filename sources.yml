@@ -1,5 +1,16 @@
 # Pinned source versions for vendored packages.
-# Update versions here, then re-run the corresponding vendor script.
+#
+# This file is the single source of truth: the vendor scripts and
+# setup-monorepo.sh read it through scripts/lib-sources.sh (`src_field`,
+# `clone_pinned`) rather than carrying their own copies of a version. Change a
+# version or a commit here, re-run `make setup`, and that is the whole bump.
+#
+# Everything here is pinned by construction — tarballs by version + md5, git
+# sources by commit. Nothing tracks a branch HEAD. Six git sources used to
+# (ppxlib, lwt, merlin, js_of_ocaml, pplacer, mcl), which meant a cold setup
+# vendored whatever upstream had that morning; by the time they were pinned two
+# had already drifted away from the validated tree and one branch had been
+# deleted upstream, breaking a cold setup outright.
 
 # --- menhir (parser generator) ---
 menhir:
@@ -69,6 +80,121 @@ ppx_blob:
   url: "https://github.com/johnwhitington/ppx_blob/archive/refs/tags/0.9.0.tar.gz"
   md5: "8dc76254a66ed47aaab6e612ce5e913c"
   notes: "PPX for embedding files as strings.  Uses dune.  Alt-ergo dep."
+
+# =============================================================================
+# Git sources, pinned by commit
+# =============================================================================
+# Cloned by clone_pinned() (scripts/lib-sources.sh), which fetches the commit
+# directly and keeps .git so `git -C <dir> rev-parse HEAD` tells you what you
+# have. `branch` is where the commit came from — provenance only; it is not used
+# to fetch, so a branch that moves or disappears upstream cannot change what a
+# cold setup vendors.
+
+# --- replacements for lockfile packages (see CLAUDE.md patches 4 + 5) ---
+ppxlib:
+  repo: "https://github.com/ocaml-ppx/ppxlib.git"
+  branch: "main"
+  commit: "df9d10b5163b35d646b75dc412237280e43273d0"
+  date: "2026-06-01"
+  notes: "Replaces the lockfile's ppxlib; adds Ast_506 for OCaml 5.6 trunk. Drop once a release supports 5.6."
+
+lwt:
+  repo: "https://github.com/ocsigen/lwt.git"
+  branch: "master"
+  commit: "167a6ea45363647be9cc58dde9155d9e2f176e69"
+  date: "2026-04-20"
+  notes: "Replaces the lockfile's lwt; fixes socketaddr.h for OCaml 5.6. Drop once a release supports 5.6."
+
+# --- vendored tools not in the lockfile ---
+js_of_ocaml:
+  repo: "https://github.com/ocsigen/js_of_ocaml.git"
+  branch: "master"
+  commit: "8b46f0628091b73513141a010c3ac3914a872395"
+  date: "2026-07-28"
+  notes: >
+    Released jsoo rejects OCaml >= 5.5 outright. Support landed on master (the
+    `[ 5; 7 ]` bound in compiler/lib/magic_number.ml), so master is the pin. This
+    used to track the `ocaml-5.6` PR branch, which upstream squashed and deleted —
+    the old commit is no longer reachable, so a cold clone of that branch fails.
+    Note ocamlc-self-compile also takes its workload from this tree
+    (benchmarks/sources/ml), so bumping this changes two benchmarks.
+
+merlin:
+  repo: "https://github.com/ocaml/merlin.git"
+  branch: "merlin-domains"
+  commit: "7f033f9352531e0179f5d3a1f0000bb1be740844"
+  date: "2025-10-03"
+  notes: "PR #1890 domains branch; benchmark is DISABLED (upstream race, see benchmarks/merlin/UPSTREAM_BUG.md). Vendored but not built."
+
+pplacer:
+  repo: "https://github.com/matsen/pplacer.git"
+  branch: "master"
+  commit: "40509ec8017d6d899bdbc3659260ae32e5be5953"
+  date: "2026-01-28"
+  notes: "Not in opam. Needs libgsl-dev + libsqlite3-dev. Patched by setup-monorepo.sh (patch 13)."
+
+mcl:
+  repo: "https://github.com/fhcrc/mcl.git"
+  branch: "master"
+  commit: "1f1932b64619e9bd9ecbcb421cb1e3f1eb535e80"
+  date: "2025-12-01"
+  notes: "pplacer's git submodule (SSH URL upstream, so cloned over HTTPS separately). Built in place by configure/make. Patched by setup-monorepo.sh (patch 12)."
+
+# --- apron chain for goblint (non-dune: configure/make + camlidl) ---
+# Built per-runtime into a self-contained prefix by scripts/vendor-apron.sh.
+# The `branch` field here names the release tag the commit was resolved from.
+# Pinning the commit rather than the tag means a re-pointed tag upstream cannot
+# change what we build.
+bigarray-compat:
+  repo: "https://github.com/mirage/bigarray-compat.git"
+  branch: "v1.1.0"
+  commit: "2ea842ba4ab2cfee7b711f7ad927917f3179a6f9"
+
+camlidl:
+  repo: "https://github.com/xavierleroy/camlidl.git"
+  branch: "camlidl113"
+  commit: "9f474e484982dacb0cf6284059b004a9bf6639b6"
+
+mlgmpidl:
+  repo: "https://github.com/nberth/mlgmpidl.git"
+  branch: "1.3.0"
+  commit: "00937842dca353faf81dbee4cf5ca00689de9faa"
+
+apron:
+  repo: "https://github.com/antoinemine/apron.git"
+  branch: "v0.9.15"
+  commit: "b3172bd51e4bb0135716a300cab424a56970d96f"
+
+# =============================================================================
+# Other pinned downloads
+# =============================================================================
+frama-c:
+  version: "32.1"
+  repo: "https://git.frama-c.com/pub/frama-c.git"
+  branch: "32.1"
+  commit: "3fd8ce95f47f39ba632732669bff6e9ab7aa4b78"
+  notes: "32.1 is not in opam, so it is cloned from git; only a trimmed kernel+EVA is built. Needs libyaml + pkg-config. `branch` is the release tag the commit came from."
+
+libevent:
+  version: "0.9.0"
+  url: "https://ygrek.org/p/release/ocaml-libevent/ocaml-libevent-0.9.0.tar.gz"
+  md5: "00851213da0c9ecf37fbd3984a266789"
+  notes: "devkit dep. Hand-written dune overlay; patched for OCaml 5.x labels (patch 7)."
+
+ocurl:
+  version: "0.9.2"
+  url: "https://ygrek.org/p/release/ocurl/ocurl-0.9.2.tar.gz"
+  md5: "8a4149c6cfa79dabdfde24f308ad1f0c"
+  notes: "devkit dep. System dep: libcurl4-openssl-dev."
+
+cmdliner-dune:
+  version: "2.1.1+dune"
+  url: "https://github.com/dune-universe/cmdliner/releases/download/v2.1.1%2Bdune/cmdliner-2.1.1.dune.tbz"
+  notes: >
+    Distinct from the `cmdliner` entry above (1.3.0, the alt-ergo vendor path).
+    js_of_ocaml needs the 2.x Arg.Completion API, and upstream dbuenzli/cmdliner
+    ships no dune files, so this is the dune-universe overlay build. Replaces the
+    lockfile's cmdliner in duniverse/.
 
 # --- alt-ergo deps not yet vendored ---
 # ppx_deriving v6.0.3 — https://github.com/ocaml-ppx/ppx_deriving — needs ppxlib ecosystem

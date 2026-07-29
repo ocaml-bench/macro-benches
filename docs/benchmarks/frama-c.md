@@ -71,3 +71,47 @@ points at weak / ephemeron-pointer cleaning.
 Frama-C is pinned at 32.1 and vendored by hand; the vendor script also fills in the
 `share`/`lib` resource trees the analysis needs (machine descriptions, the libc model that
 preprocesses the analysed C source).
+
+### Why the wrapper pins two preprocessor macros
+
+`sqlite3.c` is preprocessed with the host's C preprocessor and branches on compiler
+feature macros, so without care **different machines analyse different programs**. Two
+such branches mattered enough to pin, and the wrapper passes
+`-cpp-extra-args="-DLONGDOUBLE_TYPE=double -D'__has_extension(x)=1'"` to fix both. (The
+inner quotes are needed because Frama-C runs the preprocessor through a shell, which
+would otherwise choke on the `(`.)
+
+**`__has_extension` — a 25x performance cliff.** Frama-C preprocesses with
+`gcc -E -undef -imacros __fc_builtin_macros.h`, so `__GNUC__` is stripped and sqlite3.c's
+`GCC_VERSION` is 0 on *every* host. Its atomics gate is therefore decided entirely by the
+second half of
+
+```c
+#if GCC_VERSION>=4007000 || __has_extension(c_atomic)
+```
+
+and sqlite3.c self-guards `#ifndef __has_extension` → `#define __has_extension(x) 0`. So
+the branch hinges purely on whether the host gcc predefines `__has_extension`, which is a
+**gcc ≥ 14** feature:
+
+| host gcc | `AtomicLoad` becomes | EVA sees | wall |
+|---|---|---|---|
+| ≥ 14 | `__atomic_load_n(...)` | an undeclared function — cheap and imprecise | 7s |
+| ≤ 13 | the real `volatile`/mutex code | a far larger state space | >180s, no convergence |
+
+Measured on one machine by flipping only that macro: 7s versus still running at a 180s
+cap. Forcing it to 1 makes every host take the intrinsics path the benchmark was
+characterised on.
+
+**`LONGDOUBLE_TYPE` — an outright abort.** sqlite3.c decides at runtime whether to use
+long doubles via `sqlite3Config.bUseLongDouble = sizeof(LONGDOUBLE_TYPE)>8`. Where that
+gate is true, EVA enters the branch and Frama-C 32.1 aborts with
+`unimplemented feature ... Builtins for long double type` (exit 3). Setting the type to
+`double` — SQLite's documented override — makes the gate false everywhere. Measured cost:
+`bUseLongDouble` becomes 0 and one alarm of 87 disappears (a signed-overflow alarm inside
+the long-double detection code itself); the other ~12k log lines are identical and wall
+time is unchanged.
+
+With both pinned, the analysed program no longer depends on the host compiler, so results
+are comparable across machines. If you ever change these flags, expect the alarm count
+and the wall time to move.
