@@ -139,8 +139,12 @@ Notes for whoever touches this next:
 - **`SKIP_TEST_BUILD=1`** makes `setup-monorepo.sh` skip its `[9/9]` test build.
   CI sets it because that step targets the default `_build/` while the build
   scripts target `_build-<tag>/` — running both compiles the duniverse twice.
-- **Dune is pinned per leg**: `3.22.1` on stable (≥ 3.24 breaks vendored rocq),
-  git `main` on trunk (released dune can't bootstrap against 5.6).
+- **Dune is pinned per leg**: `3.22.1` on stable, git `main` on trunk (released
+  dune can't bootstrap against 5.6). Patch 19 is what lets the trunk leg work at
+  all — its dune is ≥ 3.24, which deleted the `coq` extension vendored rocq
+  declared. The stable pin is for determinism, not necessity: the workspace parses
+  under both 3.22.1 and 3.24 now, and pinning keeps the build environment fixed
+  the same way every source is pinned.
 - The **weekly cron run skips the cache** on purpose. Everything is pinned now
   (see §Vendored source pins), so this is not a drift detector — it is a check
   that a *cold* setup still works: that every pinned commit and tarball is still
@@ -447,6 +451,7 @@ Applied automatically by `scripts/setup-monorepo.sh`.
 | 16 | `duniverse/json-data-encoding/.../json_repr.{ml,mli}` | Add `` `Tuple ``/`` `Variant `` to `Json_repr.Yojson` | dune-universe fork narrows the type; goblint treats it as `Yojson.Safe.t` both ways |
 | 17 | `duniverse/bare-ocaml/src/dune` | Install `Bare_encoding.ml`/`.mli` | catapult copies them via `%{lib:bare_encoding:…}` (needs source installed) |
 | 18 | `duniverse/analyzer/.../control.ml` | Annotate `(module CFG : CfgBidirSkip)` | OCaml ≥ 5.5 can't infer the packaged-module signature otherwise |
+| 19 | `duniverse/rocq/dune-project` + `dune` | Drop `(using coq 0.8)` and the `dev`-profile `(coq (flags ...))` | dune 3.24 deleted the `coq` extension. It's a *parse* error, so it broke **every** build in the workspace, not just rocq's. Both declarations are dead here (rocq generates its theory rules via `tools/dune_rule_gen`; the only stanzas needing the extension are in `dune.disabled` files), so they're removed rather than ported to `(using rocq ...)` |
 
 ## Known limitations
 
