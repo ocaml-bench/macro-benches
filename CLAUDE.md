@@ -346,9 +346,10 @@ StickyImmix). Known MMTk-only issues:
 | `alt_ergo_fill` | 14 | 40 | promotion-medium | SMT theory backends |
 | `alt_ergo_yyll` | 19 | 6 | minor (compute) | native frontend, theory backends |
 | `alt_ergo_unsat_smt2` | 15 | 7 | minor (compute) | Dolmen frontend, theory backends |
-| `menhir_sql_parser` | 1.2 | 27 | minor (LALR + verbose, 0.31GB) | menhir internals — Knob-A ladder rung **small** |
-| `menhir_sysver` | 7.8 | 32 | minor (table, 0.72GB) | Hashtbl growth — ladder rung **default** |
-| `menhir_ocamly` | 13 | 21 | minor (canonical LR, 2.76GB) | Hashtbl scale, large arrays — ladder rung **large** (footprint) |
+| `menhir_sysver` | 7.8 | 32 | minor (sysver table, 0.72GB) | Hashtbl growth — Knob-A ladder rung **small** |
+| `menhir_ocamly` | 13 | 20 | minor (ocaml canonical LR, 2.76GB) | Hashtbl scale, large arrays — ladder rung **default** |
+| `menhir_sysver_canonical` | 34 | 36 | minor (sysver canonical LR, 4.0GB) | canonical state-table explosion — ladder rung **large** |
+| `menhir_sql_parser` | 1.2 | 27 | minor (LALR + verbose, 0.31GB) | menhir internals — fast LALR extra, not a ladder rung |
 | `ocamlc_self_compile` | 8.6 | 33 | minor-heavy + Marshal | Marshal (`.cmi`/`.cmo`), Hashtbl, Bigarray emit buffer, AST allocation |
 | `jsoo` | 7.2 | 33 | minor + IR construction | jsoo bytecode parser, SSA dataflow, JS codegen |
 | `jsoo_small` | 5 | 33 | minor + IR (5.6MB bytecode, 0.5GB) | whole-program IR alloc + minor-GC (Knob A = bytecode size) |
@@ -428,7 +429,7 @@ through a `RUNNING_TAG` selector.
 | `alt_ergo_unsat_smt2` | weak-refs, hashtbl, format, signals (SIGVTALRM armed by `--timelimit 15`) |
 | `frama_c_eva_{t,sqlite,sqlite_small,sqlite_default,sqlite_large}` | weak-refs / ephemeron-backed hash-consing (Weak.Make at scale), hashtbl, recursive-variants (CIL AST), minor-gc, max-rss (sqlite, #11733). Knob-A ladder = `-eva-precision` (2nd wrapper arg) on sqlite; slevel inert; t is a fixed fast standalone |
 | `goblint` | high allocation / minor-gc churn (~1.3GB for a 5.6KB input), hash-consing, apron relational domains (C/GMP FFI), recursive-variants (CIL AST), allocated-bytes (#13733) |
-| `menhir_{sql_parser,sysver,ocamly}` | hashtbl, format, lazy, minor-gc; Knob-A ladder = 3 grammars/modes (small/default/large), monotone by footprint RSS 0.31→0.72→2.76GB (times compressed 1.2→13s on current HW; old 3.3/20/33s were stale) |
+| `menhir_{sysver,ocamly,sysver_canonical,sql_parser}` | hashtbl, format, lazy, minor-gc; Knob-A ladder (automaton scale) = small sysver--table / default ocaml--canonical / large sysver--canonical, monotone by wall 7.8→13→34s AND RSS 0.72→2.76→4.0GB. sql_parser (LALR 1.2s) = fast extra, not a rung. Single-run (menhir has no loopable main) |
 | `ocamlc_self_compile` | hashtbl, marshal (`.cmi`+`.cmo` writeout), bigarray (emit buffer), minor-gc |
 | `jsoo{,_small,_default,_large}` | hashtbl, lazy, marshal(cold); Knob A = input bytecode size (rung arg → generated per-runtime .byte from real JSOO sources × R replicas) → whole-program-IR footprint ladder (RSS 0.5→7.8GB), constant ~33% gc% + 129ms max pause @ large |
 
