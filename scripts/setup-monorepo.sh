@@ -273,6 +273,54 @@ fi
 unset _rocq_patched
 echo ""
 
+# Patch 20: rocq toplevel/dune — force the memtrace-free init variant.
+# rocq-runtime has an *optional* memtrace integration:
+#   (select memtrace_init.ml from
+#    (memtrace -> memtrace_init.memtrace.ml)
+#    (!memtrace -> memtrace_init.default.ml))
+# and `depopts: [... memtrace]`.  dune's (select) turns this on automatically the
+# moment `memtrace` is present anywhere in the workspace -- which it now is, since
+# a benchmark (decompress) vendors it.  That makes rocq-runtime.toplevel *link*
+# memtrace and its generated META gain `requires ... memtrace`.  But the rocq
+# bootstrap ([8/9] below) runs tools/dune_rule_gen/gen_rules.exe, which resolves
+# rocq-runtime.toplevel purely through findlib on $OCAMLPATH, where the vendored
+# memtrace is never installed -- so gen_rules dies with:
+#   [gen_rules] Fatal error: findlib error: memtrace not found ...
+#   required by `rocq-runtime.toplevel'
+# We don't want rocq's own memtrace profiling here, so collapse the select to its
+# default (memtrace-free) clause: rocq-runtime.toplevel then never links or
+# requires memtrace, regardless of any benchmark vendoring it.  Idempotent: the
+# collapsed form has no (memtrace -> ...) clause left to match.
+echo "[3c/9] Patching duniverse/rocq/toplevel/dune (force memtrace-free init)..."
+ROCQ_TOP_DUNE="duniverse/rocq/toplevel/dune"
+if [ -f "$ROCQ_TOP_DUNE" ] && grep -qF "(memtrace -> memtrace_init.memtrace.ml)" "$ROCQ_TOP_DUNE" 2>/dev/null; then
+  python3 - <<'PYEOF'
+import pathlib, re
+p = pathlib.Path("duniverse/rocq/toplevel/dune")
+s = p.read_text()
+# (select memtrace_init.ml from
+#  (memtrace -> memtrace_init.memtrace.ml)
+#  (!memtrace -> memtrace_init.default.ml))
+# -> (select memtrace_init.ml from
+#     (-> memtrace_init.default.ml))
+s2 = re.sub(
+    r"\(select\s+memtrace_init\.ml\s+from\s+"
+    r"\(memtrace\s*->\s*memtrace_init\.memtrace\.ml\)\s+"
+    r"\(!memtrace\s*->\s*memtrace_init\.default\.ml\)\)",
+    "(select memtrace_init.ml from\n   (-> memtrace_init.default.ml))",
+    s, count=1)
+if s2 == s:
+    raise SystemExit("rocq toplevel/dune: memtrace select not matched -- patch me")
+p.write_text(s2)
+PYEOF
+  echo "  [20] rocq toplevel/dune: forced memtrace-free init (default select clause)."
+elif [ -f "$ROCQ_TOP_DUNE" ]; then
+  echo "  [20] rocq toplevel/dune: already patched (or select absent). Skipping."
+else
+  echo "  [20] rocq toplevel/dune: not vendored. Skipping."
+fi
+echo ""
+
 # ---- Vendor cpdf + camlpdf ----
 echo "[4/9] Vendoring cpdf + camlpdf..."
 if [ -d vendor/camlpdf ] && [ -d vendor/cpdf-source ]; then
