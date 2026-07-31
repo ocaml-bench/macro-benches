@@ -22,6 +22,7 @@ runtime-feature coverage matrix and gaps, the gotchas, and the backlog.
 
 ## Hard rules (do not violate)
 
+- **Do not comment on PRs, or add to PRs, unless explicitly asked to.**
 - No "Claude"/Anthropic/Co-Authored-By: Claude in further commit messages.
 - **Remote is `origin = github.com/ocaml-bench/macro-benches`** — a *shared org*
   repo, not a personal fork. Be careful pushing; commit/push only when asked.
@@ -74,8 +75,18 @@ Or drive the build straight from the manifest: `bash scripts/ci-build-all.sh`.
 
 ## CI
 
-`.github/workflows/ci.yml` runs on **pull requests into `master`** (plus a weekly
-cron and `workflow_dispatch`); nothing runs on branch pushes. Two matrix legs: the
+`.github/workflows/ci.yml` runs on **pull requests into `master`** and on **pushes
+to `master`** (plus a weekly cron and `workflow_dispatch`); nothing runs on other
+branch pushes. The PR run is the gate; the post-merge run exists because the
+required check is not `strict`, so two PRs can each be green against an older
+`master` and still break it together — without a push run, nothing would notice
+until the next PR or the Monday cron. It is cheap (same cache key as the PR run
+that just passed) and it refreshes the cache in `master`'s scope, which is the only
+scope every PR can restore from. Note `cancel-in-progress` is deliberately limited
+to PR runs: superseding a PR run is right, but cancelling a `master` run would
+leave the merge that triggered it unverified.
+
+Two matrix legs: the
 **latest stable release**, which gates, and the **`ocaml/ocaml` trunk tip**, which
 is `continue-on-error` because it tracks a moving compiler and needs ppxlib/lwt
 git `main` (patches 4+5 below). The trunk leg resolves the tip commit *before*
