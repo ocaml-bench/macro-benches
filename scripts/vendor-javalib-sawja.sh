@@ -14,42 +14,40 @@
 # Chain (build order):  extlib (dune) + camlzip (make) -> javalib (make) -> sawja (make)
 set -euo pipefail
 
+MONOREPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SRC="${JS_SRC:-$(pwd)/vendor-javalib-sawja-src}"
 PREFIX="${JS_PREFIX:?set JS_PREFIX to the per-runtime prefix dir}"
 
-# --- pinned tags (these ARE the version pins; match the lock's zip 1.11 / the
-#     javalib 3.2.1+ & sawja 1.5.11+ infer requires) ---
-EXTLIB_TAG="${EXTLIB_TAG:-1.8.0}"
-CAMLZIP_TAG="${CAMLZIP_TAG:-rel111}"
-JAVALIB_TAG="${JAVALIB_TAG:-3.2.2}"
-SAWJA_TAG="${SAWJA_TAG:-1.5.12}"
+# clone_pinned — the version pins (extlib 1.8.0, camlzip rel111/zip 1.11 to match
+# the lock, javalib 3.2.2, sawja 1.5.12) live in sources.yml as commits, so a
+# re-pointed tag upstream cannot change what we build.
+source "${MONOREPO_DIR}/scripts/lib-sources.sh"
 
-clone() { [ -d "$SRC/$2" ] || git clone --depth 1 -b "$3" "$1" "$SRC/$2"; }
 mkdir -p "$SRC"
-clone https://github.com/ygrek/ocaml-extlib.git   extlib  "$EXTLIB_TAG"
-clone https://github.com/xavierleroy/camlzip.git  camlzip "$CAMLZIP_TAG"
-clone https://github.com/javalib-team/javalib.git javalib "$JAVALIB_TAG"
-clone https://github.com/javalib-team/sawja.git   sawja   "$SAWJA_TAG"
+clone_pinned cppo    "$SRC/cppo"
+clone_pinned extlib  "$SRC/extlib"
+clone_pinned camlzip "$SRC/camlzip"
+clone_pinned javalib "$SRC/javalib"
+clone_pinned sawja   "$SRC/sawja"
 
 # --- per-runtime build into PREFIX, opam-free ---
 rm -rf "$PREFIX"; mkdir -p "$PREFIX/lib/stublibs" "$PREFIX/bin"
 # pristine source per runtime: drop any build artifacts from another compiler
-for d in extlib camlzip javalib sawja; do
+for d in cppo extlib camlzip javalib sawja; do
   git -C "$SRC/$d" clean -fdxq && git -C "$SRC/$d" checkout -q .
 done
 export OCAMLPATH="$PREFIX/lib" OCAMLFIND_DESTDIR="$PREFIX/lib" PATH="$PREFIX/bin:$PATH"
 mkdir -p "$OCAMLFIND_DESTDIR"
 echo "compiler: $(ocaml -version)"
 
-# extlib 1.8.0's dune build preprocesses with cppo, so it must be on PATH in the
-# active runtime switch (this prefix build is otherwise opam-free).  Fail early
-# with a clear message rather than the cryptic "Program cppo not found in PATH".
-command -v cppo >/dev/null 2>&1 || {
-  echo "ERROR: cppo not found on PATH.  extlib (a javalib build dep) needs it." >&2
-  echo "       Install it into the runtime switch, e.g.:" >&2
-  echo "         opam install --switch <runtime-switch> cppo" >&2
-  exit 1
-}
+# extlib 1.8.0's dune build preprocesses with cppo, so cppo must be on PATH.
+# Rather than require `opam install cppo` in every runtime switch, build it from
+# the pinned source into this prefix's bin/ (already prepended to PATH above), so
+# the whole chain stays opam-free — the same model as extlib/javalib/sawja.
+echo "[0/4] cppo (dune build -> PREFIX/bin, so extlib's build can find it)"
+dune build --root "$SRC/cppo" --profile release src/cppo_main.exe
+install -m755 "$SRC/cppo/_build/default/src/cppo_main.exe" "$PREFIX/bin/cppo"
+command -v cppo >/dev/null 2>&1 || { echo "ERROR: cppo build did not land on PATH" >&2; exit 1; }
 
 echo "[1/4] extlib (dune build @install)"
 # --root isolates the build so dune doesn't adopt the enclosing macro-benches

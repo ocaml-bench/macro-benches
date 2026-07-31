@@ -201,3 +201,47 @@ cmdliner-dune:
 # camlzip      rel113  — https://github.com/xavierleroy/camlzip     — Makefile, needs dune overlay + zlib
 # fmt          v0.9.0  — https://github.com/dbuenzli/fmt            — topkg, needs dune overlay
 # logs         v0.7.0  — https://github.com/dbuenzli/logs           — topkg, needs dune overlay
+
+# --- infer benchmark: manually vendored, java-only pure-dune build ---
+# Infer itself (autoconf/make upstream generates dune files, so it can't join the
+# opam-monorepo lock — vendored via scripts/vendor-infer.sh with a pre-generated
+# java-only dune overlay) plus its non-dune analysis-lib chain (cppo, extlib,
+# camlzip, javalib, sawja) built per-runtime by scripts/vendor-javalib-sawja.sh.
+# Commits are the resolved targets of the tags these scripts previously cloned by
+# name.
+cppo:
+  repo: "https://github.com/ocaml-community/cppo.git"
+  branch: "v1.8.0"
+  commit: "a3e90caf8fe416000f8aff8e1b1e7ee3b309d589"
+  notes: "Build-time preprocessor for extlib. Built into the per-runtime prefix by scripts/vendor-javalib-sawja.sh so the chain needs no `opam install cppo`."
+
+infer:
+  repo: "https://github.com/ngorogiannis/infer.git"
+  branch: "inferbench-v1.0"
+  commit: "31180587125311b6dde2ef08d207621694926800"
+  date: "2026-07-31"
+  notes: "java-only Infer fork; tag inferbench-v1.0. Vendored by scripts/vendor-infer.sh, built as an in-tree dune project via the dune-overlays/infer overlay."
+
+extlib:
+  repo: "https://github.com/ygrek/ocaml-extlib.git"
+  branch: "1.8.0"
+  commit: "037e18fd59575fd7cebae5887348c7ca320d91fe"
+  notes: "javalib/sawja dep (infer). Built per-runtime, opam-free, by scripts/vendor-javalib-sawja.sh."
+
+camlzip:
+  repo: "https://github.com/xavierleroy/camlzip.git"
+  branch: "rel111"
+  commit: "d81554a31865064b2c5719a53265fd52a6f3d380"
+  notes: "javalib/sawja dep (infer), zip 1.11 to match the lock. Built per-runtime by scripts/vendor-javalib-sawja.sh."
+
+javalib:
+  repo: "https://github.com/javalib-team/javalib.git"
+  branch: "3.2.2"
+  commit: "8d9829c5c2061b60c31874e89d9d9bd44118d2de"
+  notes: "infer's bytecode-capture library. Built per-runtime by scripts/vendor-javalib-sawja.sh."
+
+sawja:
+  repo: "https://github.com/javalib-team/sawja.git"
+  branch: "1.5.12"
+  commit: "9b6da230669b11c009d97ed3851513a1d39af268"
+  notes: "infer's static-analysis library (on javalib). Built per-runtime by scripts/vendor-javalib-sawja.sh."

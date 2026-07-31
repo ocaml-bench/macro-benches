@@ -44,15 +44,19 @@ VENDOR_DIR="${MONOREPO_DIR}/vendor"
 INFER_DIR="${VENDOR_DIR}/infer"
 OVERLAY_DIR="${MONOREPO_DIR}/dune-overlays/infer"
 
+# clone_pinned — the URL and pinned commit come from sources.yml (`infer` key).
+# INFER_URL/INFER_REF above are kept only for the overlay-regeneration comment.
+source "${MONOREPO_DIR}/scripts/lib-sources.sh"
+
 if [ -d "${INFER_DIR}" ] && [ -f "${INFER_DIR}/infer/dune-project" ]; then
   echo "vendor/infer/ already exists. Remove it first to re-vendor."
   exit 0
 fi
 
-echo "Cloning Infer ${INFER_REF} from ${INFER_URL}..."
+echo "Cloning Infer (pinned in sources.yml)..."
 mkdir -p "${VENDOR_DIR}"
-git clone "${INFER_URL}" "${INFER_DIR}"
-git -C "${INFER_DIR}" checkout --detach "${INFER_REF}"
+clone_pinned infer "${INFER_DIR}"
+# Drop .git: vendor/infer is a self-contained, patched tree, not a live checkout.
 rm -rf "${INFER_DIR}/.git"
 
 # ---- Strip subtrees we never build (java-only, pure OCaml, no C/C++ frontends) ----

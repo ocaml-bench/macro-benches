@@ -69,3 +69,63 @@ per-procedure abstract states, a large hashconsed type environment, and summary 
 major/minor collection counts, pauses, and heap growth. Because `--changed-files-index` fixes
 the exact class set analysed, the workload is byte-identical across runtimes; only the compiler
 and its runtime change.
+
+## Operational notes (maintainers)
+
+Validated end to end on OCaml **5.4.0** and **5.5.0** (build + one `analyze --multicore`);
+trunk (5.6) and `ocaml-mmtk` are not yet exercised. The pieces:
+
+| File | Role |
+|------|------|
+| `scripts/vendor-infer.sh` | clone java-only Infer (`ngorogiannis/infer`, pinned in `sources.yml`) into `vendor/infer`, lay down the `dune-overlays/infer/` dune files |
+| `scripts/vendor-javalib-sawja.sh` | build cppo + extlib + camlzip + javalib + sawja into a per-runtime prefix (non-dune deps; the apron model) |
+| `scripts/vendor-infer-corpus.sh` | fetch 4 pinned Maven Central jars + merge → `vendor/.infer-corpus/corpus.jar` |
+| `benchmarks/infer/roots.idx` | committed class subset selecting the workload size |
+| `benchmarks/infer/infer.build.sh` | the running-ng build hook (prefix → dune build → capture → wrapper) |
+
+`macro-bench-infer` in `dune-project` / `macro-bench-infer.opam(.template)` declares Infer's OCaml
+deps for the lock. `javalib`/`sawja` are deliberately **not** declared there — they come from the
+prefix. All of Infer's other deps (`core`, `atdgen`, `parmap`, …) come from the in-tree `duniverse/`.
+
+**Prerequisites.** A tools switch with `opam-monorepo`; system packages `libsqlite3-dev`,
+`zlib1g-dev`, `unzip`, `zip`, `curl` (Infer links sqlite3 + zlib; capture is JVM-free, so no JDK).
+No per-switch `cppo` is needed — `vendor-javalib-sawja.sh` builds the pinned cppo into the prefix,
+so the whole chain is opam-free.
+
+**One-time lock (Linux tools-switch only).** Infer's deps must be in the lock:
+`OPAMSWITCH=running-ng-tools opam monorepo lock` then `make clean-all && make setup`, and commit
+`macro-benches.opam.locked` + `dune-project` + `*.opam`.
+
+**Standalone sanity (one runtime):**
+```sh
+RUNNING_OCAML_RUNTIME_NAME=5.4.1 RUNNING_OCAML_OUTPUT=/tmp/infer-5.4.1 \
+  bash benchmarks/infer/infer.build.sh
+/tmp/infer-5.4.1                        # runs analyze --multicore -j12; time it
+```
+The 251 MB `capture.db` is built once per runtime by the hook; the wrapper re-analyses in place.
+
+**Tuning to a farm.** Absolute time is machine-relative; the committed `roots.idx` (~72 classes)
+is a starting point. Regenerate with `infer debug --source-files -o <capture> | grep '\.class$'
+| sort | awk 'NR % K == 1' > benchmarks/infer/roots.idx`, picking `K` so the wrapper lands
+mid-band (full corpus ≈ 20× the default, ~350 s at `-j12` — the ceiling). Commit the result.
+
+**Variants.** Default `--multicore` (shared-heap domains, single process, `INFER_JOBS` domains);
+`INFER_MULTICORE=0` gives the fork/parmap wall-clock companion — worth registering as a second
+program if throughput is wanted alongside the shared-heap GC signal.
+
+**running-ng registration.** Add `infer` to the `OCamlBenchmarkSuite` config (and its test-build
+list) pointing at `benchmarks/infer/infer.build.sh`. Suggested ring size `re-25` (bump to `re-26`
+on runtime_events overflow). The output is a wrapper, not a copied binary, so on a rebuild delete
+the wrapper output as well as `_build-<runtime>` (see the top-level CLAUDE.md gotcha).
+
+**Gotchas.**
+- `infer analyze` wants `--jobs N` / `-j N` **with a space**; `-j12` glued is an unknown option
+  and exits immediately doing nothing.
+- `--keep-going` does *not* rescue an uncaught `Sawja_pack.Bir.Bad_stack` — vet corpus jars
+  (clojure was dropped for exactly this).
+- Don't commit `vendor/.infer-*` (corpus, prefix, capture) — all under git-ignored `vendor/`.
+- The overlay links `ounit2`, not the legacy `oUnit` alias Infer's generated dune expects: the
+  hermetic duniverse ships only the `ounit2` public name (see the CLAUDE.md gotchas).
+- `infer.build.sh` hides `duniverse/{ocaml-extlib,camlzip}` for the duration of its dune build
+  (the prefix supplies both, and dune rejects duplicate public names) and restores them via a
+  trap — so don't build infer and devkit *concurrently* in the same tree (see CLAUDE.md gotchas).

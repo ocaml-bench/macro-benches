@@ -426,6 +426,13 @@ programs:
     tool: pplacer
     build_script: pplacer.build.sh
     args: "85"
+  infer:
+    tool: infer
+    build_script: infer.build.sh
+    # The wrapper bakes its workload (roots.idx subset + captured corpus) at build
+    # time and execs `infer analyze` with fixed flags, so it takes no in-tree args.
+    inputs_generated: true
+    args: ""
 
 disabled:
   lavyek:
