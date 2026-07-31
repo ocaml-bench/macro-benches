@@ -27,24 +27,8 @@ dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
   --profile release \
   duniverse/menhir/src/stage2/main.exe
 
-REAL_EXE="${BUILD_DIR}/default/duniverse/menhir/src/stage2/main.exe"
-
-# Repetition wrapper: run the real menhir MENHIR_REPEAT times (default 3).
-# On current hardware a single grammar run is only ~1-13s — too short to
-# measure well (sql_parser was ~1s). Each grammar's automaton-construction
-# footprint is identical run-to-run, so looping raises wall time into the
-# old ~3/20/33 s bands WITHOUT changing the per-run RSS/live footprint that
-# defines the ladder (max RSS across the sequential runs = one run's peak).
-# MENHIR_REPEAT=1 restores single-run behaviour.
 mkdir -p "$(dirname "${OUT}")"
-cat > "${OUT}" << WRAPPER
-#!/usr/bin/env bash
-set -euo pipefail
-n="\${MENHIR_REPEAT:-3}"
-for _ in \$(seq 1 "\$n"); do
-  "${REAL_EXE}" "\$@"
-done
-WRAPPER
+cp "${BUILD_DIR}/default/duniverse/menhir/src/stage2/main.exe" "${OUT}"
 chmod +x "${OUT}"
 
-echo "menhir built (repeat-wrapper): ${OUT}"
+echo "menhir built: ${OUT}"
