@@ -458,7 +458,7 @@ Applied automatically by `scripts/setup-monorepo.sh`.
 | 12 | `vendor/pplacer/mcl/caml/caml_mcl.c` | Add `#include <stdint.h>` | OCaml 5.6 trunk headers need it |
 | 13 | `vendor/pplacer/tests/tests.ml` | Add `PPLACER_TEST_LOOP` env-var loop | Run the suite N times in one process (see Iteration counts) |
 | 14 | `duniverse/analyzer/.../runtime/include/goblint.h` | `__goblint_assume_join` arg type | GCC 14+/C23 conflicting-types vs the `.c` definition |
-| 15 | `duniverse/cpu/` | Run `autoconf; autoheader; ./configure` | Generates `src/config.h` its C stub needs (opam runs this; dune doesn't) |
+| 15 | `duniverse/cpu/` | Run `autoconf; autoheader; ./configure` **with `$TOOLS_BIN` on `PATH`** | Generates `src/config.h` its C stub needs (opam runs this; dune doesn't). `./configure` probes for `ocamlc` and aborts with "You must install the OCaml compiler" without one, and this patch section runs *before* step [8] puts `$TOOLS_BIN` on `PATH` — so it must set it itself. Failure is fatal: it used to be a swallowed warning, and the only symptom was goblint failing much later with `cpu_stubs.c:1:10: fatal error: config.h: No such file or directory` |
 | 16 | `duniverse/json-data-encoding/.../json_repr.{ml,mli}` | Add `` `Tuple ``/`` `Variant `` to `Json_repr.Yojson` | dune-universe fork narrows the type; goblint treats it as `Yojson.Safe.t` both ways |
 | 17 | `duniverse/bare-ocaml/src/dune` | Install `Bare_encoding.ml`/`.mli` | catapult copies them via `%{lib:bare_encoding:…}` (needs source installed) |
 | 18 | `duniverse/analyzer/.../control.ml` | Annotate `(module CFG : CfgBidirSkip)` | OCaml ≥ 5.5 can't infer the packaged-module signature otherwise |
