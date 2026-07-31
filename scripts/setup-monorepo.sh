@@ -593,11 +593,31 @@ fi
 # `autoconf; autoheader; ./configure` before dune, which produces src/config.h
 # that its C stub (#include "config.h") needs.  opam-monorepo vendors the
 # source but not that build step, so generate it here.  Idempotent.
+#
+# cpu's ./configure probes for ocamlc and aborts with "You must install the OCaml
+# compiler" if it can't find one, so it needs the tools switch on PATH. $TOOLS_BIN
+# only joins PATH globally at step [8], *after* this patch section, so set it here
+# explicitly rather than relying on whatever the caller's shell happens to have.
+#
+# And failure is fatal. This used to swallow all output and downgrade to a
+# warning, which meant a cold `make setup` printed one easily-missed line, exited
+# 0, and then goblint failed to build much later with `cpu_stubs.c:1:10: fatal
+# error: config.h: No such file or directory` — a symptom several steps removed
+# from the cause. If goblint can't build, setup should say so here.
 CPU_DIR="duniverse/cpu"
 if [ -f "$CPU_DIR/configure.ac" ] && [ ! -f "$CPU_DIR/src/config.h" ]; then
-  ( cd "$CPU_DIR" && autoconf && autoheader && ./configure ) >/dev/null 2>&1 \
-    && echo "  [15] cpu: generated src/config.h (autoconf/autoheader/configure)." \
-    || echo "  [15] cpu: configure FAILED — check autoconf availability."
+  _cpu_log="$(mktemp)"
+  if ( cd "$CPU_DIR" && PATH="$TOOLS_BIN:$PATH" \
+         sh -c 'autoconf && autoheader && ./configure' ) >"$_cpu_log" 2>&1; then
+    echo "  [15] cpu: generated src/config.h (autoconf/autoheader/configure)."
+    rm -f "$_cpu_log"
+  else
+    echo "  [15] cpu: configure FAILED — goblint cannot build without src/config.h." >&2
+    echo "  ---- last 20 lines of cpu configure output ----" >&2
+    tail -20 "$_cpu_log" >&2
+    rm -f "$_cpu_log"
+    exit 1
+  fi
 elif [ -f "$CPU_DIR/src/config.h" ]; then
   echo "  [15] cpu: config.h already present."
 else
@@ -803,7 +823,12 @@ if [ "${SKIP_TEST_BUILD:-0}" = "1" ]; then
   exit 0
 fi
 
-echo "[9/9] Test build of all benchmark binaries..."
+# NOTE: this is a *smoke* build of a hand-maintained subset, not every program.
+# It deliberately omits the ones needing per-runtime external prefixes — goblint
+# (apron/camlidl via scripts/vendor-apron.sh) above all — plus several that share a
+# tool already listed. `benchmarks/manifest.yml` is the authoritative program list;
+# `scripts/ci-build-all.sh` is what actually builds all of them.
+echo "[9/9] Smoke build of a subset of benchmark binaries..."
 export PATH="$TOOLS_BIN:$PATH"
 export OCAMLPATH="$("$_OPAM" var prefix --switch="$TOOLS_SWITCH")/lib:$("$_OPAM" var prefix --switch="$TOOLS_SWITCH")/lib/ocaml"
 
@@ -827,7 +852,8 @@ dune build \
 echo ""
 echo "=== Setup complete! ==="
 echo ""
-echo "All benchmark binaries build successfully."
+echo "The smoke-build subset builds successfully."
+echo "To build every program in benchmarks/manifest.yml: bash scripts/ci-build-all.sh"
 echo ""
 echo "To run benchmarks:"
 echo "  cd ~/running-ng"
