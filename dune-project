@@ -63,7 +63,8 @@
  (depends
   (decompress (>= 1.5.0))
   (checkseum (>= 0.2.0))
-  (bigstringaf (>= 0.2.0))))
+  (bigstringaf (>= 0.2.0))
+  (memtrace (>= 0.2.3))))
 
 (package
  (name macro-bench-eio)
