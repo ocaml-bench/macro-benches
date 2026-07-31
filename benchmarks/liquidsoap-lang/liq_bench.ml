@@ -83,11 +83,36 @@ let f = fib(10)
 let g = factorial(8)
 |}
 
+(* Knob A = script SIZE. When a unit count is given (argv.2), generate a
+   script of that many independent units instead of replaying the fixed one.
+   Each unit is a self-contained block (recursion + higher-order + lists,
+   using the same liquidsoap idioms as the fixed script) with a unique
+   suffix, so the parser builds a proportionally bigger AST and the
+   typechecker a proportionally bigger type environment — the live set (and
+   RSS) grow with the count, unlike replaying one small script N times. *)
+let generate_script units =
+  let b = Buffer.create (units * 400) in
+  for i = 1 to units do
+    Buffer.add_string b
+      (Printf.sprintf
+         "def rec_%d(n) =\n  if n <= 1 then n else rec_%d(n - 1) + rec_%d(n - 2) end\nend\n\
+          def map_%d(fn, l) =\n  list.case(l, [], fun (h, t) -> list.add(fn(h), map_%d(fn, t)))\nend\n\
+          let xs_%d = map_%d(fun (x) -> x * %d, list.add(1, list.add(2, list.add(3, []))))\n\
+          let v_%d = rec_%d(10)\n"
+         i i i i i i i i i i)
+  done ;
+  Buffer.contents b
+
 let iterations = ref 200
 
 let () =
   if Array.length Sys.argv > 1 then
     iterations := int_of_string Sys.argv.(1);
+  let script =
+    if Array.length Sys.argv > 2 then generate_script (int_of_string Sys.argv.(2))
+    else script
+  in
+  Printf.printf "Script: %d bytes, %d iterations\n%!" (String.length script) !iterations;
   for _ = 1 to !iterations do
     let parsed, _term = Liquidsoap_lang.Runtime.parse script in
     ignore (Liquidsoap_lang.Runtime.type_term parsed)

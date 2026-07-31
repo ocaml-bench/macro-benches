@@ -312,7 +312,10 @@ StickyImmix). Known MMTk-only issues:
 | `coqc_tree_large` | 69 | 97 | minor-saturation (D=19, 1.89GB, 64ms max pause) | minor-GC saturation at scale (highest gc% in suite) |
 | `eio_fiber_stream` | 6 | 10 | promotion-heavy | OCaml 5 effects, fiber scheduler |
 | `irmin_mem_rw` | 12 | 11 | medium | Lwt, persistent hash-tree |
-| `liq_parse_typecheck` | 26 | 22 | promotion-heavy (48%) | AST + minor-to-major copy |
+| `liq_parse_typecheck` | 26 | 22 | promotion-heavy (48%) | AST + minor-to-major copy (Knob-B, 50000× fixed script) |
+| `liq_parse_typecheck_small` | 5 | 59 | promotion-heavy (0.22, 0.26GB) | parse+typecheck AST/type-env at scale (Knob A = script size, generated units) |
+| `liq_parse_typecheck_default` | 14 | 60 | promotion-heavy (0.44GB) | as small, bigger AST + type env |
+| `liq_parse_typecheck_large` | 64 | 59 | promotion-heavy (12k units, 0.72GB) | promotion + type-inference throughput at scale (~60% gc%, super-quadratic wall) |
 | `ydump_repeat` | 5.5 | 4.5 | promotion-heavy (65%) | recursive variants, JSON tree |
 | `ydump_repeat_small` | 5.5 | 29 | promotion-heavy (28%, 3.25GB) | promotion + major-GC pauses on a boxed JSON tree (Knob A = doc size) |
 | `ydump_repeat_default` | 16 | 34 | promotion-heavy (10GB) | as small, bigger tree |
@@ -411,7 +414,7 @@ through a `RUNNING_TAG` selector.
 | `merlin_bench` *(disabled)* | domains, effects, atomics, hashtbl, format; cold: ephemerons, Gc.finalise |
 | `lavyek_kv_1d` *(disabled)* | atomics, effects, eio-fibers, io-uring, pthread-affinity, hashtbl |
 | `lavyek_kv_{2,4,8}d` *(disabled)* | domains, atomics, effects, eio-fibers, io-uring, pthread-affinity, hashtbl |
-| `liq_parse_typecheck` | hashtbl, lazy, format, major-promotion, minor-gc |
+| `liq_parse_typecheck{,_small,_default,_large}` | hashtbl, lazy, format, major-promotion, minor-gc; Knob A = script size (argv.2 = generated unit count, in-process) → promotion-heavy AST+type-env ladder (RSS 0.26→0.72GB, ~60% gc%, super-quadratic wall) |
 | `ydump_repeat{,_small,_default,_large}` | minor-gc, major-promotion, recursive-variants; Knob A = doc size (argv.2 = generated record count, in-process) → promotion-heavy footprint ladder (RSS 3.25→20GB), 424ms max pause (largest in suite) |
 | `test_decompress{,_small,_default,_large}` | bigarray, custom-block-finalisation (Bigstringaf), major-promotion; Knob A = payload size (argv.2) → compute+Bigstring footprint ladder (RSS 0.5→5.7GB), gc% ~0.8% (compute-bound control) |
 | `pplacer_testsuite` | Gc.finalise, custom-block-finalisation (GSL+sqlite3), ffi-stubs, hashtbl, minor-gc |
