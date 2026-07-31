@@ -1,10 +1,18 @@
 name: CI
 
-# Pull requests into master only: the gate is "this change keeps master buildable
-# and runnable", checked before the merge rather than after. Nothing runs on
-# branch pushes, so work-in-progress branches don't burn runner time.
+# Pull requests into master are the gate: "this change keeps master buildable and
+# runnable", checked before the merge. Pushes to master verify the result *after*
+# it — required checks are not `strict`, so two PRs can each be green against an
+# older master and still break it together, and nothing else would notice until
+# the next PR or the Monday cron. The post-merge run is cheap: same cache key as
+# the PR run that just passed, so it restores a warm cache. It also refreshes the
+# cache in master's scope, which is the only scope every PR can restore from.
+#
+# Nothing runs on other branch pushes, so work-in-progress doesn't burn runners.
 on:
   pull_request:
+    branches: [master]
+  push:
     branches: [master]
   workflow_dispatch:
   schedule:
@@ -17,7 +25,10 @@ on:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Superseding a PR run is what you want — only the latest push matters. Cancelling
+  # a *master* run is not: two merges landing close together would leave the first
+  # one unverified, which is the gap this post-merge run exists to close.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build-and-run:
