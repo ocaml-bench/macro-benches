@@ -1,3 +1,5 @@
+let () = Memtrace.trace_if_requested ~context:"decompress" ()
+
 open Zl
 
 let iterations = try int_of_string(Sys.argv.(1)) with _ -> 64
