@@ -20,9 +20,33 @@ between iterations, so every round allocates a whole new AST, typechecks it whil
 still live, and then lets it fall out of scope.
 
 The iteration count comes from `Sys.argv.(1)`. Worth noting: the binary's built-in
-default is only 200 iterations (the `iterations` ref in `liq_bench.ml`). The suite drives
-it with a much larger count (on the order of 50000) to get a meaningful wall time, so the
-headline numbers below assume the large count, not the built-in default.
+default is only 200 iterations (the `iterations` ref in `liq_bench.ml`). The legacy
+`liq_parse_typecheck` bench drives it with a much larger count (~50000) to get a
+meaningful wall time — that is the Knob-B (repetition) form.
+
+## Knob-A ladder (script size)
+
+Knob A is the **size of the script** — a bigger AST and a bigger type environment, rather
+than more repetitions of a small one. A second argument (`argv.2`) is a *unit count*: when
+given, the driver generates a script of that many independent units (each a self-contained
+recursion + higher-order + list block, using the same liquidsoap idioms as the fixed
+script, with a unique suffix) and parses + typechecks it **once**. Generating in-process
+avoids any vendored/generated files. Measured on OCaml 5.5.0, Ryzen 9 9950X
+(`fingerprint.sh` `v=0x400`; olly gc%/pause from `perf_grp1|re-25|md-2`):
+
+| rung | units | script | wall | gc% | RSS | live heap (top_heap_words) | promo frac |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `_small` | 4000 | ~1.1 MB | 4.8s | 59% | 0.26 GB | 37 M | 0.22 |
+| `_default` | 6500 | ~1.8 MB | 14.3s | 60% | 0.44 GB | 61 M | 0.24 |
+| `_large` | 12000 | ~3.3 MB | 63.5s | 59% | 0.72 GB | 113 M | 0.25 |
+
+RSS, live heap and the major-collection count (94 → 131 → 210) all grow with the script, so
+each rung reaches a bigger AST + type-environment regime. **wall is super-quadratic** in the
+unit count (~n^2.1) — the type environment grows and each unit's inference unifies against
+it, so the run gets GC-and-inference-bound fast (D=30000 already exceeds 200 s). gc% holds a
+**constant ~60 %** across all rungs — the parse-and-promote path dominates at every size, one
+of the most promotion-heavy, GC-throughput-sensitive workloads in the suite. A huge band is
+deferred.
 
 ## What it stresses
 
