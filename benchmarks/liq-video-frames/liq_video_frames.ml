@@ -40,9 +40,17 @@
    inline. The cleanest reproduction of toots' free-lunch shape uses
    LIQ_POOL=1, LIQ_TOUCH=full. *)
 
-(* Plane sizes match mm/imageYUV420.ml for 1280×720. *)
-let frame_width = 1280
-let frame_height = 720
+(* Plane sizes match mm/imageYUV420.ml for 1280×720 by default. Knob A =
+   frame RESOLUTION (LIQ_WIDTH/LIQ_HEIGHT): a bigger frame scales the per-frame
+   off-heap Bigarray size — the custom-block pacer's allocation unit — and the
+   touch bandwidth, reaching a bigger off-heap-allocation regime while keeping
+   the exact #14533 pool/pacer mechanics. The frozen repro leaves these unset
+   (1280×720). *)
+let arg_or_env i env default =
+  if Array.length Sys.argv > i then int_of_string Sys.argv.(i)
+  else match Sys.getenv_opt env with Some s -> int_of_string s | None -> default
+let frame_width = arg_or_env 2 "LIQ_WIDTH" 1280
+let frame_height = arg_or_env 3 "LIQ_HEIGHT" 720
 let y_bytes = frame_width * frame_height
 let uv_bytes = ((frame_width + 1) / 2) * ((frame_height + 1) / 2)
 

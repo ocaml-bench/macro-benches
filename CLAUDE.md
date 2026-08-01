@@ -262,7 +262,7 @@ In use by:
 | `devkit_stre` | `Sys.argv.(1)` | loops the 8 sub-benches (default 1) |
 | `devkit_gzip` | `Sys.argv.(1)` | same shape as stre |
 | `devkit_network` | `Sys.argv.(1)` | same shape as stre |
-| `liq_video_frames_pool` | `Sys.argv.(1)` | number of frames (source default 1; runner passes ~30000) |
+| `liq_video_frames_pool` | `Sys.argv.(1)` | number of frames (Knob B); `argv.2`/`argv.3` = frame width/height (Knob A = resolution) |
 
 Note: `devkit_htmlstream` is **not** in this list — it runs fixed internal
 `for _ = 1 to 10` loops and is copied out as a standalone binary, so it ignores
@@ -334,7 +334,10 @@ StickyImmix). Known MMTk-only issues:
 | `owl_gc_large` | 124 | 8 | off-heap (dim 1500, 1.9GB, 27ms max pause) | off-heap footprint + GC latency + custom-block pacer (M) |
 | `owl_gc_huge` | 453 | 8 | off-heap (dim 2400, 4.77GB, 53ms max pause / 25ms p99.9) | off-heap footprint at scale + GC latency + pacer (M) |
 | `zarith_pi` | 8 | 27 | off-heap (GMP custom blocks) | custom-block path, GMP stubs |
-| `liq_video_frames_pool` | 4-20 | low | off-heap (Bigarray, refcounted pool) | custom_major_ratio pacer, refcounted-pool free lunch (#14533) |
+| `liq_video_frames_pool` | 4-20 | low | off-heap (Bigarray, refcounted pool) | custom_major_ratio pacer, refcounted-pool free lunch (#14533); frozen repro (720p×30000) |
+| `liq_video_frames_pool_small` | 5.6 | 95 | off-heap pacer (1080p, 1104 majorGC) | custom_major_ratio pacing (Knob A = frame resolution) |
+| `liq_video_frames_pool_default` | 22 | 94 | off-heap pacer (4K, 4413 majorGC) | as small, bigger per-frame off-heap |
+| `liq_video_frames_pool_large` | 101 | 79 | off-heap pacer (8K, 16837 majorGC, ~5ms pauses) | major-GC pacing at scale (majorGC ∝ pixels²; RSS flat, read by collection counts) |
 | `devkit_gzip` | 10 | 1 | compute-bound | codegen, zlib stubs |
 | `devkit_stre` | 14 | 5.5 | minor + retention | string allocator, generational copy |
 | `devkit_network` | 17 | 4.5 | minor (Int32) | int32 boxing, Hashtbl |
@@ -422,7 +425,7 @@ through a `RUNNING_TAG` selector.
 | `test_decompress{,_small,_default,_large}` | bigarray, custom-block-finalisation (Bigstringaf), major-promotion; Knob A = payload size (argv.2) → compute+Bigstring footprint ladder (RSS 0.5→5.7GB), gc% ~0.8% (compute-bound control) |
 | `pplacer_testsuite` | Gc.finalise, custom-block-finalisation (GSL+sqlite3), ffi-stubs, hashtbl, minor-gc |
 | `owl_gc{,_small,_default,_large,_huge}` | bigarray, custom-block-finalisation (Array2), ffi-stubs (OpenBLAS), minor-gc; Knob A = matrix dim (`OWL_MATRIX_DIM`, 2nd wrapper arg) → off-heap footprint ladder (RSS 95MB→4.77GB); large/huge also hit off-heap-accounting pacer |
-| `liq_video_frames_pool` | bigarray, custom-block-finalisation, off-heap accounting (M-sweep) |
+| `liq_video_frames_pool{,_small,_default,_large}` | bigarray, custom-block-finalisation, off-heap accounting (M-sweep); Knob A = frame resolution (argv.2/3) → major-GC-pacing ladder (majorGC 1104→16837 @ 1080p→8K, gc% ~80-95%, RSS flat) |
 | `zarith_pi` | custom-block-finalisation (`Z.t`), ffi-stubs (GMP), minor-gc, format(cold) |
 | `devkit_gzip` | custom-block-finalisation (z_stream), ffi-stubs (zlib), hashtbl, buffer |
 | `devkit_stre` | hashtbl, minor-gc, buffer, string-allocator |
