@@ -358,6 +358,9 @@ StickyImmix). Known MMTk-only issues:
 | `alt_ergo_fill` | 14 | 40 | promotion-medium | SMT theory backends |
 | `alt_ergo_yyll` | 19 | 6 | minor (compute) | native frontend, theory backends |
 | `alt_ergo_unsat_smt2` | 15 | 7 | minor (compute) | Dolmen frontend, theory backends |
+| `alt_ergo_chain_small` | 4.2 | 14 | live congruence structure (76M w, N=4000) | Knob A = single-solve problem size (chain VC a(i)=a(i-1)+1) |
+| `alt_ergo_chain_default` | 14 | 18 | live congruence (244M w, N=7000) | as small, bigger single solve |
+| `alt_ergo_chain_large` | 38 | 26 | live congruence (638M w, N=10500, RSS 4.9GB) | heap-scan-bound; gc% RISES, p99.9 pause 22ms |
 | `menhir_sysver` | 7.8 | 32 | minor (sysver table, 0.72GB) | Hashtbl growth — Knob-A ladder rung **small** |
 | `menhir_ocamly` | 13 | 20 | minor (ocaml canonical LR, 2.76GB) | Hashtbl scale, large arrays — ladder rung **default** |
 | `menhir_sysver_canonical` | 34 | 36 | minor (sysver canonical LR, 4.0GB) | canonical state-table explosion — ladder rung **large** |
@@ -439,6 +442,7 @@ through a `RUNNING_TAG` selector.
 | `cpdf_{merge,blacktext,scale,squeeze}` | hashtbl (object map), bytes mutation, minor-gc; camlpdf C stubs (flate/zlib, AES, SHA-2) hit when decoding/re-compressing streams (squeeze), otherwise pure OCaml |
 | `cpdf_squeeze_{small,default,large}` | Knob A = document working set (merge N=8/24/64 copies + recompress). Live PDF object map grows ~linearly with N (top_heap 110→405M w, RSS 0.88→3.0GB, majorGC 38→56); gc% FALLS 31→16% as flate C recompression dominates. Live-heap ladder, not a GC-pacing one |
 | `alt_ergo_fill, alt_ergo_yyll` | weak-refs (Weak.Make hash-consing), hashtbl, format |
+| `alt_ergo_chain_{small,default,large}` | Knob A = single-solve problem size (generated chain VC a(0)=0, a(i)=a(i-1)+1, prove a(N)=N; N=4000/7000/10500). One large mostly-live congruence structure per solve: top_heap 76→638M w, RSS 0.6→4.9GB, minor 3.7k→25k (major only 16→24, promo ~0.1). gc% RISES 14→26%, pauses grow (p99.9 3→22ms) — heap-scan-bound. Distinct from fill_x100's Knob-B repetition |
 | `alt_ergo_unsat_smt2` | weak-refs, hashtbl, format, signals (SIGVTALRM armed by `--timelimit 15`) |
 | `frama_c_eva_{t,sqlite,sqlite_small,sqlite_default,sqlite_large}` | weak-refs / ephemeron-backed hash-consing (Weak.Make at scale), hashtbl, recursive-variants (CIL AST), minor-gc, max-rss (sqlite, #11733). Knob-A ladder = `-eva-precision` (2nd wrapper arg) on sqlite; slevel inert; t is a fixed fast standalone |
 | `goblint` | high allocation / minor-gc churn (~1.3GB for a 5.6KB input), hash-consing, apron relational domains (C/GMP FFI), recursive-variants (CIL AST), allocated-bytes (#13733) |

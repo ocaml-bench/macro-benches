@@ -27,6 +27,34 @@ comes out around 14s. The file is regenerated only when `fill.why` changes.
 `.smt2` frontend instead. `unsat_smt2` is the only one run with a time limit
 (`--timelimit 15`), which arms a `SIGVTALRM` timer that may fire at the end of a long solve.
 
+## Knob-A ladder (single-solve problem size)
+
+`alt_ergo_fill` above scales by *repetition* (100 independent copies of one goal —
+Knob B: the peak working set is one goal's, wall is linear in the count). The
+`alt_ergo_chain_{small,default,large}` rungs scale the working set of a **single**
+solve instead. `alt-ergo.build.sh` generates `alt_ergo_chain_<rung>.why`: one goal
+asserting `a(0) = 0` and `a(i) = a(i-1) + 1` for `i` in `1..N`, proving `a(N) = N`.
+alt-ergo must build an N-term congruence/arithmetic structure in one solve, so the
+live heap grows with N — this is the same chained array-cell reasoning `fill.why`
+exercises (Frama-C/WP VCs), parameterised. Solving is super-linear (~N^2.2 in both
+wall and live heap). Measured on OCaml 5.5.0, Ryzen 9 9950X (`fingerprint.sh`
+`v=0x400`; olly gc%/pause from `perf_grp1|re-25|md-2`):
+
+| rung | N | wall | gc% | RSS | top_heap | minor GC | major GC | p99.9 | max pause |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `_small` | 4000 | 4.2s | 13.6% | 0.59 GB | 76M w | 3699 | 16 | 3.0 ms | 3.9 ms |
+| `_default` | 7000 | 14.1s | 17.8% | 1.88 GB | 244M w | 10979 | 20 | 9.0 ms | 11.0 ms |
+| `_large` | 10500 | 37.8s | 25.7% | 4.88 GB | 638M w | 24610 | 24 | 22.1 ms | 27.4 ms |
+
+Each rung reaches a strictly bigger live-heap regime: `top_heap` 76 → 638M words (8.4×,
+tracking RSS 0.6 → 4.9 GB), minor collections 3.7k → 25k. Unlike the other ladders,
+**gc% rises** with N (13.6 → 25.7%) and **pauses grow steeply** (p99.9 3 → 22 ms, max
+28 ms): the solve builds one large, mostly-live structure (promotion fraction only
+~0.09-0.14, major cycles just 16 → 24), so the cost is scanning an ever-bigger live
+heap on each major slice — a heap-scan-bound ladder, the counterpoint to cpdf
+(GC-share falls as C work dominates) and liq_video_frames (pacer-bound, tiny pauses).
+A huge band is deferred (N≈14000 would be ~min-scale at ~9 GB).
+
 ## What it stresses
 
 All three are compute-bound in the SMT theory backend (DPLL(T), congruence closure, integer
