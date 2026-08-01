@@ -352,6 +352,9 @@ StickyImmix). Known MMTk-only issues:
 | `ocamlformat_rocq_large` | 100 | 29 | minor + AST (500k lines, 8.4GB, 90ms max pause) | minor-GC throughput + major-GC scan latency on a multi-GB live AST |
 | `cpdf_merge` / `_blacktext` / `_squeeze` | 6-9 | 20-40 | minor + Bytes | Bytes mutation, codegen |
 | `cpdf_scale` | 36 | 19 | minor (compute) | codegen of geometry transforms |
+| `cpdf_squeeze_small` | 7.4 | 31 | live PDF object map (110M w, merge 8 copies) | Knob A = document working set (merge-N-copies + recompress) |
+| `cpdf_squeeze_default` | 18 | 25 | live object map (225M w, 24 copies) | as small, bigger merged doc |
+| `cpdf_squeeze_large` | 57 | 16 | live object map (405M w, 64 copies, RSS 3GB) | live-heap-driven; gc% falls as flate C recompress dominates |
 | `alt_ergo_fill` | 14 | 40 | promotion-medium | SMT theory backends |
 | `alt_ergo_yyll` | 19 | 6 | minor (compute) | native frontend, theory backends |
 | `alt_ergo_unsat_smt2` | 15 | 7 | minor (compute) | Dolmen frontend, theory backends |
@@ -434,6 +437,7 @@ through a `RUNNING_TAG` selector.
 | `sedlex_tokenize{,_small,_default,_large}` | bytes, ppx-match, string-allocator, minor-gc; Knob A = input size (argv.1 # lines) → retained-token-list footprint ladder (RSS 2.7→27GB), gc% RISES 43→61%, 153ms max pause (steepest in suite) |
 | `ocamlformat_rocq{,_small,_default,_large}` | format, buffer, minor-gc; Knob A = source size (# lines, generated N× workload.ml) → live-AST footprint ladder (RSS 0.6→8.4GB), constant ~30% gc% + growing major-GC scan pauses (90ms @ large) |
 | `cpdf_{merge,blacktext,scale,squeeze}` | hashtbl (object map), bytes mutation, minor-gc; camlpdf C stubs (flate/zlib, AES, SHA-2) hit when decoding/re-compressing streams (squeeze), otherwise pure OCaml |
+| `cpdf_squeeze_{small,default,large}` | Knob A = document working set (merge N=8/24/64 copies + recompress). Live PDF object map grows ~linearly with N (top_heap 110→405M w, RSS 0.88→3.0GB, majorGC 38→56); gc% FALLS 31→16% as flate C recompression dominates. Live-heap ladder, not a GC-pacing one |
 | `alt_ergo_fill, alt_ergo_yyll` | weak-refs (Weak.Make hash-consing), hashtbl, format |
 | `alt_ergo_unsat_smt2` | weak-refs, hashtbl, format, signals (SIGVTALRM armed by `--timelimit 15`) |
 | `frama_c_eva_{t,sqlite,sqlite_small,sqlite_default,sqlite_large}` | weak-refs / ephemeron-backed hash-consing (Weak.Make at scale), hashtbl, recursive-variants (CIL AST), minor-gc, max-rss (sqlite, #11733). Knob-A ladder = `-eva-precision` (2nd wrapper arg) on sqlite; slevel inert; t is a fixed fast standalone |
