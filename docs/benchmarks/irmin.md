@@ -21,10 +21,36 @@ program prints per-phase timings and a total.
 
 The workload sizes are command-line arguments, not compile-time constants. The
 program takes exactly four positional args: `<n_keys> <n_ops> <read_pct>
-<total_ops>`, and exits with a usage message if they are missing. The
-orchestrator's usual invocation is 3000 keys, 80% reads, and 20000 mixed ops.
-Heads up: the second argument (`n_ops`) is parsed but never used anywhere in
-the driver, so only three of the four numbers actually affect the run.
+<total_ops>`, and exits with a usage message if they are missing. The legacy
+`irmin_mem_rw` bench uses 3000 keys, 80% reads, and 20000 mixed ops — a Knob-B
+(more-ops) shape. Heads up: the second argument (`n_ops`) is parsed but never
+used anywhere in the driver, so only three of the four numbers actually affect
+the run.
+
+## Knob-A ladder (store size)
+
+Knob A is the **store size** (`n_keys`), with the mixed-op count kept small so
+the write phase — building the store — dominates. Because every `set_exn` puts
+its key into the single flat `["root"; …]` directory node, Irmin re-hashes and
+re-serializes that whole node on every insert, so the write phase is
+**O(n_keys²)** in the persistent-hash-tree / `Hashtbl` churn. That churn is
+exactly Irmin's runtime signature, and it — plus the live store and the
+major-cycle count — grows with `n_keys`. This is a **churn / throughput** ladder,
+not a footprint one: RSS stays modest (< 100 MB). Measured on OCaml 5.5.0,
+Ryzen 9 9950X (`fingerprint.sh` `v=0x400`; olly gc%/pause from `perf_grp1|re-25|md-2`):
+
+| rung | n_keys | wall | gc% | RSS | live heap (top_heap_words) | minor GC | major GC | max pause |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `_small` | 6000 | 5.4s | 20% | 31 MB | 2.7 M | 9.3k | 293 | 0.49 ms |
+| `_default` | 10000 | 15.7s | 25% | 44 MB | 4.4 M | 24k | 674 | 0.79 ms |
+| `_large` | 18000 | 51.7s | 29% | 74 MB | 7.9 M | 74k | 1523 | 1.56 ms |
+
+wall (quadratic), gc% (20 → 29 %, rising as churn intensifies), minor/major
+collection counts, live store and promotion (6.6 → 11 %) all grow with the store;
+pauses stay tiny (< 2 ms). So the ladder is the suite's signal for **Lwt +
+persistent-hash-tree allocation churn at scale** — a different regime from the
+footprint ladders. A huge band is deferred (the write phase is quadratic; 18k
+keys is already ~52 s).
 
 ## What it stresses
 

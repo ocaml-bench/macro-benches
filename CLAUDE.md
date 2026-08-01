@@ -311,7 +311,10 @@ StickyImmix). Known MMTk-only issues:
 | `coqc_tree_default` | 19 | 94 | minor-saturation (D=18, 0.98GB) | as small, deeper reduction |
 | `coqc_tree_large` | 69 | 97 | minor-saturation (D=19, 1.89GB, 64ms max pause) | minor-GC saturation at scale (highest gc% in suite) |
 | `eio_fiber_stream` | 6 | 10 | promotion-heavy | OCaml 5 effects, fiber scheduler |
-| `irmin_mem_rw` | 12 | 11 | medium | Lwt, persistent hash-tree |
+| `irmin_mem_rw` | 12 | 11 | medium | Lwt, persistent hash-tree (Knob-B, 3000 keys + 20000 ops) |
+| `irmin_mem_rw_small` | 5 | 20 | churn (6000-key store, 31MB) | Lwt + persistent-hash-tree churn (Knob A = store size; O(n_keys²) write) |
+| `irmin_mem_rw_default` | 16 | 25 | churn (10000-key store, 44MB) | as small, more churn |
+| `irmin_mem_rw_large` | 52 | 29 | churn (18000-key store, 74MB) | hash-tree/Hashtbl churn at scale (RSS small; churn ladder, gc% rises) |
 | `liq_parse_typecheck` | 26 | 22 | promotion-heavy (48%) | AST + minor-to-major copy (Knob-B, 50000× fixed script) |
 | `liq_parse_typecheck_small` | 5 | 59 | promotion-heavy (0.22, 0.26GB) | parse+typecheck AST/type-env at scale (Knob A = script size, generated units) |
 | `liq_parse_typecheck_default` | 14 | 60 | promotion-heavy (0.44GB) | as small, bigger AST + type env |
