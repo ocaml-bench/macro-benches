@@ -21,6 +21,34 @@ All four variants build the same binary from `vendor/cpdf-source`
 There is also a smaller `metro_geo.pdf` (about 1.6 MB) in the directory; the four
 variants above do not use it.
 
+## Knob-A ladder (document working set)
+
+The four variants above are single-document anchors. The
+`cpdf_squeeze_{small,default,large}` rungs add a working-set ladder on top of the
+`cpdf_squeeze` operation: `cpdf.build.sh` emits a wrapper (for any output whose name
+contains `cpdf_squeeze_`) that **merges N copies** of `PDFReference16.pdf_toobig` and
+recompresses every stream, with N — the copy count — passed as the single argument
+(8 / 24 / 64). Merging N copies is the Knob-A axis: CamlPDF holds the whole merged
+object map live at once, so the OCaml major heap grows ~linearly with N (`top_heap`
+tracks RSS almost exactly). Recompression (`-squeeze`, via the flate C stubs) is what
+lifts wall time into the standard bands — merge alone is memory-bound and tops out
+around 17s. Measured on OCaml 5.5.0, Ryzen 9 9950X (`fingerprint.sh` `v=0x400`; olly
+gc%/pause from `perf_grp1|re-25|md-2`):
+
+| rung | copies | wall | gc% | RSS | top_heap | minor GC | major GC | p99.9 | max pause |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `_small` | 8 | 7.4s | 31.4% | 0.88 GB | 110M w | 2650 | 38 | 4.4 ms | 12 ms |
+| `_default` | 24 | 18.2s | 25.5% | 1.77 GB | 225M w | 5347 | 45 | 7.1 ms | 34 ms |
+| `_large` | 64 | 57.4s | 16.2% | 3.04 GB | 405M w | 10788 | 56 | 10.9 ms | 44 ms |
+
+Each rung reaches a strictly bigger live-heap regime: `top_heap` 110 → 405M words
+(~0.88 → 3.24 GB, matching RSS), major cycles 38 → 56, and tail pauses grow with the
+heap (p99.9 4.4 → 10.9 ms, max 12 → 44 ms). Note gc% **falls** as the document grows
+(31 → 16%): a bigger merged PDF spends proportionally more time in flate C
+recompression (off-heap CPU that isn't GC), so this is a moderate-GC, live-heap-driven
+ladder — the opposite end of the spectrum from liq_video_frames' pacer-bound 80-95%.
+A huge band is deferred (128 copies would be ~2min at ~6 GB).
+
 ## What it stresses
 
 This is byte-level PDF processing. CamlPDF parses the file into an object map (a
