@@ -328,6 +328,9 @@ StickyImmix). Known MMTk-only issues:
 | `test_decompress_default` | 16 | 0.8 | compute + Bigstring (256MB, 1.4GB) | as small, bigger payload |
 | `test_decompress_large` | 63 | 0.9 | compute + Bigstring (1GB, 5.7GB) | pure DEFLATE compute/codegen at scale (compute-bound control) |
 | `pplacer_testsuite` | 13 | 70 | major-heavy (FFI) | gsl/sqlite3, tree allocation |
+| `pplacer_like_small` | 4.7 | 0.6 | off-heap GSL Glv (0.22GB, 17.6k sites) | Knob A = likelihood n_sites (Felsenstein + ML pendant scan) |
+| `pplacer_like_default` | 15 | 0.6 | off-heap GSL Glv (0.65GB, 55k sites) | as small, bigger alignment |
+| `pplacer_like_large` | 51 | 0.6 | off-heap GSL Glv (2.18GB, 187k sites) | compute-bound; gc%~0, read by RSS/alloc_words |
 | `owl_gc` | 16 | 50 | off-heap (Bigarray, small) | Bigarray finalisation, OpenBLAS stubs |
 | `owl_gc_small` | 4 | 24 | off-heap (dim 300, 95MB) | Bigarray finalisation, off-heap footprint (Knob A = dim) |
 | `owl_gc_default` | 14 | 11 | off-heap (dim 500, 230MB) | as small, bigger live set |
@@ -430,6 +433,7 @@ through a `RUNNING_TAG` selector.
 | `ydump_repeat{,_small,_default,_large}` | minor-gc, major-promotion, recursive-variants; Knob A = doc size (argv.2 = generated record count, in-process) → promotion-heavy footprint ladder (RSS 3.25→20GB), 424ms max pause (largest in suite) |
 | `test_decompress{,_small,_default,_large}` | bigarray, custom-block-finalisation (Bigstringaf), major-promotion; Knob A = payload size (argv.2) → compute+Bigstring footprint ladder (RSS 0.5→5.7GB), gc% ~0.8% (compute-bound control) |
 | `pplacer_testsuite` | Gc.finalise, custom-block-finalisation (GSL+sqlite3), ffi-stubs, hashtbl, minor-gc |
+| `pplacer_like_{small,default,large}` | Knob A = likelihood n_sites (like_bench.ml: Felsenstein pruning + 40-pt ML pendant scan over GSL Glv). Off-heap footprint: top_heap ~2-8MB while RSS 0.22→2.18GB, allocated_words 2.1→22.4G, minor 8k→86k, major 147→646. gc%~0.6 flat (compute-bound, promo~0) — the suite's compute-bound/off-heap corner, read by RSS/alloc_words like owl |
 | `owl_gc{,_small,_default,_large,_huge}` | bigarray, custom-block-finalisation (Array2), ffi-stubs (OpenBLAS), minor-gc; Knob A = matrix dim (`OWL_MATRIX_DIM`, 2nd wrapper arg) → off-heap footprint ladder (RSS 95MB→4.77GB); large/huge also hit off-heap-accounting pacer |
 | `liq_video_frames_pool{,_small,_default,_large}` | bigarray, custom-block-finalisation, off-heap accounting (M-sweep); Knob A = frame resolution (argv.2/3) → major-GC-pacing ladder (majorGC 1104→16837 @ 1080p→8K, gc% ~80-95%, RSS flat) |
 | `zarith_pi` | custom-block-finalisation (`Z.t`), ffi-stubs (GMP), minor-gc, format(cold) |
