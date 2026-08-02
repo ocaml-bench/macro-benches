@@ -374,6 +374,9 @@ StickyImmix). Known MMTk-only issues:
 | `jsoo_default` | 16 | 31 | minor + IR (14MB, 1.7GB) | as small, bigger IR |
 | `jsoo_large` | 50 | 33 | minor + IR (36MB, 7.8GB, 129ms max pause) | IR-alloc throughput + major-GC scan latency on a large SSA graph |
 | `goblint` | 0.2-1 | high alloc | high allocation / churn (~1.3GB, 5.6KB input) | allocated_bytes (#13733), hash-consing, apron FFI |
+| `goblint_gen_small` | 4.3 | 22 | alloc-churn (3.8G words, N=100) | Knob A = analysed-program size (synthetic Btor2C state machine) |
+| `goblint_gen_default` | 16 | 27 | alloc-churn (14G words, N=165) | as small, bigger analysed program |
+| `goblint_gen_large` | 47 | 34 | alloc-churn (40G words, N=240, RSS 186MB) | octagon O(N²); read by allocated_words not RSS |
 | `frama_c_eva_sqlite_small` | 7 | 13 | weak/ephemeron hash-consing (457MB RSS, promo 0.6%) | ephemeron key-scan (#11733), CIL AST hash-cons, `Weak.Make` at scale |
 | `frama_c_eva_sqlite_default` | 16 | 11 | as small, richer domains (641MB RSS, live 77M) | #11733 at higher precision |
 | `frama_c_eva_sqlite_large` | 113 | 3 | max ephemeron churn (165k minor GC, 695MB RSS, 3.3s gc_time, 11.5ms tail pause) | #11733 ephemeron-clean throughput + GC latency (widening thrash, precision 3) |
@@ -450,6 +453,7 @@ through a `RUNNING_TAG` selector.
 | `alt_ergo_unsat_smt2` | weak-refs, hashtbl, format, signals (SIGVTALRM armed by `--timelimit 15`) |
 | `frama_c_eva_{t,sqlite,sqlite_small,sqlite_default,sqlite_large}` | weak-refs / ephemeron-backed hash-consing (Weak.Make at scale), hashtbl, recursive-variants (CIL AST), minor-gc, max-rss (sqlite, #11733). Knob-A ladder = `-eva-precision` (2nd wrapper arg) on sqlite; slevel inert; t is a fixed fast standalone |
 | `goblint` | high allocation / minor-gc churn (~1.3GB for a 5.6KB input), hash-consing, apron relational domains (C/GMP FFI), recursive-variants (CIL AST), allocated-bytes (#13733) |
+| `goblint_gen_{small,default,large}` | Knob A = analysed-program size (synthetic Btor2C bit-vector state machine, N=100/165/240 state vars; goblint.build.sh generates the .c). Pure allocation-churn ladder (#13733 signature): allocated_words 3.8→39.5G (10×), minor GC 15k→151k, gc% 22→34%; live set grows too (top_heap 5.9→19.5M, major 41→97) but RSS modest 77→186MB. octagon O(N²) → super-linear wall. Read by allocated_words. On-heap counterpoint to pplacer's off-heap footprint |
 | `menhir_{sysver,ocamly,sysver_canonical,sql_parser}` | hashtbl, format, lazy, minor-gc; Knob-A ladder (automaton scale) = small sysver--table / default ocaml--canonical / large sysver--canonical, monotone by wall 7.8→13→34s AND RSS 0.72→2.76→4.0GB. sql_parser (LALR 1.2s) = fast extra, not a rung. Single-run (menhir has no loopable main) |
 | `ocamlc_self_compile` | hashtbl, marshal (`.cmi`+`.cmo` writeout), bigarray (emit buffer), minor-gc |
 | `jsoo{,_small,_default,_large}` | hashtbl, lazy, marshal(cold); Knob A = input bytecode size (rung arg → generated per-runtime .byte from real JSOO sources × R replicas) → whole-program-IR footprint ladder (RSS 0.5→7.8GB), constant ~33% gc% + 129ms max pause @ large |

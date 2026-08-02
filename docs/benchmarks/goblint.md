@@ -41,6 +41,36 @@ and points goblint's `pre.custom_includes` at the vendored libc / sv-comp / linu
 directories under `duniverse/analyzer/lib`, because the dune-site resource sites that would
 normally hold those are empty in an uninstalled build.
 
+## Knob-A ladder (analysed-program size)
+
+The frozen `goblint` program analyses the fixed #13733 reproducer (~0.2s here — too
+short for a macro rung). The `goblint_gen_{small,default,large}` rungs scale the one
+thing that grows goblint's working set: the **size of the analysed C program**.
+`goblint.build.sh` generates a synthetic Btor2C-style bit-vector state machine —
+`N` state variables updated in a `for(;;)` loop via masked bit-vector logic, in the
+same shape as `bench.c` — and analyses it with the *same* `svcomp.json` (interval +
+octagon/apron) config. A bigger `N` means more variables tracked and more program
+points, so goblint's constraint solver does proportionally more fixpoint work. The
+values are masked so the analysis reaches a fixpoint and proves every assert safe
+(`SV-COMP result: true`), i.e. each rung does the full analysis. Measured on OCaml
+5.5.0, Ryzen 9 9950X (`fingerprint.sh` `v=0x400`; olly from `perf_grp1|re-25|md-2`):
+
+| rung | N | wall | gc% | RSS | allocated | minor GC | major GC | top_heap |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `_small` | 100 | 4.3s | 22% | 77 MB | 3.83 G w | 14645 | 41 | 5.9 M |
+| `_default` | 165 | 16.3s | 27% | 120 MB | 14.0 G w | 53525 | 67 | 11.2 M |
+| `_large` | 240 | 46.6s | 34% | 186 MB | 39.5 G w | 150770 | 97 | 19.5 M |
+
+This is the suite's purest **allocation-churn** ladder — exactly goblint's #13733
+signature. The octagon domain is O(N²), so wall and allocation grow super-linearly:
+`allocated_words` climbs 3.83 → 39.5 G (10×) and minor collections 15k → 151k while
+peak RSS stays modest (77 → 186 MB). The live set does grow (top_heap 5.9 → 19.5 M
+words, major cycles 41 → 97), but the headline signal is **allocated_words** — read
+this ladder by allocation volume, not RSS. It is a pure on-heap counterpoint to
+pplacer's off-heap GSL footprint, and scales up the same 5.x GC/allocation regression
+(ocaml#13733, sibling of frama-c's #11733) that the frozen reproducer freezes. A huge
+band is deferred (N≈340 would be ~min-scale).
+
 ## What it stresses
 
 High allocation and minor-GC churn: roughly 1.3 GB allocated to analyse a 5.6 KB input, with
