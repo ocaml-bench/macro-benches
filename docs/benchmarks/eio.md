@@ -22,6 +22,40 @@ push and pop tends to bounce through the scheduler.
 There are no command-line arguments. The counts are compiled in. The program
 prints how many items it processed and the wall time.
 
+## Knob-A ladder (concurrency degree)
+
+`eio_fiber_stream` is a *throughput* benchmark: a handful of fibers push a huge
+number of items through one shared stream, so its live set is tiny (~9 MB) and
+constant — scaling its item count is pure repetition (Knob B). The
+`eio_conc_{small,default,large}` rungs scale the axis an effects scheduler exists
+for: the **degree of concurrency**. A separate driver (`eio_conc_bench.ml`) runs
+`n_pairs` (the arg) independent producer/consumer fiber pairs, each pair on its
+*own* bounded stream, with a fixed 20000 items per fiber. All `2 * n_pairs` fibers
+are alive at once, so the working set — the parked fibers' effect continuations
+plus the data buffered across all the streams — grows ~linearly with `n_pairs`.
+Giving each pair its own stream is deliberate: on a single shared stream the O(n)
+waiter queue makes wall blow up super-linearly under contention, whereas per-pair
+streams keep scheduling ~linear so wall tracks the working set. Measured on OCaml
+5.5.0, Ryzen 9 9950X (`fingerprint.sh` `v=0x400`; olly gc%/pause from
+`perf_grp1|re-25|md-2`):
+
+| rung | n_pairs | wall | gc% | RSS | top_heap | major GC | p99.9 | max pause |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `_small` | 3000 | 5.7s | 61.9% | 0.69 GB | 84 M w | 97 | 6.1 ms | 6.5 ms |
+| `_default` | 9000 | 17.1s | 62.6% | 1.99 GB | 256 M w | 107 | 9.0 ms | 36 ms |
+| `_large` | 21000 | 40.6s | 63.0% | 4.96 GB | 619 M w | 117 | 12.6 ms | 76 ms |
+
+Unlike the frozen throughput bench (whose data is discarded as fast as it is made),
+here the buffered/in-flight data across `n_pairs` streams is genuinely **retained**
+for the run: `top_heap` grows 84 → 619 M words (RSS 0.69 → 4.96 GB), and the
+promotion fraction is high and flat (~0.85), so gc% sits at a heavy ~62% (the
+minor→major copy path plus major collection dominate — second only to
+liq_video_frames in the suite). Pauses lengthen with the live heap (max 6.5 → 76 ms).
+So this is a promotion-bound, live-set concurrency ladder — the effects-scheduler
+counterpart to the allocation-churn (goblint) and off-heap-footprint (pplacer)
+ladders. Per-fiber work (20000 items) is held fixed; only `n_pairs` varies. A huge
+band is deferred (`n_pairs` ~45000 would be ~min-scale at ~10 GB).
+
 ## What it stresses
 
 - Effects and the OCaml 5 scheduler. Eio's `Stream.add`/`take` and

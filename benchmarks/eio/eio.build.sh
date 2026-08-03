@@ -12,12 +12,25 @@ echo "Building eio_bench (monorepo) for runtime: ${RUNTIME_TAG}"
 unset OPAM_SWITCH_PREFIX OCAMLTOP_INCLUDE_PATH CAML_LD_LIBRARY_PATH OCAMLLIB
 export OCAMLPATH=""
 
+# Two benchmarks share this build, selected by output name:
+#   * eio_conc_* — the Knob-A concurrency ladder (eio_conc_bench.exe). Knob A =
+#     number of independent producer/consumer fiber pairs (argv.1), each on its
+#     own bounded stream, so the working set (live fibers + buffered data) grows
+#     ~linearly. The frozen eio_fiber_stream is a throughput bench with a tiny,
+#     constant live set; this scales concurrency instead. The rung differs only
+#     in its macro_base arg (n_pairs).
+#   * eio_fiber_stream (default) — the frozen throughput benchmark, unchanged.
+case "$(basename "${OUT}")" in
+  *eio_conc_*) EXE="eio_conc_bench" ;;
+  *)           EXE="eio_bench" ;;
+esac
+
 dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
   --profile release \
-  benchmarks/eio/eio_bench.exe
+  "benchmarks/eio/${EXE}.exe"
 
 mkdir -p "$(dirname "${OUT}")"
-cp "${BUILD_DIR}/default/benchmarks/eio/eio_bench.exe" "${OUT}"
+cp "${BUILD_DIR}/default/benchmarks/eio/${EXE}.exe" "${OUT}"
 chmod +x "${OUT}"
 
-echo "eio_bench built: ${OUT}"
+echo "${EXE} built: ${OUT}"
