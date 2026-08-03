@@ -16,19 +16,15 @@ BUILD_DIR="${MONOREPO_DIR}/_build-${RUNTIME_TAG//[^a-zA-Z0-9._-]/_}"
 OUT_BASE="$(basename "${OUT}")"
 BM_NAME="${OUT_BASE%-${RUNTIME_TAG}}"
 
-# Knob-A htmlstream ladder (devkit_htmlstream_{small,default,large}) reuses the
-# htmlStream_bench binary; the working-set scale factor is a runtime arg (argv.1,
-# default 1 = the frozen benchmark), so the rungs differ from devkit_htmlstream
-# only in their macro_base args. Map their name onto the base program for the
-# dune-target dispatch below. This `if` is deliberately upstream of the first
-# `case "${BM_NAME}"`, which the manifest ci-check reads and which must list
-# exactly the four manifest programs — the rungs are experiment-only.
-if [[ "${BM_NAME}" == devkit_htmlstream_* ]]; then
-  BM_NAME="devkit_htmlstream"
-fi
-
+# The htmlstream input-size ladder (devkit_htmlstream_{small,default,large})
+# reuses the htmlStream_bench binary; the content-scale factor is a runtime arg
+# (argv.1, default 1 = the frozen benchmark), so the rungs differ from
+# devkit_htmlstream only in their macro_base args. They share its dune target,
+# hence the multi-name arm below (the manifest ci-check reads these arms and
+# requires them to match the manifest's devkit programs exactly).
 case "${BM_NAME}" in
-  devkit_htmlstream) EXE="htmlStream_bench" ;;
+  devkit_htmlstream|devkit_htmlstream_small|devkit_htmlstream_default|devkit_htmlstream_large)
+                     EXE="htmlStream_bench" ;;
   devkit_stre)       EXE="stre_bench" ;;
   devkit_network)    EXE="network_bench" ;;
   devkit_gzip)       EXE="gzip_bench" ;;
