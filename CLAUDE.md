@@ -13,8 +13,19 @@ runtime-feature coverage matrix and gaps, the gotchas, and the backlog.
   frama-c, goblint, alt-ergo, menhir, cpdf, owl, jsoo, irmin, liquidsoap,
   ocamlformat, decompress, eio, sedlex, yojson, zarith, pplacer, devkit, …). All
   third-party deps are **vendored** under `duniverse/` (opam-monorepo), so every
-  runtime compiles byte-identical source. 20 active tools, 31 programs; `merlin`
-  and `lavyek` ship in the tree but are disabled (see their doc pages).
+  runtime compiles byte-identical source. 20 active tools; `merlin` and `lavyek`
+  ship in the tree but are disabled (see their doc pages).
+- **Input-size ladder + tags.** Each tool has `small`/`default`/`large` (a few
+  also `huge`) rungs whose input reaches a different GC/runtime regime, not just a
+  scaled-up copy. The selection lives in running-ng's `macro_base.yml` `tags:`
+  (`default_run`/`small_run`/`large_run`/`huge_run`/`legacy`/`all_benches`); a bare
+  run auto-applies `default_run`. **Legacy** = the pre-ladder anchors, extra
+  per-tool workloads, and frozen issue reproducers (`liq_video_frames_pool` #14533,
+  `goblint` #13733) — kept, run only with `RUNNING_TAG=legacy`. In THIS repo the
+  same split is in `benchmarks/manifest.yml`: all 92 programs listed (build-all),
+  the 20 small rungs flagged `ci_run: true` (what CI runs, via `ci-manifest.py
+  list-run`). The `knob-a-rungs` branch name is historical — docs say "input-size
+  ladder".
 - Driven by `~/running-ng` (suite type `OCamlBenchmarkSuite`, **not** the
   satellite-switch path): each benchmark has `benchmarks/<tool>/<tool>.build.sh` that
   runs `dune build` with the runtime compiler on PATH, into a **per-runtime build dir**
@@ -262,7 +273,7 @@ In use by:
 | `devkit_stre` | `Sys.argv.(1)` | loops the 8 sub-benches (default 1) |
 | `devkit_gzip` | `Sys.argv.(1)` | same shape as stre |
 | `devkit_network` | `Sys.argv.(1)` | same shape as stre |
-| `liq_video_frames_pool` | `Sys.argv.(1)` | number of frames (Knob B); `argv.2`/`argv.3` = frame width/height (Knob A = resolution) |
+| `liq_video_frames_pool` | `Sys.argv.(1)` | number of frames (repetition); `argv.2`/`argv.3` = frame width/height (input size = resolution) |
 
 Note: `devkit_htmlstream` is **not** in this list — it runs fixed internal
 `for _ = 1 to 10` loops and is copied out as a standalone binary, so it ignores
@@ -307,70 +318,70 @@ StickyImmix). Known MMTk-only issues:
 | Benchmark | wall (s) | gc% | Allocation profile | Strongest signal for |
 |---|---|---|---|---|
 | `coqc_corelib_stress` | 17 | 94 | minor-saturation | minor-GC fast path (mixed fib/ack/tree; old 52s stale) |
-| `coqc_tree_small` | 5.3 | 90 | minor-saturation (D=17, 0.57GB) | minor-GC fast path (Knob A = make_tree depth) |
+| `coqc_tree_small` | 5.3 | 90 | minor-saturation (D=17, 0.57GB) | minor-GC fast path (input size = make_tree depth) |
 | `coqc_tree_default` | 19 | 94 | minor-saturation (D=18, 0.98GB) | as small, deeper reduction |
 | `coqc_tree_large` | 69 | 97 | minor-saturation (D=19, 1.89GB, 64ms max pause) | minor-GC saturation at scale (highest gc% in suite) |
 | `eio_fiber_stream` | 6 | 10 | promotion-heavy | OCaml 5 effects, fiber scheduler |
-| `eio_conc_small` | 5.7 | 62 | live fibers+buffers (3000 pairs, 0.69GB) | Knob A = concurrency degree (eio_conc_bench: N indep fiber pairs) |
+| `eio_conc_small` | 5.7 | 62 | live fibers+buffers (3000 pairs, 0.69GB) | input size = concurrency degree (eio_conc_bench: N indep fiber pairs) |
 | `eio_conc_default` | 17 | 63 | live set (9000 pairs, 1.99GB) | as small, more concurrent pipelines |
 | `eio_conc_large` | 41 | 63 | live set (21000 pairs, 4.96GB, max pause 76ms) | promotion-bound (promo 0.85); read by RSS/top_heap |
-| `irmin_mem_rw` | 12 | 11 | medium | Lwt, persistent hash-tree (Knob-B, 3000 keys + 20000 ops) |
-| `irmin_mem_rw_small` | 5 | 20 | churn (6000-key store, 31MB) | Lwt + persistent-hash-tree churn (Knob A = store size; O(n_keys²) write) |
+| `irmin_mem_rw` | 12 | 11 | medium | Lwt, persistent hash-tree (repetition, 3000 keys + 20000 ops) |
+| `irmin_mem_rw_small` | 5 | 20 | churn (6000-key store, 31MB) | Lwt + persistent-hash-tree churn (input size = store size; O(n_keys²) write) |
 | `irmin_mem_rw_default` | 16 | 25 | churn (10000-key store, 44MB) | as small, more churn |
 | `irmin_mem_rw_large` | 52 | 29 | churn (18000-key store, 74MB) | hash-tree/Hashtbl churn at scale (RSS small; churn ladder, gc% rises) |
-| `liq_parse_typecheck` | 26 | 22 | promotion-heavy (48%) | AST + minor-to-major copy (Knob-B, 50000× fixed script) |
-| `liq_parse_typecheck_small` | 5 | 59 | promotion-heavy (0.22, 0.26GB) | parse+typecheck AST/type-env at scale (Knob A = script size, generated units) |
+| `liq_parse_typecheck` | 26 | 22 | promotion-heavy (48%) | AST + minor-to-major copy (repetition, 50000× fixed script) |
+| `liq_parse_typecheck_small` | 5 | 59 | promotion-heavy (0.22, 0.26GB) | parse+typecheck AST/type-env at scale (input size = script size, generated units) |
 | `liq_parse_typecheck_default` | 14 | 60 | promotion-heavy (0.44GB) | as small, bigger AST + type env |
 | `liq_parse_typecheck_large` | 64 | 59 | promotion-heavy (12k units, 0.72GB) | promotion + type-inference throughput at scale (~60% gc%, super-quadratic wall) |
 | `ydump_repeat` | 5.5 | 4.5 | promotion-heavy (65%) | recursive variants, JSON tree |
-| `ydump_repeat_small` | 5.5 | 29 | promotion-heavy (28%, 3.25GB) | promotion + major-GC pauses on a boxed JSON tree (Knob A = doc size) |
+| `ydump_repeat_small` | 5.5 | 29 | promotion-heavy (28%, 3.25GB) | promotion + major-GC pauses on a boxed JSON tree (input size = doc size) |
 | `ydump_repeat_default` | 16 | 34 | promotion-heavy (10GB) | as small, bigger tree |
 | `ydump_repeat_large` | 33 | 40 | promotion-heavy (1.5GB doc, 20GB, 424ms max pause) | promotion throughput + largest major-GC pauses in suite (pointer-dense tree) |
 | `test_decompress` | 5 | 2.4 | promotion-heavy + Bigstring | Bigstring header allocation |
-| `test_decompress_small` | 5 | 0.8 | compute + Bigstring (80MB payload, 0.5GB) | DEFLATE codegen/compute (least GC-bound bench; Knob A = payload size) |
+| `test_decompress_small` | 5 | 0.8 | compute + Bigstring (80MB payload, 0.5GB) | DEFLATE codegen/compute (least GC-bound bench; input size = payload size) |
 | `test_decompress_default` | 16 | 0.8 | compute + Bigstring (256MB, 1.4GB) | as small, bigger payload |
 | `test_decompress_large` | 63 | 0.9 | compute + Bigstring (1GB, 5.7GB) | pure DEFLATE compute/codegen at scale (compute-bound control) |
 | `pplacer_testsuite` | 13 | 70 | major-heavy (FFI) | gsl/sqlite3, tree allocation |
-| `pplacer_like_small` | 4.7 | 0.6 | off-heap GSL Glv (0.22GB, 17.6k sites) | Knob A = likelihood n_sites (Felsenstein + ML pendant scan) |
+| `pplacer_like_small` | 4.7 | 0.6 | off-heap GSL Glv (0.22GB, 17.6k sites) | input size = likelihood n_sites (Felsenstein + ML pendant scan) |
 | `pplacer_like_default` | 15 | 0.6 | off-heap GSL Glv (0.65GB, 55k sites) | as small, bigger alignment |
 | `pplacer_like_large` | 51 | 0.6 | off-heap GSL Glv (2.18GB, 187k sites) | compute-bound; gc%~0, read by RSS/alloc_words |
 | `owl_gc` | 16 | 50 | off-heap (Bigarray, small) | Bigarray finalisation, OpenBLAS stubs |
-| `owl_gc_small` | 4 | 24 | off-heap (dim 300, 95MB) | Bigarray finalisation, off-heap footprint (Knob A = dim) |
+| `owl_gc_small` | 4 | 24 | off-heap (dim 300, 95MB) | Bigarray finalisation, off-heap footprint (input size = dim) |
 | `owl_gc_default` | 14 | 11 | off-heap (dim 500, 230MB) | as small, bigger live set |
 | `owl_gc_large` | 124 | 8 | off-heap (dim 1500, 1.9GB, 27ms max pause) | off-heap footprint + GC latency + custom-block pacer (M) |
 | `owl_gc_huge` | 453 | 8 | off-heap (dim 2400, 4.77GB, 53ms max pause / 25ms p99.9) | off-heap footprint at scale + GC latency + pacer (M) |
 | `zarith_pi` | 8 | 27 | off-heap (GMP custom blocks) | custom-block path, GMP stubs |
 | `liq_video_frames_pool` | 4-20 | low | off-heap (Bigarray, refcounted pool) | custom_major_ratio pacer, refcounted-pool free lunch (#14533); frozen repro (720p×30000) |
-| `liq_video_frames_pool_small` | 5.6 | 95 | off-heap pacer (1080p, 1104 majorGC) | custom_major_ratio pacing (Knob A = frame resolution) |
+| `liq_video_frames_pool_small` | 5.6 | 95 | off-heap pacer (1080p, 1104 majorGC) | custom_major_ratio pacing (input size = frame resolution) |
 | `liq_video_frames_pool_default` | 22 | 94 | off-heap pacer (4K, 4413 majorGC) | as small, bigger per-frame off-heap |
 | `liq_video_frames_pool_large` | 101 | 79 | off-heap pacer (8K, 16837 majorGC, ~5ms pauses) | major-GC pacing at scale (majorGC ∝ pixels²; RSS flat, read by collection counts) |
 | `devkit_gzip` | 10 | 1 | compute-bound | codegen, zlib stubs |
 | `devkit_stre` | 14 | 5.5 | minor + retention | string allocator, generational copy |
 | `devkit_network` | 17 | 4.5 | minor (Int32) | int32 boxing, Hashtbl |
-| `devkit_htmlstream` | 7 | 5 | minor + retention | Buffer allocator (Knob A = content-scale argv.1) |
-| `devkit_htmlstream_small` | 7.1 | 5 | Buffer churn + peak heap (scale 1, 0.63GB peak) | Knob A = per-document content size (= frozen anchor) |
+| `devkit_htmlstream` | 7 | 5 | minor + retention | Buffer allocator (input size = content-scale argv.1) |
+| `devkit_htmlstream_small` | 7.1 | 5 | Buffer churn + peak heap (scale 1, 0.63GB peak) | input size = per-document content size (= frozen anchor) |
 | `devkit_htmlstream_default` | 20 | 5 | churn + peak (scale 3, 1.86GB peak) | as small, bigger documents |
 | `devkit_htmlstream_large` | 52 | 5 | churn + peak (scale 8, 4.57GB peak, max pause 141ms) | large-block sweeps; read by alloc_words+peak heap |
 | `sedlex_tokenize` | 5 | 40 | minor-saturation | string allocation, PPX DFA |
-| `sedlex_tokenize_small` | 5 | 43 | minor + retained token list (2M lines, 2.7GB) | minor-GC + promotion under a growing live heap (Knob A = # lines) |
+| `sedlex_tokenize_small` | 5 | 43 | minor + retained token list (2M lines, 2.7GB) | minor-GC + promotion under a growing live heap (input size = # lines) |
 | `sedlex_tokenize_default` | 17 | 49 | as small (6M lines, 8GB) | minor-GC/promotion throughput |
 | `sedlex_tokenize_large` | 74 | 61 | minor + retained list (20M lines, 27GB, 153ms max pause) | minor-GC/promotion + pause latency under a large mostly-live heap (gc% RISES with size; steepest pauses in suite) |
 | `ocamlformat_rocq` | 5 | 30 | minor + AST | Format module, AST allocation |
-| `ocamlformat_rocq_small` | 5 | 33 | minor + AST (40k lines, 0.6GB) | Format, AST allocation, minor-GC throughput (Knob A = # lines) |
+| `ocamlformat_rocq_small` | 5 | 33 | minor + AST (40k lines, 0.6GB) | Format, AST allocation, minor-GC throughput (input size = # lines) |
 | `ocamlformat_rocq_default` | 13 | 32 | minor + AST (100k lines, 1.7GB) | as small, bigger live AST |
 | `ocamlformat_rocq_large` | 100 | 29 | minor + AST (500k lines, 8.4GB, 90ms max pause) | minor-GC throughput + major-GC scan latency on a multi-GB live AST |
 | `cpdf_merge` / `_blacktext` / `_squeeze` | 6-9 | 20-40 | minor + Bytes | Bytes mutation, codegen |
 | `cpdf_scale` | 36 | 19 | minor (compute) | codegen of geometry transforms |
-| `cpdf_squeeze_small` | 7.4 | 31 | live PDF object map (110M w, merge 8 copies) | Knob A = document working set (merge-N-copies + recompress) |
+| `cpdf_squeeze_small` | 7.4 | 31 | live PDF object map (110M w, merge 8 copies) | input size = document working set (merge-N-copies + recompress) |
 | `cpdf_squeeze_default` | 18 | 25 | live object map (225M w, 24 copies) | as small, bigger merged doc |
 | `cpdf_squeeze_large` | 57 | 16 | live object map (405M w, 64 copies, RSS 3GB) | live-heap-driven; gc% falls as flate C recompress dominates |
 | `alt_ergo_fill` | 14 | 40 | promotion-medium | SMT theory backends |
 | `alt_ergo_yyll` | 19 | 6 | minor (compute) | native frontend, theory backends |
 | `alt_ergo_unsat_smt2` | 15 | 7 | minor (compute) | Dolmen frontend, theory backends |
-| `alt_ergo_chain_small` | 4.2 | 14 | live congruence structure (76M w, N=4000) | Knob A = single-solve problem size (chain VC a(i)=a(i-1)+1) |
+| `alt_ergo_chain_small` | 4.2 | 14 | live congruence structure (76M w, N=4000) | input size = single-solve problem size (chain VC a(i)=a(i-1)+1) |
 | `alt_ergo_chain_default` | 14 | 18 | live congruence (244M w, N=7000) | as small, bigger single solve |
 | `alt_ergo_chain_large` | 38 | 26 | live congruence (638M w, N=10500, RSS 4.9GB) | heap-scan-bound; gc% RISES, p99.9 pause 22ms |
-| `menhir_sysver` | 7.8 | 32 | minor (sysver table, 0.72GB) | Hashtbl growth — Knob-A ladder rung **small** |
+| `menhir_sysver` | 7.8 | 32 | minor (sysver table, 0.72GB) | Hashtbl growth — input-size ladder rung **small** |
 | `menhir_ocamly` | 13 | 20 | minor (ocaml canonical LR, 2.76GB) | Hashtbl scale, large arrays — ladder rung **default** |
 | `menhir_sysver_canonical` | 34 | 36 | minor (sysver canonical LR, 4.0GB) | canonical state-table explosion — ladder rung **large** |
 | `menhir_sql_parser` | 1.2 | 27 | minor (LALR + verbose, 0.31GB) | menhir internals — fast LALR extra, not a ladder rung |
@@ -380,18 +391,18 @@ StickyImmix). Known MMTk-only issues:
 | `ocamlc_compile_uucp_default` | 17 | 17 | major-GC-throughput (N=8, 90MB, 771 major) | as small, more replicas |
 | `ocamlc_compile_uucp_large` | 58 | 18 | major-GC-throughput (N=25, 115MB, 1581 major, promo 1.36G w) | cheapest large in suite (RSS flat ~115MB); read by major-GC count |
 | `jsoo` | 7.2 | 33 | minor + IR construction | jsoo bytecode parser, SSA dataflow, JS codegen |
-| `jsoo_small` | 5 | 33 | minor + IR (5.6MB bytecode, 0.5GB) | whole-program IR alloc + minor-GC (Knob A = bytecode size) |
+| `jsoo_small` | 5 | 33 | minor + IR (5.6MB bytecode, 0.5GB) | whole-program IR alloc + minor-GC (input size = bytecode size) |
 | `jsoo_default` | 16 | 31 | minor + IR (14MB, 1.7GB) | as small, bigger IR |
 | `jsoo_large` | 50 | 33 | minor + IR (36MB, 7.8GB, 129ms max pause) | IR-alloc throughput + major-GC scan latency on a large SSA graph |
 | `goblint` | 0.2-1 | high alloc | high allocation / churn (~1.3GB, 5.6KB input) | allocated_bytes (#13733), hash-consing, apron FFI |
-| `goblint_gen_small` | 4.3 | 22 | alloc-churn (3.8G words, N=100) | Knob A = analysed-program size (synthetic Btor2C state machine) |
+| `goblint_gen_small` | 4.3 | 22 | alloc-churn (3.8G words, N=100) | input size = analysed-program size (synthetic Btor2C state machine) |
 | `goblint_gen_default` | 16 | 27 | alloc-churn (14G words, N=165) | as small, bigger analysed program |
 | `goblint_gen_large` | 47 | 34 | alloc-churn (40G words, N=240, RSS 186MB) | octagon O(N²); read by allocated_words not RSS |
 | `frama_c_eva_sqlite_small` | 7 | 13 | weak/ephemeron hash-consing (457MB RSS, promo 0.6%) | ephemeron key-scan (#11733), CIL AST hash-cons, `Weak.Make` at scale |
 | `frama_c_eva_sqlite_default` | 16 | 11 | as small, richer domains (641MB RSS, live 77M) | #11733 at higher precision |
 | `frama_c_eva_sqlite_large` | 113 | 3 | max ephemeron churn (165k minor GC, 695MB RSS, 3.3s gc_time, 11.5ms tail pause) | #11733 ephemeron-clean throughput + GC latency (widening thrash, precision 3) |
 
-(`merlin_bench` and `lavyek_kv_*` omitted — disabled. frama-c Knob A = `-eva-precision` (2nd
+(`merlin_bench` and `lavyek_kv_*` omitted — disabled. frama-c input size = `-eva-precision` (2nd
 wrapper arg); slevel is inert; no >5min huge rung reachable via EVA knobs — see
 `docs/benchmarks/frama-c.md`. gc% FALLS with size (13→11→3%, mutator-bound at large) while
 tail pause GROWS (3.1→8.9→11.5ms) — small/default GC-throughput-sensitive, large
@@ -411,8 +422,8 @@ through a `RUNNING_TAG` selector.
 | **major-promotion** | minor→major copy, slice work | liq_parse_typecheck, ydump_repeat, test_decompress, eio_fiber_stream | most allocation-light benches |
 | **custom-block finalisation** | `caml_alloc_custom_mem` + `finalize` cb; `caml_ba_finalize` | zarith_pi (`Z.t`, `caml_z.c:323`), owl_gc (`Bigarray.Array2`), liq_video_frames_pool (Y/U/V Bigarrays + `pool_stubs.c`), test_decompress (Bigstringaf), devkit_gzip (`z_stream`, `zlibstubs.c:61`), pplacer (GSL Vector/Matrix, sqlite3 handles) | — |
 | **explicit `Gc.finalise`** | `caml_final_register` from user OCaml | pplacer (`gsl-ocaml/src/sum.ml`, `rng.ml`, `odeiv.ml`, `eigen.ml`, `integration.ml`) | merlin_bench (`mreader_extend.ml:52`, not the query path) |
-| **`Bigarray` allocation** | `caml_ba_alloc` (custom block + off-heap bytes) | owl_gc (dim×dim Float64 Array2; Knob A `OWL_MATRIX_DIM` scales it 100→2400, RSS 26MB→4.77GB), liq_video_frames_pool (1280×720 YUV420), test_decompress (Bigstringaf), ocamlc_self_compile (`emitcode.ml:53` emit buffer) | — |
-| **off-heap accounting / `custom_major_ratio` (M)** | `caml_alloc_custom_mem` → pacer | liq_video_frames_pool (the only bench whose wall+RSS Pareto front moves with M — the #14533 repro); owl_gc_{large,huge} (dim 1500/2400 → 18/46 MB Bigarrays, big enough to move the pacer — the Knob-A ladder now reaches this regime) | owl_gc (dim 100, ~80 KB blocks), zarith_pi, test_decompress (custom blocks too small to swing pacer policy) |
+| **`Bigarray` allocation** | `caml_ba_alloc` (custom block + off-heap bytes) | owl_gc (dim×dim Float64 Array2; input size `OWL_MATRIX_DIM` scales it 100→2400, RSS 26MB→4.77GB), liq_video_frames_pool (1280×720 YUV420), test_decompress (Bigstringaf), ocamlc_self_compile (`emitcode.ml:53` emit buffer) | — |
+| **off-heap accounting / `custom_major_ratio` (M)** | `caml_alloc_custom_mem` → pacer | liq_video_frames_pool (the only bench whose wall+RSS Pareto front moves with M — the #14533 repro); owl_gc_{large,huge} (dim 1500/2400 → 18/46 MB Bigarrays, big enough to move the pacer — the input-size ladder now reaches this regime) | owl_gc (dim 100, ~80 KB blocks), zarith_pi, test_decompress (custom blocks too small to swing pacer policy) |
 | **ephemeron GC machinery** (alloc + per-domain ephe list + `caml_ephe_clean` key scan) | `caml_ephe_create`, `caml_ephe_clean` | alt_ergo_{fill,yyll,unsat_smt2}, frama_c_eva_*, goblint — via `Weak.Make`. `Weak.*` is not a separate path: `runtime/weak.c` routes `caml_weak_*` through `caml_ephe_*` (a weak array is an ephemeron with no data field), so these drive ephemeron alloc + key-cleaning on the hot path (the path that regressed on OCaml 5, #11733). | — |
 | **ephemeron *data-field*** (`Ephemeron.K1`-with-data) | `caml_ephe_set_data`/`get_data` + data branch of `caml_ephe_clean` | — (**verified gap, narrowed**) | merlin_bench `saved_parts.ml:3` (cold, disabled), coq `clib/cEphemeron.ml` (VM backend, unreached). No bench sets a data field hot. |
 | **`Weak.Make` / weak hashsets** | `caml_ephe_*` | frama_c_eva_sqlite{,_small,_default,_large} (CIL AST + EVA state via `State_builder.Hashconsing_tbl_weak`, largest weak workload; the `-eva-precision` ladder scales it 457→695MB RSS / 11k→182k minor GC), alt_ergo_{fill,yyll,unsat_smt2} (`hconsing.ml:51`), goblint (CIL hash-consing) | — |
@@ -437,39 +448,39 @@ through a `RUNNING_TAG` selector.
 
 | Benchmark | Hot-path tags |
 |---|---|
-| `coqc_corelib_stress{,_tree_small,_tree_default,_tree_large}` | minor-gc, constructor-alloc; Knob A = numeral/make_tree depth → minor-GC-saturation ladder (RSS 0.57→1.89GB, gc% 90→97% = highest in suite) |
+| `coqc_corelib_stress{,_tree_small,_tree_default,_tree_large}` | minor-gc, constructor-alloc; input size = numeral/make_tree depth → minor-GC-saturation ladder (RSS 0.57→1.89GB, gc% 90→97% = highest in suite) |
 | `eio_fiber_stream` | effects, atomics, eio-fibers, major-promotion |
-| `eio_conc_{small,default,large}` | Knob A = concurrency degree (eio_conc_bench.ml: N=3000/9000/21000 independent producer/consumer fiber pairs, each on own bounded stream; per-fiber work fixed 20000). Live-set ladder: retained fibers+buffers, top_heap 84->619M w, RSS 0.69->4.96GB, promo ~0.85 flat -> gc% ~62% (heavy, 2nd to liqvf), max pause 6.5->76ms. Effects-scheduler counterpart to goblint(churn)/pplacer(off-heap). Read by RSS/top_heap. Frozen eio_fiber_stream (throughput) unchanged |
+| `eio_conc_{small,default,large}` | input size = concurrency degree (eio_conc_bench.ml: N=3000/9000/21000 independent producer/consumer fiber pairs, each on own bounded stream; per-fiber work fixed 20000). Live-set ladder: retained fibers+buffers, top_heap 84->619M w, RSS 0.69->4.96GB, promo ~0.85 flat -> gc% ~62% (heavy, 2nd to liqvf), max pause 6.5->76ms. Effects-scheduler counterpart to goblint(churn)/pplacer(off-heap). Read by RSS/top_heap. Frozen eio_fiber_stream (throughput) unchanged |
 | `merlin_bench` *(disabled)* | domains, effects, atomics, hashtbl, format; cold: ephemerons, Gc.finalise |
 | `lavyek_kv_1d` *(disabled)* | atomics, effects, eio-fibers, io-uring, pthread-affinity, hashtbl |
 | `lavyek_kv_{2,4,8}d` *(disabled)* | domains, atomics, effects, eio-fibers, io-uring, pthread-affinity, hashtbl |
-| `liq_parse_typecheck{,_small,_default,_large}` | hashtbl, lazy, format, major-promotion, minor-gc; Knob A = script size (argv.2 = generated unit count, in-process) → promotion-heavy AST+type-env ladder (RSS 0.26→0.72GB, ~60% gc%, super-quadratic wall) |
-| `ydump_repeat{,_small,_default,_large}` | minor-gc, major-promotion, recursive-variants; Knob A = doc size (argv.2 = generated record count, in-process) → promotion-heavy footprint ladder (RSS 3.25→20GB), 424ms max pause (largest in suite) |
-| `test_decompress{,_small,_default,_large}` | bigarray, custom-block-finalisation (Bigstringaf), major-promotion; Knob A = payload size (argv.2) → compute+Bigstring footprint ladder (RSS 0.5→5.7GB), gc% ~0.8% (compute-bound control) |
+| `liq_parse_typecheck{,_small,_default,_large}` | hashtbl, lazy, format, major-promotion, minor-gc; input size = script size (argv.2 = generated unit count, in-process) → promotion-heavy AST+type-env ladder (RSS 0.26→0.72GB, ~60% gc%, super-quadratic wall) |
+| `ydump_repeat{,_small,_default,_large}` | minor-gc, major-promotion, recursive-variants; input size = doc size (argv.2 = generated record count, in-process) → promotion-heavy footprint ladder (RSS 3.25→20GB), 424ms max pause (largest in suite) |
+| `test_decompress{,_small,_default,_large}` | bigarray, custom-block-finalisation (Bigstringaf), major-promotion; input size = payload size (argv.2) → compute+Bigstring footprint ladder (RSS 0.5→5.7GB), gc% ~0.8% (compute-bound control) |
 | `pplacer_testsuite` | Gc.finalise, custom-block-finalisation (GSL+sqlite3), ffi-stubs, hashtbl, minor-gc |
-| `pplacer_like_{small,default,large}` | Knob A = likelihood n_sites (like_bench.ml: Felsenstein pruning + 40-pt ML pendant scan over GSL Glv). Off-heap footprint: top_heap ~2-8MB while RSS 0.22→2.18GB, allocated_words 2.1→22.4G, minor 8k→86k, major 147→646. gc%~0.6 flat (compute-bound, promo~0) — the suite's compute-bound/off-heap corner, read by RSS/alloc_words like owl |
-| `owl_gc{,_small,_default,_large,_huge}` | bigarray, custom-block-finalisation (Array2), ffi-stubs (OpenBLAS), minor-gc; Knob A = matrix dim (`OWL_MATRIX_DIM`, 2nd wrapper arg) → off-heap footprint ladder (RSS 95MB→4.77GB); large/huge also hit off-heap-accounting pacer |
-| `liq_video_frames_pool{,_small,_default,_large}` | bigarray, custom-block-finalisation, off-heap accounting (M-sweep); Knob A = frame resolution (argv.2/3) → major-GC-pacing ladder (majorGC 1104→16837 @ 1080p→8K, gc% ~80-95%, RSS flat) |
+| `pplacer_like_{small,default,large}` | input size = likelihood n_sites (like_bench.ml: Felsenstein pruning + 40-pt ML pendant scan over GSL Glv). Off-heap footprint: top_heap ~2-8MB while RSS 0.22→2.18GB, allocated_words 2.1→22.4G, minor 8k→86k, major 147→646. gc%~0.6 flat (compute-bound, promo~0) — the suite's compute-bound/off-heap corner, read by RSS/alloc_words like owl |
+| `owl_gc{,_small,_default,_large,_huge}` | bigarray, custom-block-finalisation (Array2), ffi-stubs (OpenBLAS), minor-gc; input size = matrix dim (`OWL_MATRIX_DIM`, 2nd wrapper arg) → off-heap footprint ladder (RSS 95MB→4.77GB); large/huge also hit off-heap-accounting pacer |
+| `liq_video_frames_pool{,_small,_default,_large}` | bigarray, custom-block-finalisation, off-heap accounting (M-sweep); input size = frame resolution (argv.2/3) → major-GC-pacing ladder (majorGC 1104→16837 @ 1080p→8K, gc% ~80-95%, RSS flat) |
 | `zarith_pi` | custom-block-finalisation (`Z.t`), ffi-stubs (GMP), minor-gc, format(cold) |
 | `devkit_gzip` | custom-block-finalisation (z_stream), ffi-stubs (zlib), hashtbl, buffer |
 | `devkit_stre` | hashtbl, minor-gc, buffer, string-allocator |
 | `devkit_network` | hashtbl, int32-boxing, minor-gc |
 | `devkit_htmlstream` | hashtbl, buffer, minor-gc |
-| `devkit_htmlstream_{small,default,large}` | Knob A = per-document content-size scale (argv.1=1/3/8; multiplies HTML-element counts + retained-structure sizes, outer repetition fixed, super-linear pieces left fixed). Churn+peak-RSS ladder: allocated_words 1.65→12.3G, peak heap 0.63→4.57GB, RSS 0.37→2.57GB, minor 3.8k→28k. gc% low ~5% flat (parse-bound), but max GC pause 22→141ms (large-block sweeps). Read by alloc_words + peak heap |
-| `sedlex_tokenize{,_small,_default,_large}` | bytes, ppx-match, string-allocator, minor-gc; Knob A = input size (argv.1 # lines) → retained-token-list footprint ladder (RSS 2.7→27GB), gc% RISES 43→61%, 153ms max pause (steepest in suite) |
-| `ocamlformat_rocq{,_small,_default,_large}` | format, buffer, minor-gc; Knob A = source size (# lines, generated N× workload.ml) → live-AST footprint ladder (RSS 0.6→8.4GB), constant ~30% gc% + growing major-GC scan pauses (90ms @ large) |
+| `devkit_htmlstream_{small,default,large}` | input size = per-document content-size scale (argv.1=1/3/8; multiplies HTML-element counts + retained-structure sizes, outer repetition fixed, super-linear pieces left fixed). Churn+peak-RSS ladder: allocated_words 1.65→12.3G, peak heap 0.63→4.57GB, RSS 0.37→2.57GB, minor 3.8k→28k. gc% low ~5% flat (parse-bound), but max GC pause 22→141ms (large-block sweeps). Read by alloc_words + peak heap |
+| `sedlex_tokenize{,_small,_default,_large}` | bytes, ppx-match, string-allocator, minor-gc; input size = input size (argv.1 # lines) → retained-token-list footprint ladder (RSS 2.7→27GB), gc% RISES 43→61%, 153ms max pause (steepest in suite) |
+| `ocamlformat_rocq{,_small,_default,_large}` | format, buffer, minor-gc; input size = source size (# lines, generated N× workload.ml) → live-AST footprint ladder (RSS 0.6→8.4GB), constant ~30% gc% + growing major-GC scan pauses (90ms @ large) |
 | `cpdf_{merge,blacktext,scale,squeeze}` | hashtbl (object map), bytes mutation, minor-gc; camlpdf C stubs (flate/zlib, AES, SHA-2) hit when decoding/re-compressing streams (squeeze), otherwise pure OCaml |
-| `cpdf_squeeze_{small,default,large}` | Knob A = document working set (merge N=8/24/64 copies + recompress). Live PDF object map grows ~linearly with N (top_heap 110→405M w, RSS 0.88→3.0GB, majorGC 38→56); gc% FALLS 31→16% as flate C recompression dominates. Live-heap ladder, not a GC-pacing one |
+| `cpdf_squeeze_{small,default,large}` | input size = document working set (merge N=8/24/64 copies + recompress). Live PDF object map grows ~linearly with N (top_heap 110→405M w, RSS 0.88→3.0GB, majorGC 38→56); gc% FALLS 31→16% as flate C recompression dominates. Live-heap ladder, not a GC-pacing one |
 | `alt_ergo_fill, alt_ergo_yyll` | weak-refs (Weak.Make hash-consing), hashtbl, format |
-| `alt_ergo_chain_{small,default,large}` | Knob A = single-solve problem size (generated chain VC a(0)=0, a(i)=a(i-1)+1, prove a(N)=N; N=4000/7000/10500). One large mostly-live congruence structure per solve: top_heap 76→638M w, RSS 0.6→4.9GB, minor 3.7k→25k (major only 16→24, promo ~0.1). gc% RISES 14→26%, pauses grow (p99.9 3→22ms) — heap-scan-bound. Distinct from fill_x100's Knob-B repetition |
+| `alt_ergo_chain_{small,default,large}` | input size = single-solve problem size (generated chain VC a(0)=0, a(i)=a(i-1)+1, prove a(N)=N; N=4000/7000/10500). One large mostly-live congruence structure per solve: top_heap 76→638M w, RSS 0.6→4.9GB, minor 3.7k→25k (major only 16→24, promo ~0.1). gc% RISES 14→26%, pauses grow (p99.9 3→22ms) — heap-scan-bound. Distinct from fill_x100's repetition repetition |
 | `alt_ergo_unsat_smt2` | weak-refs, hashtbl, format, signals (SIGVTALRM armed by `--timelimit 15`) |
-| `frama_c_eva_{t,sqlite,sqlite_small,sqlite_default,sqlite_large}` | weak-refs / ephemeron-backed hash-consing (Weak.Make at scale), hashtbl, recursive-variants (CIL AST), minor-gc, max-rss (sqlite, #11733). Knob-A ladder = `-eva-precision` (2nd wrapper arg) on sqlite; slevel inert; t is a fixed fast standalone |
+| `frama_c_eva_{t,sqlite,sqlite_small,sqlite_default,sqlite_large}` | weak-refs / ephemeron-backed hash-consing (Weak.Make at scale), hashtbl, recursive-variants (CIL AST), minor-gc, max-rss (sqlite, #11733). input-size ladder = `-eva-precision` (2nd wrapper arg) on sqlite; slevel inert; t is a fixed fast standalone |
 | `goblint` | high allocation / minor-gc churn (~1.3GB for a 5.6KB input), hash-consing, apron relational domains (C/GMP FFI), recursive-variants (CIL AST), allocated-bytes (#13733) |
-| `goblint_gen_{small,default,large}` | Knob A = analysed-program size (synthetic Btor2C bit-vector state machine, N=100/165/240 state vars; goblint.build.sh generates the .c). Pure allocation-churn ladder (#13733 signature): allocated_words 3.8→39.5G (10×), minor GC 15k→151k, gc% 22→34%; live set grows too (top_heap 5.9→19.5M, major 41→97) but RSS modest 77→186MB. octagon O(N²) → super-linear wall. Read by allocated_words. On-heap counterpoint to pplacer's off-heap footprint |
-| `menhir_{sysver,ocamly,sysver_canonical,sql_parser}` | hashtbl, format, lazy, minor-gc; Knob-A ladder (automaton scale) = small sysver--table / default ocaml--canonical / large sysver--canonical, monotone by wall 7.8→13→34s AND RSS 0.72→2.76→4.0GB. sql_parser (LALR 1.2s) = fast extra, not a rung. Single-run (menhir has no loopable main) |
+| `goblint_gen_{small,default,large}` | input size = analysed-program size (synthetic Btor2C bit-vector state machine, N=100/165/240 state vars; goblint.build.sh generates the .c). Pure allocation-churn ladder (#13733 signature): allocated_words 3.8→39.5G (10×), minor GC 15k→151k, gc% 22→34%; live set grows too (top_heap 5.9→19.5M, major 41→97) but RSS modest 77→186MB. octagon O(N²) → super-linear wall. Read by allocated_words. On-heap counterpoint to pplacer's off-heap footprint |
+| `menhir_{sysver,ocamly,sysver_canonical,sql_parser}` | hashtbl, format, lazy, minor-gc; input-size ladder (automaton scale) = small sysver--table / default ocaml--canonical / large sysver--canonical, monotone by wall 7.8→13→34s AND RSS 0.72→2.76→4.0GB. sql_parser (LALR 1.2s) = fast extra, not a rung. Single-run (menhir has no loopable main) |
 | `ocamlc_self_compile` | hashtbl, marshal (`.cmi`+`.cmo` writeout), bigarray (emit buffer), minor-gc |
 | `ocamlc_compile_uucp{,_small,_default,_large}` | Compiler tool's size ladder = compiling N replicas of uucp (prefix-renamed Uucp→UucpK). uucp's COLLECTED heap → RSS flat ~87-115MB while major-GC scales (N=3/8/25 → major 376/771/1581, promo 0.14/0.40/1.36G w, 6/17/58s). gc% ~17% flat, pauses ~2-4ms. Major-GC-throughput ladder (vs self_compile's monotonic-heap memory-bound). build.sh stages a renamed ocamlc (`..._bin`) for olly attach (like self_compile) |
-| `jsoo{,_small,_default,_large}` | hashtbl, lazy, marshal(cold); Knob A = input bytecode size (rung arg → generated per-runtime .byte from real JSOO sources × R replicas) → whole-program-IR footprint ladder (RSS 0.5→7.8GB), constant ~33% gc% + 129ms max pause @ large |
+| `jsoo{,_small,_default,_large}` | hashtbl, lazy, marshal(cold); input size = input bytecode size (rung arg → generated per-runtime .byte from real JSOO sources × R replicas) → whole-program-IR footprint ladder (RSS 0.5→7.8GB), constant ~33% gc% + 129ms max pause @ large |
 
 ## Coverage gaps — verified
 
@@ -591,7 +602,7 @@ git commit -m "Update vendored dependencies"
 4. Create `benchmarks/<tool>/` with `<tool>.build.sh`, a `dune` file (if custom `.ml`),
    and input files.
 5. Add every program to `benchmarks/manifest.yml` **in the same commit** — CI fails
-   if a build script has no program entry (or vice versa). For a Knob-A ladder, list
+   if a build script has no program entry (or vice versa). For a input-size ladder, list
    only the `_small` rung. A tool that ships disabled goes under `disabled:` with a
    reason instead.
 6. Register it in your orchestrator config (running-ng's experiment YAML), with the
