@@ -3,7 +3,8 @@
 
 Two modes:
 
-  ci-manifest.py list     emit one TAB-separated row per program:
+  ci-manifest.py list       emit one TAB-separated row per program
+  ci-manifest.py list-run   like list, but only `ci_run: true` programs (CI run set)
                           name  tool  build_script  timeout  expected_exit  args
                           (${RUNNING_MACRO_BENCH_DIR} already expanded)
 
@@ -53,9 +54,11 @@ def expand(args):
     return args.replace("${RUNNING_MACRO_BENCH_DIR}", str(ROOT))
 
 
-def cmd_list():
+def cmd_list(ci_run_only=False):
     _, default_timeout, programs = load()
     for name, p in programs.items():
+        if ci_run_only and not p.get("ci_run"):
+            continue
         row = [
             name,
             p["tool"],
@@ -252,7 +255,11 @@ if __name__ == "__main__":
     mode = sys.argv[1] if len(sys.argv) > 1 else ""
     if mode == "list":
         cmd_list()
+    elif mode == "list-run":
+        # Only programs flagged `ci_run: true` (the small rung of each tool) —
+        # what CI runs. ci-build-all uses `list` (every program) to build.
+        cmd_list(ci_run_only=True)
     elif mode == "check":
         sys.exit(cmd_check())
     else:
-        sys.exit(f"usage: {os.path.basename(sys.argv[0])} list|check")
+        sys.exit(f"usage: {os.path.basename(sys.argv[0])} list|list-run|check")
