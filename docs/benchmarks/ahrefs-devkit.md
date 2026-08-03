@@ -17,15 +17,17 @@ Four separate executables, one per Devkit area. Three of them (`gzip`, `stre`,
 sub-benches that many times in one process, so a short workload can be scaled up until
 `olly` has enough to observe. The build script wraps those three in a tiny shell script
 that just execs the real binary with the argument passed through (default 1 if none is
-given). `htmlstream` is different: it does not read argv at all, runs each sub-bench a
-fixed number of times, and is copied out as a plain standalone binary.
+given). `htmlstream` differs in what its `Sys.argv.(1)` means: for the other three it is a
+*repetition* count (Knob B — run the fixed sub-benches N times); for `htmlstream` it is a
+*working-set scale* (Knob A — see the ladder below), default 1 = the frozen benchmark. It is
+copied out as a plain standalone binary (no wrapper).
 
 | Program | Devkit area | Iteration control | Rough profile |
 |---|---|---|---|
-| `devkit_gzip` | `Gzip_io` (zlib C bindings) | `Sys.argv.(1)`, default 1 | compute-bound, ~10s |
-| `devkit_stre` | `Stre` string utilities | `Sys.argv.(1)`, default 1 | minor GC + retention, ~14s |
-| `devkit_network` | `Network` IPv4/CIDR parsing | `Sys.argv.(1)`, default 1 | minor-heavy, ~17s |
-| `devkit_htmlstream` | `HtmlStream` parser | none (fixed internal loops) | minor + retention, ~25s |
+| `devkit_gzip` | `Gzip_io` (zlib C bindings) | `Sys.argv.(1)` repeat, default 1 | compute-bound, ~10s |
+| `devkit_stre` | `Stre` string utilities | `Sys.argv.(1)` repeat, default 1 | minor GC + retention, ~14s |
+| `devkit_network` | `Network` IPv4/CIDR parsing | `Sys.argv.(1)` repeat, default 1 | minor-heavy, ~17s |
+| `devkit_htmlstream` | `HtmlStream` parser | `Sys.argv.(1)` scale, default 1 | minor + retention, ~7s |
 
 ### devkit_gzip
 
@@ -71,8 +73,38 @@ stress, a generational-hypothesis-violation pattern, variable allocation rates, 
 reference-graph builder. Several sub-benches retain a prime-modulo subset of the parsed
 elements, which pushes some allocations into the major heap.
 
-This is the longest of the four on its own, which is why it does not bother with an
-argv iteration loop.
+This is the longest of the four on its own, so instead of an argv *repetition* loop its
+`Sys.argv.(1)` is a **working-set scale factor** (default 1).
+
+#### Knob-A ladder (content-size scale)
+
+The scale factor multiplies the per-document content counts — how many elements are
+generated into each HTML document and how large the retained structures grow — while
+leaving the outer `for _ = 1 to 10` document *repetition* fixed. So a bigger factor parses
+bigger HTML and retains more, growing both allocation churn and the live/peak heap. Only
+the sub-benches' *bounded-cost* loops are scaled; the two intrinsically super-linear pieces
+(bench_morphing_heap's `10240 * phase` block, bench_generational_violation's `for j = 1 to
+batch` nest) keep their fixed size, so scaling stays ~linear rather than blowing the heap up
+quadratically. Factor 1 reproduces the frozen `devkit_htmlstream` exactly. Measured on OCaml
+5.5.0, Ryzen 9 9950X (`fingerprint.sh` `v=0x400`; olly gc%/pause from `perf_grp1|re-25|md-2`):
+
+| rung | scale | wall | RSS | peak heap | allocated | minor GC | major GC |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `_small` | 1 | 7.1s | 0.37 GB | 0.63 GB | 1.65 G w | 3825 | 255 |
+| `_default` | 3 | 19.6s | 1.09 GB | 1.86 GB | 4.84 G w | 10623 | 316 |
+| `_large` | 8 | 50.7s | 2.57 GB | 4.57 GB | 12.3 G w | 27807 | 342 |
+
+Everything grows ~linearly with the factor: `allocated_words` 1.65 → 12.3 G (7.5×), peak
+heap (`top_heap_words`) 0.63 → 4.57 GB, RSS 0.37 → 2.57 GB, minor collections 3.8k → 28k.
+Major collections barely move (255 → 342): the retention is mostly transient (the big
+per-document `Buffer`s and parsed elements are dropped each outer iteration), so this is a
+churn-plus-peak-RSS ladder rather than a live-set one — promotion stays low (~0.034). gc%
+stays low too (~5% and flat — the run is dominated by document construction and parsing, not
+the collector), but the **max GC pause grows steeply, 22 → 141 ms** (p99.9 stays 1.7-3.7 ms):
+the large `String.make` script/style blocks are big enough that sweeping them costs a long
+tail slice, and that tail lengthens with the factor. The `_small` rung coincides with the
+frozen anchor's workload (htmlstream's natural size already sits in the small band). A huge
+band is deferred (scale ~16 would be ~min-scale at ~5 GB).
 
 ## What it stresses
 

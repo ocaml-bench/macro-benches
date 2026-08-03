@@ -344,7 +344,10 @@ StickyImmix). Known MMTk-only issues:
 | `devkit_gzip` | 10 | 1 | compute-bound | codegen, zlib stubs |
 | `devkit_stre` | 14 | 5.5 | minor + retention | string allocator, generational copy |
 | `devkit_network` | 17 | 4.5 | minor (Int32) | int32 boxing, Hashtbl |
-| `devkit_htmlstream` | 25 | 3.3 | minor + retention | Buffer allocator |
+| `devkit_htmlstream` | 7 | 5 | minor + retention | Buffer allocator (Knob A = content-scale argv.1) |
+| `devkit_htmlstream_small` | 7.1 | 5 | Buffer churn + peak heap (scale 1, 0.63GB peak) | Knob A = per-document content size (= frozen anchor) |
+| `devkit_htmlstream_default` | 20 | 5 | churn + peak (scale 3, 1.86GB peak) | as small, bigger documents |
+| `devkit_htmlstream_large` | 52 | 5 | churn + peak (scale 8, 4.57GB peak, max pause 141ms) | large-block sweeps; read by alloc_words+peak heap |
 | `sedlex_tokenize` | 5 | 40 | minor-saturation | string allocation, PPX DFA |
 | `sedlex_tokenize_small` | 5 | 43 | minor + retained token list (2M lines, 2.7GB) | minor-GC + promotion under a growing live heap (Knob A = # lines) |
 | `sedlex_tokenize_default` | 17 | 49 | as small (6M lines, 8GB) | minor-GC/promotion throughput |
@@ -444,6 +447,7 @@ through a `RUNNING_TAG` selector.
 | `devkit_stre` | hashtbl, minor-gc, buffer, string-allocator |
 | `devkit_network` | hashtbl, int32-boxing, minor-gc |
 | `devkit_htmlstream` | hashtbl, buffer, minor-gc |
+| `devkit_htmlstream_{small,default,large}` | Knob A = per-document content-size scale (argv.1=1/3/8; multiplies HTML-element counts + retained-structure sizes, outer repetition fixed, super-linear pieces left fixed). Churn+peak-RSS ladder: allocated_words 1.65→12.3G, peak heap 0.63→4.57GB, RSS 0.37→2.57GB, minor 3.8k→28k. gc% low ~5% flat (parse-bound), but max GC pause 22→141ms (large-block sweeps). Read by alloc_words + peak heap |
 | `sedlex_tokenize{,_small,_default,_large}` | bytes, ppx-match, string-allocator, minor-gc; Knob A = input size (argv.1 # lines) → retained-token-list footprint ladder (RSS 2.7→27GB), gc% RISES 43→61%, 153ms max pause (steepest in suite) |
 | `ocamlformat_rocq{,_small,_default,_large}` | format, buffer, minor-gc; Knob A = source size (# lines, generated N× workload.ml) → live-AST footprint ladder (RSS 0.6→8.4GB), constant ~30% gc% + growing major-GC scan pauses (90ms @ large) |
 | `cpdf_{merge,blacktext,scale,squeeze}` | hashtbl (object map), bytes mutation, minor-gc; camlpdf C stubs (flate/zlib, AES, SHA-2) hit when decoding/re-compressing streams (squeeze), otherwise pure OCaml |
