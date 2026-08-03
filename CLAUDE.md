@@ -311,6 +311,9 @@ StickyImmix). Known MMTk-only issues:
 | `coqc_tree_default` | 19 | 94 | minor-saturation (D=18, 0.98GB) | as small, deeper reduction |
 | `coqc_tree_large` | 69 | 97 | minor-saturation (D=19, 1.89GB, 64ms max pause) | minor-GC saturation at scale (highest gc% in suite) |
 | `eio_fiber_stream` | 6 | 10 | promotion-heavy | OCaml 5 effects, fiber scheduler |
+| `eio_conc_small` | 5.7 | 62 | live fibers+buffers (3000 pairs, 0.69GB) | Knob A = concurrency degree (eio_conc_bench: N indep fiber pairs) |
+| `eio_conc_default` | 17 | 63 | live set (9000 pairs, 1.99GB) | as small, more concurrent pipelines |
+| `eio_conc_large` | 41 | 63 | live set (21000 pairs, 4.96GB, max pause 76ms) | promotion-bound (promo 0.85); read by RSS/top_heap |
 | `irmin_mem_rw` | 12 | 11 | medium | Lwt, persistent hash-tree (Knob-B, 3000 keys + 20000 ops) |
 | `irmin_mem_rw_small` | 5 | 20 | churn (6000-key store, 31MB) | Lwt + persistent-hash-tree churn (Knob A = store size; O(n_keys²) write) |
 | `irmin_mem_rw_default` | 16 | 25 | churn (10000-key store, 44MB) | as small, more churn |
@@ -432,6 +435,7 @@ through a `RUNNING_TAG` selector.
 |---|---|
 | `coqc_corelib_stress{,_tree_small,_tree_default,_tree_large}` | minor-gc, constructor-alloc; Knob A = numeral/make_tree depth → minor-GC-saturation ladder (RSS 0.57→1.89GB, gc% 90→97% = highest in suite) |
 | `eio_fiber_stream` | effects, atomics, eio-fibers, major-promotion |
+| `eio_conc_{small,default,large}` | Knob A = concurrency degree (eio_conc_bench.ml: N=3000/9000/21000 independent producer/consumer fiber pairs, each on own bounded stream; per-fiber work fixed 20000). Live-set ladder: retained fibers+buffers, top_heap 84->619M w, RSS 0.69->4.96GB, promo ~0.85 flat -> gc% ~62% (heavy, 2nd to liqvf), max pause 6.5->76ms. Effects-scheduler counterpart to goblint(churn)/pplacer(off-heap). Read by RSS/top_heap. Frozen eio_fiber_stream (throughput) unchanged |
 | `merlin_bench` *(disabled)* | domains, effects, atomics, hashtbl, format; cold: ephemerons, Gc.finalise |
 | `lavyek_kv_1d` *(disabled)* | atomics, effects, eio-fibers, io-uring, pthread-affinity, hashtbl |
 | `lavyek_kv_{2,4,8}d` *(disabled)* | domains, atomics, effects, eio-fibers, io-uring, pthread-affinity, hashtbl |
