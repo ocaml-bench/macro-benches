@@ -7,11 +7,33 @@ character-database library.
 
 ## Why it exists
 
-Compiling more code is shape-invariant (see the self-compile page), so an `ocamlc`
-benchmark gets coverage from workload *character*, not size. The JSOO self-compile
-workload is numeric/compute code that builds a large monotonic heap the major GC barely
-touches. uucp is the opposite: data/constant-heavy Unicode tables that produce a small,
-actively-collected heap. Together they bracket the collector.
+The two ocamlc benchmarks bracket the collector by workload *character*. The JSOO
+self-compile workload is numeric/compute code that builds a large **monotonic** heap the
+major GC barely touches — so scaling it just grows the heap (same GC shape, more of it).
+uucp is the opposite: data/constant-heavy Unicode tables that produce a small,
+**actively-collected** heap. That difference is what lets uucp carry a size ladder where
+self-compile cannot: because the heap is collected, compiling more of it scales the
+**major-GC work** (mark/sweep cycles, promotion) at a nearly flat RSS, rather than just
+inflating a monotonic heap.
+
+## Input-size ladder
+
+The `ocamlc_compile_uucp_{small,default,large}` rungs compile N replicas of the uucp
+module set (prefix-renamed so the copies coexist in one `ocamlc` invocation). More copies
+means proportionally more major-GC cycles and promotion, while the peak heap barely moves —
+the cheapest large rung in the suite. Measured on OCaml 5.5.0, Ryzen 9 9950X (olly,
+`perf_grp1|re-25|md-2`):
+
+| rung | replicas | wall | gc% | RSS | major GC | promoted | max pause |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| small | 3 | 6.0s | 17.1% | 86 MB | 376 | 0.14 G w | 2.3 ms |
+| default | 8 | 16.8s | 17.4% | 90 MB | 770 | 0.40 G w | 2.6 ms |
+| large | 25 | 57.9s | 17.8% | 115 MB | 1581 | 1.36 G w | 4.2 ms |
+
+Major collections and promotion scale ~linearly with the replica count while RSS stays
+~90–115 MB and gc% holds ~17% — a major-GC-throughput ladder, complementary to
+self-compile's memory-bound (monotonic-heap) scaling. The frozen `ocamlc_compile_uucp`
+compiles the library once (N=1).
 
 ## What it runs
 

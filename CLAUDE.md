@@ -375,6 +375,10 @@ StickyImmix). Known MMTk-only issues:
 | `menhir_sysver_canonical` | 34 | 36 | minor (sysver canonical LR, 4.0GB) | canonical state-table explosion — ladder rung **large** |
 | `menhir_sql_parser` | 1.2 | 27 | minor (LALR + verbose, 0.31GB) | menhir internals — fast LALR extra, not a ladder rung |
 | `ocamlc_self_compile` | 8.6 | 33 | minor-heavy + Marshal | Marshal (`.cmi`/`.cmo`), Hashtbl, Bigarray emit buffer, AST allocation |
+| `ocamlc_compile_uucp` | 2 | 17 | major-active, collected (78MB) | data/constant tables → active major GC (opposite character to self_compile) |
+| `ocamlc_compile_uucp_small` | 6 | 17 | major-GC-throughput (N=3, 87MB, 376 major) | compiler size ladder = uucp replicas; RSS flat, major GC scales |
+| `ocamlc_compile_uucp_default` | 17 | 17 | major-GC-throughput (N=8, 90MB, 771 major) | as small, more replicas |
+| `ocamlc_compile_uucp_large` | 58 | 18 | major-GC-throughput (N=25, 115MB, 1581 major, promo 1.36G w) | cheapest large in suite (RSS flat ~115MB); read by major-GC count |
 | `jsoo` | 7.2 | 33 | minor + IR construction | jsoo bytecode parser, SSA dataflow, JS codegen |
 | `jsoo_small` | 5 | 33 | minor + IR (5.6MB bytecode, 0.5GB) | whole-program IR alloc + minor-GC (Knob A = bytecode size) |
 | `jsoo_default` | 16 | 31 | minor + IR (14MB, 1.7GB) | as small, bigger IR |
@@ -464,6 +468,7 @@ through a `RUNNING_TAG` selector.
 | `goblint_gen_{small,default,large}` | Knob A = analysed-program size (synthetic Btor2C bit-vector state machine, N=100/165/240 state vars; goblint.build.sh generates the .c). Pure allocation-churn ladder (#13733 signature): allocated_words 3.8→39.5G (10×), minor GC 15k→151k, gc% 22→34%; live set grows too (top_heap 5.9→19.5M, major 41→97) but RSS modest 77→186MB. octagon O(N²) → super-linear wall. Read by allocated_words. On-heap counterpoint to pplacer's off-heap footprint |
 | `menhir_{sysver,ocamly,sysver_canonical,sql_parser}` | hashtbl, format, lazy, minor-gc; Knob-A ladder (automaton scale) = small sysver--table / default ocaml--canonical / large sysver--canonical, monotone by wall 7.8→13→34s AND RSS 0.72→2.76→4.0GB. sql_parser (LALR 1.2s) = fast extra, not a rung. Single-run (menhir has no loopable main) |
 | `ocamlc_self_compile` | hashtbl, marshal (`.cmi`+`.cmo` writeout), bigarray (emit buffer), minor-gc |
+| `ocamlc_compile_uucp{,_small,_default,_large}` | Compiler tool's size ladder = compiling N replicas of uucp (prefix-renamed Uucp→UucpK). uucp's COLLECTED heap → RSS flat ~87-115MB while major-GC scales (N=3/8/25 → major 376/771/1581, promo 0.14/0.40/1.36G w, 6/17/58s). gc% ~17% flat, pauses ~2-4ms. Major-GC-throughput ladder (vs self_compile's monotonic-heap memory-bound). build.sh stages a renamed ocamlc (`..._bin`) for olly attach (like self_compile) |
 | `jsoo{,_small,_default,_large}` | hashtbl, lazy, marshal(cold); Knob A = input bytecode size (rung arg → generated per-runtime .byte from real JSOO sources × R replicas) → whole-program-IR footprint ladder (RSS 0.5→7.8GB), constant ~33% gc% + 129ms max pause @ large |
 
 ## Coverage gaps — verified

@@ -51,17 +51,18 @@ This is a minor-GC-heavy, allocation-heavy workload with a few specific extras:
 - `Bigarray.Array1`: the bytecode emit buffer is a byte `Bigarray`, grown with
   `blit`/`sub`. Small, but it sits in the hot bytecode-emission loop.
 
-## Why there is no size ladder — and the uucp companion
+## Why *this* workload has no size ladder — and where the ladder lives
 
-Compilation is ~linear in program size, so scaling REPLICAS is **shape-invariant**:
-more replicas give proportionally more of an identical GC pattern (`promo_frac` pinned
-~0.11, major-GC count pinned ~13, everything else linear). It is *not* a DaCapo-style
-Knob A — bigger just means bigger, not a new regime. And real code can't rescue this:
-no self-contained OCaml program is large enough to reach the minute-scale bands (the
-biggest vendored codebase, merlin, is ~15s of ocamlc and isn't standalone-compilable
-anyway). So for a compiler, the useful axis is workload **character**, not size.
+Scaling REPLICAS here is **shape-invariant**: the JSOO numeric code builds a **monotonic**
+heap, so more replicas give proportionally more of an identical GC pattern (`promo_frac`
+pinned ~0.11, major-GC count pinned ~13) — a bigger heap, not a new regime. Running a
+small and a large of that would measure the same thing twice.
 
-Hence two real, self-contained companion workloads of opposite character:
+The compiler's size ladder therefore lives on the **uucp companion** instead
+([ocamlc-compile-uucp.md](ocamlc-compile-uucp.md)): uucp's Unicode tables produce an
+**actively-collected** heap, so compiling N copies scales the major-GC work (cycles +
+promotion) at a nearly flat RSS — each rung genuinely does more collector work. So the
+compiler tool is covered by two self-contained workloads of opposite character:
 
 | | this bench (`ocamlc_self_compile`) | `ocamlc_compile_uucp` |
 |---|---|---|
@@ -75,10 +76,9 @@ Hence two real, self-contained companion workloads of opposite character:
 They exercise the collector in nearly opposite ways — see
 [ocamlc-compile-uucp.md](ocamlc-compile-uucp.md).
 
-**Rungs (5.5.0, Ryzen 9950X):** default = `ocamlc_self_compile` at REPLICAS=130
-(~15s / 17s under olly); small = `ocamlc_compile_uucp` (~2s). The build-script default
-stays REPLICAS=30 (~5s, legacy) for continuity with older results; activate the ~15s
-default with `OCAMLC_SELF_COMPILE_REPLICAS=130`.
+The compiler tool's small/default/large ladder is the **uucp** one (see that page);
+`ocamlc_self_compile` stays a single fixed point (build-script default REPLICAS=30, ~3s on
+this machine; tune with `OCAMLC_SELF_COMPILE_REPLICAS`).
 
 ## Reading the results
 

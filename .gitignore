@@ -48,7 +48,7 @@ benchmarks/goblint/goblint_gen_*.c
 
 # Staged uucp sources for ocamlc_compile_uucp (re-copied from duniverse/ on
 # every build by ocamlc-compile-uucp.build.sh)
-benchmarks/ocamlc-compile-uucp/inputs/uucp/
+benchmarks/ocamlc-compile-uucp/inputs/uucp*/
 
 # Notebook execution artifacts (rebuilt on re-run)
 results/**/notebooks/cache/
