@@ -13,11 +13,11 @@
 # Usage:
 #   bash scripts/setup-monorepo.sh
 #
-# After setup, run benchmarks via:
-#   cd ~/running-ng
-#   RUNNING_MACRO_BENCH_DIR=~/macro-benches \
-#   CONFIG_FILE=src/running/config/macrobenchmarks_monorepo.yml \
-#     bash run_ocaml_bench_gc_sweep.sh
+# After setup, run benchmarks standalone: build any benchmark and run its binary
+# (e.g. `bash benchmarks/eio/eio.build.sh && ./benchmarks/eio/eio-<runtime>`), or
+# `bash scripts/ci-build-all.sh && bash scripts/ci-run-all.sh` to build + smoke-run.
+# For cross-runtime / GC-parameter sweeps, plug in an orchestrator (running-ng is
+# one option) with RUNNING_MACRO_BENCH_DIR=~/macro-benches pointing it here.
 set -euo pipefail
 
 MONOREPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -855,8 +855,9 @@ echo ""
 echo "The smoke-build subset builds successfully."
 echo "To build every program in benchmarks/manifest.yml: bash scripts/ci-build-all.sh"
 echo ""
-echo "To run benchmarks:"
-echo "  cd ~/running-ng"
-echo "  RUNNING_MACRO_BENCH_DIR=$MONOREPO_DIR \\"
-echo "  CONFIG_FILE=src/running/config/macrobenchmarks_monorepo.yml \\"
-echo "    bash run_ocaml_bench_gc_sweep.sh"
+echo "To run benchmarks (standalone — no orchestrator needed):"
+echo "  bash benchmarks/eio/eio.build.sh && ./benchmarks/eio/eio-runtime   # one bench"
+echo "  bash scripts/ci-build-all.sh && bash scripts/ci-run-all.sh          # build all + smoke-run"
+echo ""
+echo "For cross-runtime / GC-parameter sweeps, plug in an orchestrator (running-ng"
+echo "is one option) pointed here with: export RUNNING_MACRO_BENCH_DIR=$MONOREPO_DIR"
