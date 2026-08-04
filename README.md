@@ -23,9 +23,10 @@ You can use it two ways:
 
 ## The benchmarks
 
-20 active tools. Each has an **input-size ladder** — `small` / `default` /
-`large` (a couple also `huge`) rungs whose input is chosen so each reaches a
-different GC/runtime regime, not just a bigger copy of the one below. A bare run
+22 tools (20 active; `merlin` and `lavyek` disabled — see below). Each active
+tool has an **input-size ladder** — `small` / `default` / `large` (a couple also
+`huge`) rungs whose input is chosen so each reaches a different GC/runtime
+regime, not just a bigger copy of the one below. A bare run
 executes the `default` rung of every tool; other sizes are opt-in via a tag (see
 [Run sweeps](#run-sweeps)). Older single-point benchmarks — original anchors,
 extra per-tool workloads, and the frozen issue reproducers — are kept as

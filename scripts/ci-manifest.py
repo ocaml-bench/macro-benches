@@ -235,7 +235,7 @@ def cmd_check():
 
     # The counts, always, so the log shows what was compared against what.
     with_programs = len({p["tool"] for p in programs.values()})
-    print(f"tools with a build script : {len(tools)}")
+    print(f"benchmark directories with a build script : {len(tools)}")
     print(f"  of those, in the manifest: {with_programs} with programs "
           f"+ {len(disabled)} disabled = {with_programs + len(disabled)}")
     print(f"programs in the manifest  : {len(programs)}")

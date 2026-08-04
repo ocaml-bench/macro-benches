@@ -13,8 +13,9 @@ runtime-feature coverage matrix and gaps, the gotchas, and the backlog.
   frama-c, goblint, alt-ergo, menhir, cpdf, owl, jsoo, irmin, liquidsoap,
   ocamlformat, decompress, eio, sedlex, yojson, zarith, pplacer, devkit, …). All
   third-party deps are **vendored** under `duniverse/` (opam-monorepo), so every
-  runtime compiles byte-identical source. 20 active tools; `merlin` and `lavyek`
-  ship in the tree but are disabled (see their doc pages).
+  runtime compiles byte-identical source. 22 tools (20 active; `merlin` and
+  `lavyek` disabled — see their doc pages). ocamlc counts as one tool but spans
+  two benchmark dirs (ocamlc-self-compile + ocamlc-compile-uucp).
 - **Input-size ladder + tags.** Each tool has `small`/`default`/`large` (a few
   also `huge`) rungs whose input reaches a different GC/runtime regime, not just a
   scaled-up copy. The selection lives in running-ng's `macro_base.yml` `tags:`
@@ -129,9 +130,11 @@ Three phases, all driven off `benchmarks/manifest.yml`:
      by its build script and gitignored — a fresh checkout does not have it);
   5. one `docs/benchmarks/<tool>.md` per tool, both directions.
 
-  It prints the counts it compared (`23 tools = 21 with programs + 2 disabled`,
-  `92 programs`, `23 docs pages`) so the log shows the numbers, then lists every
-  problem it found rather than stopping at the first.
+  It prints the counts it compared (`23 benchmark directories = 21 with programs
+  + 2 disabled`, `92 programs`, `23 docs pages`) so the log shows the numbers,
+  then lists every problem it found rather than stopping at the first. (21 not 20
+  because the compiler tool spans two directories: ocamlc-self-compile and
+  ocamlc-compile-uucp.)
 
 - `scripts/ci-build-all.sh` — builds every program into `_build-ci`. Deletes the
   output binary first, so a stale wrapper can't make a build look successful (the
