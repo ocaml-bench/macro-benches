@@ -9,11 +9,11 @@
     - Generational hypothesis violations
     - Large object handling
 
-    Knob A = working-set scale (Sys.argv.(1), default 1). It multiplies the
+    input size = working-set scale (Sys.argv.(1), default 1). It multiplies the
     per-document content counts that grow the working set — the number of
     elements generated into each HTML document and the size of the structures
     retained from parsing it — while leaving the outer `for _ = 1 to 10` document
-    *repetition* fixed (that is Knob B). Only loops whose per-element cost is
+    *repetition* fixed. Only loops whose per-element cost is
     bounded are scaled, so wall/allocation grow ~linearly with the factor; the
     intrinsically super-linear pieces (bench_morphing_heap's `10240 * phase`
     block, bench_generational_violation's `for j = 1 to batch` nest) keep their

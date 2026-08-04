@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# GC/RSS fingerprint probe for macro-benches Knob-A refactor.
+# GC/RSS fingerprint probe for macro-benches input-size ladders.
 #
 # Runs a benchmark binary under GC-stats + RSS capture with no instrumentation,
 # and emits one CSV row. Sweep across input sizes to see whether a bigger input

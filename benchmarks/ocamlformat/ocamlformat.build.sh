@@ -16,7 +16,7 @@ echo "Building ocamlformat (monorepo) for runtime: ${RUNTIME_TAG}"
 unset OPAM_SWITCH_PREFIX OCAMLTOP_INCLUDE_PATH CAML_LD_LIBRARY_PATH OCAMLLIB
 export OCAMLPATH=""
 
-# Knob-A ladder inputs: the axis is source SIZE (# lines). Generate the rung
+# input-size ladder inputs: the axis is source SIZE (# lines). Generate the rung
 # files by concatenating workload.ml (real ~3.3k-line Rocq source) N times —
 # ocamlformat only parses+reprints syntax, so duplicate definitions are fine,
 # and it holds the whole AST + output document in memory, so RSS/live-heap grow

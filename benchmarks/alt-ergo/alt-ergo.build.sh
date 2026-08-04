@@ -44,10 +44,10 @@ PY
 fi
 
 # ----------------------------------------------------------------------
-# Knob-A congruence-chain ladder (alt_ergo_chain_{small,default,large}).
+# input-size congruence-chain ladder (alt_ergo_chain_{small,default,large}).
 #
-# fill_x100 above is a Knob-B input (100 independent copies of one goal:
-# peak working set constant, wall linear). The chain rungs are Knob A: a
+# fill_x100 above is a fixed-input repetition (100 independent copies of one goal:
+# peak working set constant, wall linear). The chain rungs scale the input: a
 # SINGLE goal whose working set grows with N. The goal asserts a chain
 # a(0)=0 and a(i)=a(i-1)+1 for i in 1..N and proves a(N)=N, so alt-ergo
 # builds an N-term congruence/arithmetic structure in one solve. This is

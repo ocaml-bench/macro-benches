@@ -13,7 +13,7 @@ unset OPAM_SWITCH_PREFIX OCAMLTOP_INCLUDE_PATH CAML_LD_LIBRARY_PATH OCAMLLIB
 export OCAMLPATH=""
 
 # Two benchmarks share this build, selected by output name:
-#   * eio_conc_* — the Knob-A concurrency ladder (eio_conc_bench.exe). Knob A =
+#   * eio_conc_* — the input-size concurrency ladder (eio_conc_bench.exe). input size =
 #     number of independent producer/consumer fiber pairs (argv.1), each on its
 #     own bounded stream, so the working set (live fibers + buffered data) grows
 #     ~linearly. The frozen eio_fiber_stream is a throughput bench with a tiny,

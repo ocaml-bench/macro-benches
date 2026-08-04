@@ -10,8 +10,10 @@
 #   ocamlc-compile-uucp (uucp): data/constant-heavy Unicode tables -> small
 #     COLLECTED heap, ACTIVE major GC (mark/sweep churn), higher promotion.
 #
-# Compilation is ~linear in program size (shape-invariant under scaling), so
-# the useful axis for an ocamlc benchmark is workload *character*, not size.
+# self-compile's monotonic heap is shape-invariant under scaling (a bigger heap,
+# same GC pattern), so it has no size ladder. uucp is the opposite: its collected
+# heap means compiling more of it scales the major-GC work (cycles + promotion) at
+# a nearly flat RSS — so uucp carries the compiler's size ladder (see below).
 # uucp is real, self-contained (flat Uucp_* modules, stdlib-only, no ppx), and
 # compiles standalone with zero curation.
 set -euo pipefail

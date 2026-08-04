@@ -1,12 +1,12 @@
-(* Eio concurrency Knob-A ladder driver.
+(* Eio concurrency input-size ladder driver.
 
    The frozen eio_fiber_stream (eio_bench.ml) is a THROUGHPUT benchmark: a few
    fibers streaming a huge number of items through one shared bounded stream, so
    its live set is tiny (~9 MB) and constant — scaling its item count is pure
-   repetition (Knob B). This driver scales the other axis, the one an effect
+   repetition. This driver scales the other axis, the one an effect
    scheduler exists for: the *degree of concurrency*.
 
-   Knob A = n_pairs (Sys.argv.(1)): the number of independent producer/consumer
+   input size = n_pairs (Sys.argv.(1)): the number of independent producer/consumer
    fiber pairs, each pair communicating over its own bounded Eio.Stream. All
    2 * n_pairs fibers are alive at once, so the working set grows ~linearly with
    n_pairs — the parked fibers' effect continuations plus the in-flight data

@@ -21,8 +21,8 @@ dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
 
 REAL_EXE="${BUILD_DIR}/default/benchmarks/liq-video-frames/liq_video_frames.exe"
 
-# The wrappers forward all args to the exe: argv.1 = frame count (Knob B),
-# argv.2/argv.3 = frame WIDTH/HEIGHT (Knob A — a bigger frame scales the
+# The wrappers forward all args to the exe: argv.1 = frame count (repetition),
+# argv.2/argv.3 = frame WIDTH/HEIGHT (input size — a bigger frame scales the
 # per-frame off-heap Bigarray, so the custom-block pacer forces more major
 # cycles; the frozen repro leaves W/H unset = 1280x720). An output whose name
 # contains "pool" gets the AVFrame-style refcounted-pool wrapper (LIQ_POOL=1,

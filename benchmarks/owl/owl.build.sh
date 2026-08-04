@@ -11,10 +11,10 @@ export OCAMLPATH=""
 dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" --profile release benchmarks/owl/owl_gc.exe
 REAL_EXE="${BUILD_DIR}/default/benchmarks/owl/owl_gc.exe"
 # Two knobs:
-#   $1 = in-process loop count (Knob B, repetition; default 1). The OCaml
+#   $1 = in-process loop count (repetition; default 1). The OCaml
 #        binary reads it as Sys.argv.(1) = number of full passes over the
 #        matrix-pair grid. Single observable OCaml process, olly sees it all.
-#   $2 = matrix dimension (Knob A, working-set size) -> OWL_MATRIX_DIM. Each
+#   $2 = matrix dimension (input size, working-set size) -> OWL_MATRIX_DIM. Each
 #        sample point is a $2 x $2 Float64 matrix, so the off-heap Bigarray
 #        live set is 100 * $2^2 * 8 bytes; raising it grows RSS ~quadratically
 #        (the owl footprint ladder). Default 100 = legacy value.
