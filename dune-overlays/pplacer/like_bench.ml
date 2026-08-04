@@ -1,4 +1,4 @@
-(* like_bench.ml — Knob-A macro-benchmark driver for pplacer's phylogenetic
+(* like_bench.ml — input-size ladder macro-benchmark driver for pplacer's phylogenetic
    likelihood hot path (generalized likelihood vectors over a reference tree).
 
    This is the compute core of `pplacer` placement, lifted almost verbatim from
@@ -6,7 +6,7 @@
    two changes: the exact-likelihood assertion is dropped (we scale the input, so
    the value changes) and the alignment length is scaled by replicating columns.
 
-   Knob A = n_sites (alignment length). The generalized likelihood vectors (Glv,
+   input size = n_sites (alignment length). The generalized likelihood vectors (Glv,
    GSL-backed off-heap Bigarrays) and every per-edge evolve/logdot are sized by
    n_sites, so a bigger alignment grows the off-heap GSL working set linearly and
    proportionally more matrix-vector likelihood work — the same axis owl scales,
@@ -28,7 +28,7 @@
    is what real placement does to attach a query, and it is a fixed methodology
    constant, NOT the ladder axis. It raises the compute-per-working-set ratio so
    the ladder reaches owl-like wall bands (~5/15/50s) at modest off-heap RSS,
-   instead of the ~1.7 s/GB of a single Felsenstein pass. Knob A is still n_sites
+   instead of the ~1.7 s/GB of a single Felsenstein pass. the input-size axis is still n_sites
    (PPLACER_LIKE_MULT); SCAN is held fixed across the ladder. *)
 
 open Ppatteries

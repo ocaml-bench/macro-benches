@@ -21,7 +21,7 @@ mkdir -p "$(dirname "${OUT}")"
 
 # Two benchmark families share this build script, selected by output name:
 #
-#  * pplacer_like_* — the Knob-A likelihood ladder (like_bench.exe). Knob A =
+#  * pplacer_like_* — the input-size likelihood ladder (like_bench.exe). input size =
 #    n_sites (alignment length): the generalized likelihood vectors (Glv,
 #    GSL-backed OFF-HEAP Bigarrays) are sized by n_sites, so a bigger alignment
 #    grows the off-heap working set. like_bench scales it by replicating the
@@ -31,7 +31,7 @@ mkdir -p "$(dirname "${OUT}")"
 #    ~1.7 s/GB of a single Felsenstein pass. This is the pplacer likelihood hot
 #    path lifted from tests/pplacer/test_like.ml (minus its exact-value assert).
 #  * pplacer_testsuite (default) — the frozen OUnit test suite, looped argv.1
-#    times in-process (PPLACER_TEST_LOOP): a Knob-B confidence bench, unchanged.
+#    times in-process (PPLACER_TEST_LOOP): a repetition confidence bench, unchanged.
 case "$(basename "${OUT}")" in
   *pplacer_like_*)
     dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \

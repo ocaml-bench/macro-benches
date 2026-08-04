@@ -129,8 +129,8 @@ Three phases, all driven off `benchmarks/manifest.yml`:
      by its build script and gitignored — a fresh checkout does not have it);
   5. one `docs/benchmarks/<tool>.md` per tool, both directions.
 
-  It prints the counts it compared (`22 tools = 20 with programs + 2 disabled`,
-  `31 programs`, `22 docs pages`) so the log shows the numbers, then lists every
+  It prints the counts it compared (`23 tools = 21 with programs + 2 disabled`,
+  `92 programs`, `23 docs pages`) so the log shows the numbers, then lists every
   problem it found rather than stopping at the first.
 
 - `scripts/ci-build-all.sh` — builds every program into `_build-ci`. Deletes the
@@ -472,7 +472,7 @@ through a `RUNNING_TAG` selector.
 | `cpdf_{merge,blacktext,scale,squeeze}` | hashtbl (object map), bytes mutation, minor-gc; camlpdf C stubs (flate/zlib, AES, SHA-2) hit when decoding/re-compressing streams (squeeze), otherwise pure OCaml |
 | `cpdf_squeeze_{small,default,large}` | input size = document working set (merge N=8/24/64 copies + recompress). Live PDF object map grows ~linearly with N (top_heap 110→405M w, RSS 0.88→3.0GB, majorGC 38→56); gc% FALLS 31→16% as flate C recompression dominates. Live-heap ladder, not a GC-pacing one |
 | `alt_ergo_fill, alt_ergo_yyll` | weak-refs (Weak.Make hash-consing), hashtbl, format |
-| `alt_ergo_chain_{small,default,large}` | input size = single-solve problem size (generated chain VC a(0)=0, a(i)=a(i-1)+1, prove a(N)=N; N=4000/7000/10500). One large mostly-live congruence structure per solve: top_heap 76→638M w, RSS 0.6→4.9GB, minor 3.7k→25k (major only 16→24, promo ~0.1). gc% RISES 14→26%, pauses grow (p99.9 3→22ms) — heap-scan-bound. Distinct from fill_x100's repetition repetition |
+| `alt_ergo_chain_{small,default,large}` | input size = single-solve problem size (generated chain VC a(0)=0, a(i)=a(i-1)+1, prove a(N)=N; N=4000/7000/10500). One large mostly-live congruence structure per solve: top_heap 76→638M w, RSS 0.6→4.9GB, minor 3.7k→25k (major only 16→24, promo ~0.1). gc% RISES 14→26%, pauses grow (p99.9 3→22ms) — heap-scan-bound. Distinct from fill_x100's fixed-input repetition |
 | `alt_ergo_unsat_smt2` | weak-refs, hashtbl, format, signals (SIGVTALRM armed by `--timelimit 15`) |
 | `frama_c_eva_{t,sqlite,sqlite_small,sqlite_default,sqlite_large}` | weak-refs / ephemeron-backed hash-consing (Weak.Make at scale), hashtbl, recursive-variants (CIL AST), minor-gc, max-rss (sqlite, #11733). input-size ladder = `-eva-precision` (2nd wrapper arg) on sqlite; slevel inert; t is a fixed fast standalone |
 | `goblint` | high allocation / minor-gc churn (~1.3GB for a 5.6KB input), hash-consing, apron relational domains (C/GMP FFI), recursive-variants (CIL AST), allocated-bytes (#13733) |

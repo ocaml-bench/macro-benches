@@ -2,11 +2,11 @@
    Exercises JSON parsing, tree construction, serialization, and GC.
 
    Two knobs:
-     argv.1 = iteration count (Knob B, repetition; default 10).
+     argv.1 = iteration count (repetition; default 10).
      argv.2 = the document. If it names an existing file, that file is read
               (legacy behaviour, e.g. sample.json). Otherwise it is parsed as
               an integer RECORD COUNT and a JSON document of that many records
-              is generated in-process (Knob A, working-set size) — so the ladder
+              is generated in-process (input size, working-set size) — so the ladder
               rungs need no vendored/generated files, just a count argument.
 
    The generated document is a JSON array of records shaped like

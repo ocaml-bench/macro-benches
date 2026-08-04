@@ -47,10 +47,10 @@ REAL_EXE="${BUILD_DIR}/default/duniverse/analyzer/src/goblint.exe"
 # goblint searches first) at the vendored source dirs instead.
 GLIB="${MONOREPO_DIR}/duniverse/analyzer/lib"
 
-# Knob-A generated inputs (goblint_gen_{small,default,large}).
+# Generated ladder inputs (goblint_gen_{small,default,large}).
 #
 # The frozen `goblint` program analyses the fixed #13733 reproducer bench.c
-# (~0.2s here — too short for a macro rung). The Knob-A axis is the SIZE of the
+# (~0.2s here — too short for a macro rung). The input-size axis is the SIZE of the
 # analysed program: a bigger C program means more variables tracked by the
 # interval+octagon (apron) domains and more program points, so goblint's
 # constraint solver does proportionally more fixpoint work. gen_goblint.py emits

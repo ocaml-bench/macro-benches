@@ -40,7 +40,7 @@
    inline. The cleanest reproduction of toots' free-lunch shape uses
    LIQ_POOL=1, LIQ_TOUCH=full. *)
 
-(* Plane sizes match mm/imageYUV420.ml for 1280×720 by default. Knob A =
+(* Plane sizes match mm/imageYUV420.ml for 1280×720 by default. input size =
    frame RESOLUTION (LIQ_WIDTH/LIQ_HEIGHT): a bigger frame scales the per-frame
    off-heap Bigarray size — the custom-block pacer's allocation unit — and the
    touch bandwidth, reaching a bigger off-heap-allocation regime while keeping

@@ -1,7 +1,7 @@
-(* Coq Knob-A ladder rung (default): kernel reduction of a unary-nat tree size.
+(* Coq input-size ladder rung (default): kernel reduction of a unary-nat tree size.
    make_tree 18 builds 2^18 nodes; tree_size reduces to a 2^18-deep unary nat,
    so coqc's kernel does allocation-heavy exponential reduction. Depth is the
-   Knob A (small=17 ~5s, default=18 ~19s, large=19 ~68s on 5.5.0/Ryzen). *)
+   input size (small=17 ~5s, default=18 ~19s, large=19 ~68s on 5.5.0/Ryzen). *)
 Require Import Init.Nat.
 Require Import Init.Peano.
 Inductive big_tree : Type := Leaf : nat -> big_tree | Node : big_tree -> big_tree -> big_tree.

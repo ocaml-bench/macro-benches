@@ -83,7 +83,7 @@ let f = fib(10)
 let g = factorial(8)
 |}
 
-(* Knob A = script SIZE. When a unit count is given (argv.2), generate a
+(* input size = script SIZE. When a unit count is given (argv.2), generate a
    script of that many independent units instead of replaying the fixed one.
    Each unit is a self-contained block (recursion + higher-order + lists,
    using the same liquidsoap idioms as the fixed script) with a unique

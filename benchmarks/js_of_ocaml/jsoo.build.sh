@@ -81,8 +81,8 @@ FINDLIB_CONF_ABS="${BENCH_DIR}/findlib-${RUNTIME_TAG}.conf"
 } > "${FINDLIB_CONF_ABS}"
 echo "  findlib conf:  ${FINDLIB_CONF_ABS}"
 
-# --- Knob-A ladder workloads -------------------------------------------------
-# Knob A for jsoo is the SIZE of the input bytecode.  jsoo is a whole-program
+# --- input-size ladder workloads -------------------------------------------------
+# The input-size axis for jsoo is the SIZE of the input bytecode.  jsoo is a whole-program
 # compiler (it holds the entire program IR in memory), so RSS/live-heap grow
 # with the input — a genuine footprint ladder, unlike the per-module compiler
 # benches.  But jsoo's cost is driven by program STRUCTURE, not raw bytes: a

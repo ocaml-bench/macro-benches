@@ -22,7 +22,7 @@ dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
 
 REAL_EXE="${BUILD_DIR}/default/vendor/cpdf-source/cpdfcommandrun.exe"
 
-# Knob-A squeeze ladder. Knob A = document working set: merge N copies of the
+# input-size squeeze ladder. input size = document working set: merge N copies of the
 # input PDF (so the whole parsed object graph is resident at once — top_heap
 # grows ~linearly with N) and recompress every stream (-squeeze), which is the
 # CPU that lifts wall into the small/default/large time bands. The copy count N
