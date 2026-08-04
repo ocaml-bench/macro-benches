@@ -25,9 +25,24 @@ RUNTIME_TAG="${RUNNING_OCAML_RUNTIME_NAME:-default}"
 
 echo "Building ocamlc-compile-uucp benchmark for runtime: ${RUNTIME_TAG}"
 
-OCAMLC="${HOME}/.opam/running-ng-${RUNTIME_TAG}/bin/ocamlc"
-OCAMLDEP="${HOME}/.opam/running-ng-${RUNTIME_TAG}/bin/ocamldep"
-[ -x "${OCAMLC}" ] || { echo "ERROR: ocamlc not found at ${OCAMLC}" >&2; exit 1; }
+# Resolve the runtime's ocamlc + ocamldep. An orchestrator may point us at its
+# switch via RUNNING_OCAML_SWITCH_PREFIX (a prefix path) or RUNNING_OCAML_SWITCH
+# (an opam switch name we resolve with `opam var prefix`); standalone, the
+# compiler on PATH is the runtime under test. This benchmark needs no orchestrator.
+if [[ -n "${RUNNING_OCAML_SWITCH_PREFIX:-}" ]]; then
+  OCAML_BIN="${RUNNING_OCAML_SWITCH_PREFIX}/bin"
+elif [[ -n "${RUNNING_OCAML_SWITCH:-}" ]] && _p="$(opam var prefix --switch="${RUNNING_OCAML_SWITCH}" 2>/dev/null)" && [[ -n "${_p}" ]]; then
+  OCAML_BIN="${_p}/bin"
+else
+  OCAML_BIN="$(dirname "$(command -v ocamlc || echo /nonexistent/ocamlc)")"
+fi
+OCAMLC="${OCAML_BIN}/ocamlc"
+OCAMLDEP="${OCAML_BIN}/ocamldep"
+if [[ ! -x "${OCAMLC}" ]]; then
+  echo "ERROR: ocamlc not found. Put it on PATH, or set RUNNING_OCAML_SWITCH_PREFIX" >&2
+  echo "  (a switch prefix) or RUNNING_OCAML_SWITCH (an opam switch name)." >&2
+  exit 1
+fi
 echo "  using ocamlc: ${OCAMLC}"
 
 SRC="${MONOREPO_DIR}/duniverse/uucp/src"

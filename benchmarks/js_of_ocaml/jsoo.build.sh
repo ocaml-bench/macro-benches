@@ -40,14 +40,15 @@ dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
   duniverse/js_of_ocaml/compiler/bin-js_of_ocaml/js_of_ocaml.exe
 
 REAL_EXE="${BUILD_DIR}/default/duniverse/js_of_ocaml/compiler/bin-js_of_ocaml/js_of_ocaml.exe"
-# Under running-ng the runtime under test lives in an opam switch named
-# running-ng-${RUNTIME_TAG}. Outside running-ng (CI, a hand-driven build) there
-# is no such switch, so derive the prefix from the ocamlc on PATH — the same
-# compiler this script's dune build is using.
+# The workload is the runtime's own ocamlc.byte. Resolve the runtime's switch
+# prefix from the orchestrator API when set (RUNNING_OCAML_SWITCH_PREFIX, a prefix;
+# or RUNNING_OCAML_SWITCH, an opam switch name we resolve with `opam var prefix`),
+# else derive it from the ocamlc on PATH — the same compiler this script's dune
+# build uses. Works standalone with just a compiler on PATH; no orchestrator needed.
 if [[ -n "${RUNNING_OCAML_SWITCH_PREFIX:-}" ]]; then
   RUNTIME_PREFIX="${RUNNING_OCAML_SWITCH_PREFIX}"
-elif [[ -d "${HOME}/.opam/running-ng-${RUNTIME_TAG}" ]]; then
-  RUNTIME_PREFIX="${HOME}/.opam/running-ng-${RUNTIME_TAG}"
+elif [[ -n "${RUNNING_OCAML_SWITCH:-}" ]] && _p="$(opam var prefix --switch="${RUNNING_OCAML_SWITCH}" 2>/dev/null)" && [[ -n "${_p}" ]]; then
+  RUNTIME_PREFIX="${_p}"
 else
   _ocamlc="$(command -v ocamlc || true)"
   [[ -n "${_ocamlc}" ]] && RUNTIME_PREFIX="$(cd "$(dirname "${_ocamlc}")/.." && pwd)"
@@ -58,7 +59,7 @@ RUNTIME_LIB="${RUNTIME_PREFIX:-/nonexistent}/lib"
 if [[ ! -f "${WORKLOAD}" ]]; then
   echo "ERROR: workload not found at ${WORKLOAD}" >&2
   echo "  (expected ocamlc.byte in the runtime's switch: tried" >&2
-  echo "   \$RUNNING_OCAML_SWITCH_PREFIX, ~/.opam/running-ng-${RUNTIME_TAG}," >&2
+  echo "   \$RUNNING_OCAML_SWITCH_PREFIX, opam var prefix --switch \$RUNNING_OCAML_SWITCH," >&2
   echo "   then the prefix of the ocamlc on PATH)" >&2
   exit 1
 fi
