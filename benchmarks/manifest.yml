@@ -46,7 +46,7 @@ programs:
   menhir_sysver_canonical:
     tool: menhir
     build_script: menhir.build.sh
-    args: "--canonical ${RUNNING_MACRO_BENCH_DIR}/benchmarks/menhir/sysver.mly"
+    args: "--canonical --table ${RUNNING_MACRO_BENCH_DIR}/benchmarks/menhir/sysver.mly"
   cpdf_merge:
     tool: cpdf
     build_script: cpdf.build.sh
