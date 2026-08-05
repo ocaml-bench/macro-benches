@@ -91,11 +91,21 @@ case "\${1:-t}" in
     # true, EVA walks into the branch and Frama-C 32.1 aborts on an unimplemented
     # feature ("Builtins for long double type"), exit 3. SQLite documents
     # LONGDOUBLE_TYPE as an override, and setting it to double makes the gate
-    # false on every host. Measured effect on this analysis: bUseLongDouble drops
-    # to 0 and one alarm of 87 disappears (the signed-overflow alarm inside the
-    # long-double detection code itself) -- the other 12000+ log lines are
-    # identical, because the branch was never reached on a host where the gate was
-    # already false.
+    # false. Measured effect on this analysis: bUseLongDouble drops to 0 and one
+    # alarm of 87 disappears (the signed-overflow alarm inside the long-double
+    # detection code itself) -- the other 12000+ log lines are identical.
+    #
+    # This define alone is NOT sufficient at low -eva-precision. The gate folds
+    # to 0 only when EVA can keep the bUseLongDouble global precise; at
+    # -eva-precision 0/1 (the small rung) it widens the global to {0;1}, analyses
+    # BOTH arms, and still hits the 1.0e+119L long-double *literals* -> the same
+    # exit-3 abort, on every host. (It reproduces locally too; CI just surfaced it
+    # first because only the small rung, precision 0, is flagged ci_run.) So the
+    # three bUseLongDouble branches in sqlite3.c are additionally neutralised with
+    # \`if( 0 && ... )\` (grep "no long double builtins"), forcing EVA down the
+    # portable non-long-double path at every precision. That is a benign SQLite
+    # config (the path used wherever high-precision long double is unavailable)
+    # and irrelevant to what this benchmark measures.
     exec "${REAL_EXE}" -no-autoload-plugins \\
       -eva -eva-no-results -eva-precision "\$PREC" -main main \\
       -eva-warn-key assigns:missing=feedback \\
