@@ -35561,7 +35561,7 @@ do_atof_calc:
 
   if( e==0 ){
     *pResult = s;
-  }else if( sqlite3Config.bUseLongDouble ){
+  }else if( 0 /* Frama-C: no long double builtins; force portable path */ && sqlite3Config.bUseLongDouble ){
     LONGDOUBLE_TYPE r = (LONGDOUBLE_TYPE)s;
     if( e>0 ){
       while( e>=100  ){ e-=100; r *= 1.0e+100L; }
@@ -35967,7 +35967,7 @@ SQLITE_PRIVATE void sqlite3FpDecode(FpDecode *p, double r, int iRound, int mxRou
   /* Multiply r by powers of ten until it lands somewhere in between
   ** 1.0e+19 and 1.0e+17.
   */
-  if( sqlite3Config.bUseLongDouble ){
+  if( 0 /* Frama-C: no long double builtins; force portable path */ && sqlite3Config.bUseLongDouble ){
     LONGDOUBLE_TYPE rr = r;
     if( rr>=1.0e+19 ){
       while( rr>=1.0e+119L ){ exp+=100; rr *= 1.0e-100L; }
@@ -89354,7 +89354,7 @@ SQLITE_PRIVATE int sqlite3IntFloatCompare(i64 i, double r){
     ** than NULL */
     return 1;
   }
-  if( sqlite3Config.bUseLongDouble ){
+  if( 0 /* Frama-C: no long double builtins; force portable path */ && sqlite3Config.bUseLongDouble ){
     LONGDOUBLE_TYPE x = (LONGDOUBLE_TYPE)i;
     testcase( x<r );
     testcase( x>r );
