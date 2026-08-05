@@ -43,6 +43,38 @@ PY
   echo "fill_x100.why generated: $(wc -l < "$FILL_X100") lines, $(grep -c '^goal ' "$FILL_X100") goals."
 fi
 
+# ----------------------------------------------------------------------
+# input-size congruence-chain ladder (alt_ergo_chain_{small,default,large}).
+#
+# fill_x100 above is a fixed-input repetition (100 independent copies of one goal:
+# peak working set constant, wall linear). The chain rungs scale the input: a
+# SINGLE goal whose working set grows with N. The goal asserts a chain
+# a(0)=0 and a(i)=a(i-1)+1 for i in 1..N and proves a(N)=N, so alt-ergo
+# builds an N-term congruence/arithmetic structure in one solve. This is
+# the same array-cell reasoning fill.why exercises (Frama-C/WP VCs),
+# parameterised. Solving is super-linear (~N^2.2 in both wall and live
+# heap): N=4000 ~4s/0.6GB, 7000 ~13s/1.9GB, 10500 ~32s/5.0GB on 5.5.0.
+# Outputs are gitignored; generated once (deterministic in N).
+# ----------------------------------------------------------------------
+gen_chain () {  # $1 = output file, $2 = N
+  python3 - "$2" "$1" <<'PY'
+import sys
+N = int(sys.argv[1]); out = sys.argv[2]
+hyp = " and ".join(f"a({i}) = a({i-1}) + 1" for i in range(1, N + 1))
+with open(out, "w") as f:
+    f.write("logic a : int -> int\n")
+    f.write(f"goal g : (a(0) = 0 and {hyp}) -> a({N}) = {N}\n")
+PY
+}
+for spec in "small:4000" "default:7000" "large:10500"; do
+  rung="${spec%%:*}"; n="${spec##*:}"
+  chain_out="${BENCH_DIR}/alt_ergo_chain_${rung}.why"
+  if [[ ! -f "$chain_out" ]]; then
+    echo "Generating alt_ergo_chain_${rung}.why (congruence chain, N=${n})..."
+    gen_chain "$chain_out" "$n"
+  fi
+done
+
 unset OPAM_SWITCH_PREFIX OCAMLTOP_INCLUDE_PATH CAML_LD_LIBRARY_PATH OCAMLLIB
 export OCAMLPATH=""
 

@@ -45,5 +45,25 @@ for lib in src/mcl/libmcl.a src/impala/libimpala.a src/clew/libclew.a util/libut
   fi
 done
 
+# Install the input-size likelihood-ladder driver (dune-overlays/pplacer/like_bench.ml)
+# and register it in the cloned dune's executables stanza. like_bench.ml is a
+# macro-benches addition (pplacer's Felsenstein likelihood hot path, lifted from
+# tests/pplacer/test_like.ml) that vendor/ — being gitignored — cannot hold, so
+# it lives tracked under dune-overlays/ and is copied in on every (re-)vendor.
+# The dune edit is idempotent: skipped once `like_bench` is already registered.
+echo "Installing like_bench input-size ladder driver overlay..."
+cp "${MONOREPO_DIR}/dune-overlays/pplacer/like_bench.ml" "${PPLACER_DIR}/like_bench.ml"
+if ! grep -q 'like_bench' "${PPLACER_DIR}/dune"; then
+  sed -i \
+    -e 's/(names pplacer guppy rppr tests)/(names pplacer guppy rppr tests like_bench)/' \
+    -e 's/(public_names pplacer guppy rppr -)/(public_names pplacer guppy rppr - -)/' \
+    "${PPLACER_DIR}/dune"
+fi
+if ! grep -q 'like_bench' "${PPLACER_DIR}/dune"; then
+  echo "ERROR: failed to register like_bench in ${PPLACER_DIR}/dune" >&2
+  exit 1
+fi
+
 echo "Done.  pplacer vendored to vendor/pplacer/"
 echo "  mcl C libraries built in vendor/pplacer/mcl/"
+echo "  like_bench input-size ladder driver installed + registered in dune."

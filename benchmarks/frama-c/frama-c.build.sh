@@ -15,12 +15,21 @@
 #
 # Two workloads, selected by the wrapper's first argument:
 #   t       (default) : EVA on t.c (zlib, ~17.5k lines) — abstract-interp
-#                       focused, ~6s.
-#   sqlite            : EVA on the SQLite amalgamation (sqlite3.c, ~258k
+#                       focused, fast (~0.4s on 5.5.0). Small/simple: EVA never
+#                       accumulates enough abstract states for slevel/precision
+#                       to matter, so this is a fixed fast standalone, NOT a
+#                       input-size ladder rung.
+#   sqlite [PREC]     : EVA on the SQLite amalgamation (sqlite3.c, ~258k
 #                       lines) via a small driver — stresses the weak/
 #                       ephemeron hashconsing of a huge CIL AST + EVA state
-#                       (the OCaml-5 regression of ocaml#11733), ~7s / 460MB
-#                       at -eva-slevel 0; raise slevel to push wall+RSS.
+#                       (the OCaml-5 regression of ocaml#11733).  The optional
+#                       second arg PREC is the EVA precision level (-eva-precision
+#                       0..11; default 0 ≈ the legacy -eva-slevel 0 run, ~7s /
+#                       460MB).  Precision is the input-size axis: raising it keeps
+#                       more abstract states → bigger live heap + more
+#                       hash-consing (P0 7s/457MB → P2 18s/641MB → P3+ minutes).
+#                       NOTE: -eva-slevel does NOT scale this workload (measured
+#                       flat 0→500); -eva-precision does.
 # Any other arguments are passed straight through to the EVA executable.
 #
 # assigns:missing is downgraded from error→feedback for the sqlite run:
@@ -57,6 +66,9 @@ case "\${1:-t}" in
     exec "${REAL_EXE}" -no-autoload-plugins \\
       -eva -eva-no-results -eva-slevel "\$SLEVEL" "${BENCH_DIR}/t.c" ;;
   sqlite)
+    # input size = EVA precision (-eva-precision).  Level from \$2, else
+    # FRAMAC_EVA_PRECISION, else 0 (≈ legacy -eva-slevel 0 behaviour).
+    PREC="\${2:-\${FRAMAC_EVA_PRECISION:-0}}"
     # Two defines pin the *analysed program*, which otherwise depends on the host
     # gcc. Frama-C preprocesses with \`gcc -E -undef -imacros __fc_builtin_macros.h\`,
     # so __GNUC__ is stripped and sqlite3.c's GCC_VERSION is 0 on every host. Its
@@ -79,13 +91,23 @@ case "\${1:-t}" in
     # true, EVA walks into the branch and Frama-C 32.1 aborts on an unimplemented
     # feature ("Builtins for long double type"), exit 3. SQLite documents
     # LONGDOUBLE_TYPE as an override, and setting it to double makes the gate
-    # false on every host. Measured effect on this analysis: bUseLongDouble drops
-    # to 0 and one alarm of 87 disappears (the signed-overflow alarm inside the
-    # long-double detection code itself) -- the other 12000+ log lines are
-    # identical, because the branch was never reached on a host where the gate was
-    # already false.
+    # false. Measured effect on this analysis: bUseLongDouble drops to 0 and one
+    # alarm of 87 disappears (the signed-overflow alarm inside the long-double
+    # detection code itself) -- the other 12000+ log lines are identical.
+    #
+    # This define alone is NOT sufficient at low -eva-precision. The gate folds
+    # to 0 only when EVA can keep the bUseLongDouble global precise; at
+    # -eva-precision 0/1 (the small rung) it widens the global to {0;1}, analyses
+    # BOTH arms, and still hits the 1.0e+119L long-double *literals* -> the same
+    # exit-3 abort, on every host. (It reproduces locally too; CI just surfaced it
+    # first because only the small rung, precision 0, is flagged ci_run.) So the
+    # three bUseLongDouble branches in sqlite3.c are additionally neutralised with
+    # \`if( 0 && ... )\` (grep "no long double builtins"), forcing EVA down the
+    # portable non-long-double path at every precision. That is a benign SQLite
+    # config (the path used wherever high-precision long double is unavailable)
+    # and irrelevant to what this benchmark measures.
     exec "${REAL_EXE}" -no-autoload-plugins \\
-      -eva -eva-no-results -eva-slevel "\${FRAMAC_EVA_SLEVEL:-0}" -main main \\
+      -eva -eva-no-results -eva-precision "\$PREC" -main main \\
       -eva-warn-key assigns:missing=feedback \\
       -cpp-extra-args="-DLONGDOUBLE_TYPE=double -D'__has_extension(x)=1'" \\
       "${BENCH_DIR}/sqlite_driver.c" "${BENCH_DIR}/sqlite3.c" ;;

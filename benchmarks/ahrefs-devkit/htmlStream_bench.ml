@@ -7,9 +7,23 @@
     - Major collection pressure (long-lived data)
     - Heap fragmentation
     - Generational hypothesis violations
-    - Large object handling *)
+    - Large object handling
+
+    input size = working-set scale (Sys.argv.(1), default 1). It multiplies the
+    per-document content counts that grow the working set — the number of
+    elements generated into each HTML document and the size of the structures
+    retained from parsing it — while leaving the outer `for _ = 1 to 10` document
+    *repetition* fixed. Only loops whose per-element cost is
+    bounded are scaled, so wall/allocation grow ~linearly with the factor; the
+    intrinsically super-linear pieces (bench_morphing_heap's `10240 * phase`
+    block, bench_generational_violation's `for j = 1 to batch` nest) keep their
+    fixed size so a bigger factor does not blow the heap up quadratically.
+    Factor 1 reproduces the frozen benchmark exactly. *)
 
 open Devkit
+
+let scale =
+  if Array.length Sys.argv > 1 then max 1 (int_of_string Sys.argv.(1)) else 1
 
 (* Benchmark 1: Small String Pressure (Minor GC stress) *)
 let bench_small_strings () =
@@ -17,7 +31,7 @@ let bench_small_strings () =
 
   for _ = 1 to 10 do
     let buf = Buffer.create (1024 * 1024) in
-    for i = 1 to 10000 do
+    for i = 1 to 10000 * scale do
       Buffer.add_string buf "<p>";
       Buffer.add_string buf (string_of_int i);
       Buffer.add_string buf " small text ";
@@ -42,7 +56,7 @@ let bench_attribute_lists () =
 
   for _ = 1 to 10 do
     let buf = Buffer.create (1024 * 1024 * 2) in
-    for i = 1 to 5000 do
+    for i = 1 to 5000 * scale do
       Buffer.add_string buf "<div";
       let num_attrs = 20 + (i mod 30) in
       for j = 1 to num_attrs do
@@ -69,7 +83,7 @@ let bench_large_blocks () =
 
   for _ = 1 to 10 do
     let buf = Buffer.create (1024 * 1024 * 5) in
-    for i = 1 to 1000 do
+    for i = 1 to 1000 * scale do
       let size = 1024 * (1 + (i mod 100)) in
       Buffer.add_string buf "<script>";
       Buffer.add_string buf (String.make size 'x');
@@ -99,7 +113,7 @@ let bench_morphing_heap () =
     let buf = Buffer.create (1024 * 1024 * 3) in
     for phase = 1 to 100 do
       if phase mod 3 = 0 then
-        for _ = 1 to 100 do
+        for _ = 1 to 100 * scale do
           Buffer.add_string buf "<span>small</span>"
         done;
 
@@ -136,7 +150,7 @@ let bench_fragmentation () =
   for _ = 1 to 10 do
     let buf = Buffer.create (1024 * 1024 * 4) in
     let sizes = [| 10; 100; 1000; 10000; 100; 10; 5000; 50; 500 |] in
-    for i = 1 to 2000 do
+    for i = 1 to 2000 * scale do
       let size = sizes.(i mod Array.length sizes) in
 
       match i mod 4 with
@@ -178,7 +192,7 @@ let bench_generational_violation () =
   for _ = 1 to 10 do
     let buf = Buffer.create (1024 * 1024 * 2) in
     for batch = 1 to 100 do
-      for i = 1 to 100 do
+      for i = 1 to 100 * scale do
         Printf.bprintf buf "<div id=\"gen_%d_%d\">" batch i;
         Printf.bprintf buf "Generation %d Item %d" batch i;
         for j = 1 to batch do
@@ -218,7 +232,7 @@ let bench_variable_rate () =
 
   for _ = 1 to 10 do
     let buf = Buffer.create (1024 * 1024 * 3) in
-    for phase = 1 to 50 do
+    for phase = 1 to 50 * scale do
       let intensity =
         int_of_float (50.0 +. (45.0 *. sin (float_of_int phase *. 0.3)))
       in
@@ -264,7 +278,7 @@ let bench_complex_references () =
 
   for _ = 1 to 10 do
     let buf = Buffer.create (1024 * 1024 * 2) in
-    for layer = 1 to 20 do
+    for layer = 1 to 20 * scale do
       for node = 1 to 50 do
         Printf.bprintf buf "<div class=\"layer_%d node_%d\">" layer node;
         for ref_layer = 1 to 5 do

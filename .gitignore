@@ -38,9 +38,17 @@ scripts/.switch-inventory-backup-*.txt
 
 # Generated alt-ergo benchmark inputs (built by alt-ergo.build.sh)
 benchmarks/alt-ergo/fill_x*.why
+benchmarks/alt-ergo/alt_ergo_chain_*.why
 
 # Generated input for ocamlc_self_compile benchmark
 benchmarks/ocamlc-self-compile/inputs/compile_workload.ml
+
+# Generated goblint ladder inputs (built by goblint.build.sh)
+benchmarks/goblint/goblint_gen_*.c
+
+# Staged uucp sources for ocamlc_compile_uucp (re-copied from duniverse/ on
+# every build by ocamlc-compile-uucp.build.sh)
+benchmarks/ocamlc-compile-uucp/inputs/uucp*/
 
 # Notebook execution artifacts (rebuilt on re-run)
 results/**/notebooks/cache/

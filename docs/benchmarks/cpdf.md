@@ -1,56 +1,49 @@
 # cpdf
 
-cpdf is a command-line PDF toolkit built on the CamlPDF library. This benchmark runs
-four different cpdf operations over one large reference PDF, so each variant is a
-real end-to-end PDF processing task: read the file, do the transformation, write the
-result.
+cpdf is a command-line PDF toolkit built on the CamlPDF library. The benchmark is
+a real end-to-end PDF task: read a file, transform it, write the result. It is
+byte-level processing — CamlPDF parses the file into an object map
+(`(int, objectdata ref * int) Hashtbl.t`) and rewrites objects — so it mixes minor
+allocation, `Bytes` mutation, and `Hashtbl` lookups. Despite being a "pure OCaml"
+library, CamlPDF carries C stubs for flate (zlib/miniz), AES, and SHA-2; the flate
+stubs are hot when de/re-compressing streams.
 
-## What it runs
+## Ladder
 
-All four variants build the same binary from `vendor/cpdf-source`
-(`cpdfcommandrun.exe`) and run it against `benchmarks/cpdf/PDFReference16.pdf_toobig`
-(about 8.7 MB). Every variant writes its output to `/dev/null`.
+Input size = the **document working set**, the copy count `N` passed to the
+`cpdf_squeeze` wrapper (`cpdf.build.sh` emits a wrapper that merges N copies of
+`PDFReference16.pdf_toobig` and recompresses every stream). CamlPDF holds the whole
+merged object map live at once, so the major heap grows ~linearly with N
+(`top_heap` tracks RSS). Recompression (`-squeeze`, via the flate C stubs) is what
+lifts wall into the standard bands. Measured on OCaml 5.5.0, Ryzen 9 9950X
+(`fingerprint.sh` `v=0x400`; olly gc%/pause from `perf_grp1|re-25|md-2`):
 
-| Variant          | What it does                          | Command                                        |
-|------------------|---------------------------------------|------------------------------------------------|
-| `cpdf_merge`     | Merges the PDF with itself            | `-merge <pdf> <pdf> -o /dev/null`              |
-| `cpdf_blacktext` | Recolors all text to black            | `-blacktext <pdf> -o /dev/null`                |
-| `cpdf_scale`     | Scales to A4 landscape, 2-up layout   | `scale-to-fit a4landscape -twoup <pdf> -o /dev/null` |
-| `cpdf_squeeze`   | Re-compresses object streams          | `-squeeze <pdf> -o /dev/null`                  |
+| rung | copies | wall | RSS | gc% | top_heap | max pause |
+| --- | --- | --- | --- | --- | --- | --- |
+| `_small` | 8 | 7.4s | 0.88 GB | 31.4% | 110M w | 12 ms |
+| `_default` | 24 | 18.2s | 1.77 GB | 25.5% | 225M w | 34 ms |
+| `_large` | 64 | 57.4s | 3.04 GB | 16.2% | 405M w | 44 ms |
 
-There is also a smaller `metro_geo.pdf` (about 1.6 MB) in the directory; the four
-variants above do not use it.
+Each rung reaches a strictly bigger live-heap regime (`top_heap` 110 → 405M words,
+major cycles 38 → 56, tail pauses growing). gc% **falls** as the document grows
+(31 → 16%): a bigger merged PDF spends proportionally more time in flate C
+recompression (off-heap CPU that isn't GC), so this is a moderate-GC,
+live-heap-driven ladder. A huge band is deferred (128 copies ≈ 2min at ~6 GB).
 
-## What it stresses
+## Legacy
 
-This is byte-level PDF processing. CamlPDF parses the file into an object map (a
-`(int, objectdata ref * int) Hashtbl.t`), then walks and rewrites objects. So you
-get a mix of minor allocation, `Bytes` mutation on the raw object data, and
-`Hashtbl` lookups against the object map.
+Kept for reference, not run by default (`RUNNING_TAG=legacy`) — four single-document
+operations on the reference PDF, each writing to `/dev/null`:
 
-Contrary to what you might expect from a "pure OCaml" library, CamlPDF is not FFI-free.
-It carries C stubs for flate (zlib/miniz) compression, AES, and SHA-2. The flate
-stubs matter here in particular: decoding compressed streams on the way in and, for
-`cpdf_squeeze`, re-compressing them on the way out both go through C.
-
-I/O is part of the cost too, since the multi-megabyte input is read at startup.
-
-## Reading the results
-
-Walls differ a lot between variants. Rough numbers: merge around 5.6s, blacktext
-around 6.8s, squeeze around 9.1s, and scale around 35.7s. gc_overhead sits in the
-medium 20-40% range, with low minor-collection counts (a few thousand) and low major
-counts (tens). `cpdf_scale` is the long pole because its page-geometry work is
-genuinely more compute-heavy than the others, not because of GC.
-
-A regression across all four points at the shared paths: `Bytes` allocation and
-mutation, the object-map `Hashtbl`, or the flate C stubs. A regression on one
-variant alone points at that specific operation.
+- `cpdf_merge` — merges the PDF with itself (memory-bound, ~5.6s).
+- `cpdf_blacktext` — recolors all text to black (~6.8s).
+- `cpdf_scale` — scales to A4 landscape 2-up; the long pole (~36s) on page-geometry
+  compute, not GC.
+- `cpdf_squeeze` — re-compresses object streams (~9s; the operation the ladder scales).
 
 ## Notes
 
 cpdf and CamlPDF are manually vendored under `vendor/cpdf-source` and
-`vendor/camlpdf` because upstream uses OCamlMakefile rather than dune; the build
-uses hand-written dune overlays. The C stubs (`flatestubs.c`, `stubs-aes.c`,
-`stubs-sha2.c`, and friends) are compiled in via `foreign_stubs` in
-`vendor/camlpdf/dune`, so a working C toolchain is required to build this.
+`vendor/camlpdf` (upstream uses OCamlMakefile, not dune); the build uses
+hand-written dune overlays. The C stubs are compiled in via `foreign_stubs` in
+`vendor/camlpdf/dune`, so a working C toolchain is required.

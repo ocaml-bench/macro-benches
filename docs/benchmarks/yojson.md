@@ -1,49 +1,44 @@
 # yojson
 
-yojson is a widely used JSON library for OCaml. This benchmark parses a JSON file
-into yojson's tree type and serializes it back, many times over, to exercise the
-parser, the tree it builds, and the GC that has to clean up after each round.
+yojson is a widely used JSON library for OCaml. This benchmark parses a JSON document
+into yojson's recursive-variant tree (`` `Assoc ``/`` `List ``/strings) and serializes
+it back, so it exercises the parser, the memory-heavy tree it builds, and the major GC
+that promotes and then collects that tree.
 
-## What it runs
+## Ladder
 
-One program, `ydump_repeat`, built from `benchmarks/yojson/ydump_repeat.ml`.
+Input size = the **JSON document size**, driven by `argv.2` as a generated in-process
+record count (iterations pinned to 1 — pure working set, not repetition). Each record is
+a small nested object (~128 bytes), so the document and the tree it parses into grow with
+the count; ~28% of allocation is promoted at every rung (the parse-and-promote path). The
+tree is boxed and pointer-dense, so RSS is ~13x the document size. Measured on 5.5.0,
+Ryzen 9 9950X (wall/RSS from `fingerprint.sh` `v=0x400`; gc%/pause from olly
+`perf_grp1|re-25|md-2`):
 
-It takes an iteration count and a file path (the suite passes `1000` and
-`benchmarks/yojson/sample.json`; the source default for the count is `10`). It reads
-the whole file once into a string, then loops N times doing:
+| rung | records | doc size | wall | RSS | gc% | max pause |
+| --- | --- | --- | --- | --- | --- | --- |
+| `_small` | 2M | 257 MB | 5.5s | 3.25 GB | 28.9% | 161 ms |
+| `_default` | 6M | 771 MB | 16.3s | 10.0 GB | 33.6% | 209 ms |
+| `_large` | 12M | 1.54 GB | 32.7s | 20.2 GB | 39.6% | 424 ms |
 
-- `Yojson.Safe.from_string data` to parse, then
-- `Yojson.Safe.to_string json` to serialize the result back to a compact string.
+yojson has the **largest GC pauses in the whole suite** — up to ~424 ms at `_large`
+(p99.9 ~64 ms) — because marking and collecting a multi-GB tree of tiny boxed nodes is a
+huge unit of GC work. gc% also rises with size (29% → 40%) as more of each run is spent
+promoting into and scanning the growing major heap. So this ladder is the primary signal
+for promotion throughput and major-GC pause latency on a large pointer-dense tree.
+`_large` is RAM-capped at 20 GB / ~33s; a huge band is deferred.
 
-The output of each round is discarded. `sample.json` is about 670 KB.
+## Legacy
 
-The parsed value is yojson's recursive variant type, `` `Assoc of (string * t) list ``,
-`` `List of t list ``, and so on, so each parse rebuilds a full nested tree.
+Kept for reference, not run by default (`RUNNING_TAG=legacy`):
 
-There is a second, unrelated source in this directory (`ydump.ml`, the yojson CLI
-pretty-printer). It is not what this benchmark runs.
-
-## What it stresses
-
-This is a parse-and-promote workload. Every iteration allocates a complete JSON
-tree of recursive-variant blocks plus a string for each key and string-valued node.
-Unlike a pure minor-churn benchmark, the tree lives long enough within an iteration
-to get promoted, so the major GC does real work here. File I/O happens only once at
-startup, so it is not part of the measured loop.
-
-## Reading the results
-
-Expect wall time around 5.5s with a low gc_overhead near 4.5%. The interesting
-number is the major-to-minor ratio: it is high (the README observed roughly 1654
-major / 2541 minor, about 65%), which tells you promotion is a real part of the
-cost, not just minor allocation.
-
-A regression here that also shows up on other AST-shaped, promotion-heavy workloads
-points at the minor-to-major copy path. A regression only here points at something
-yojson-specific in the parser or serializer.
+- `ydump_repeat` — the original fixed-doc repetition bench (1000x the ~670 KB
+  `sample.json` file).
 
 ## Notes
 
-Built from the monorepo with `dune build --profile release
-benchmarks/yojson/ydump_repeat.exe`, against the vendored `yojson` under
-`duniverse/`. No system libraries or FFI involved.
+- Built against the vendored `yojson` under `duniverse/`; no system libraries or FFI.
+- olly reports `promoted_pct` ~3.3% here — the true ~0.28 fraction over 8, a symptom of
+  the olly minor-allocation-counter units bug; the `v=0x400` fraction is the correct one.
+- A second, unrelated source (`ydump.ml`, the yojson CLI pretty-printer) lives in this
+  directory but is not what this benchmark runs.
