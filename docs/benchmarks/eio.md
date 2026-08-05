@@ -1,58 +1,46 @@
 # eio
 
-Eio is OCaml 5's effects-based concurrency and I/O library. This benchmark
-(`eio_fiber_stream`) puts it under a simple but heavy producer/consumer load: a
-pile of fibers push data through a bounded stream while another pile pulls it
-back out.
+Eio is OCaml 5's effects-based concurrency and I/O library. This benchmark puts its
+scheduler under producer/consumer load — fibers pushing data through bounded streams
+while other fibers pull it back out — built on `Effect.perform` and deep effect
+handlers. It is a single-domain benchmark and the suite's cleanest signal for
+effects and fiber scheduling.
 
-## What it runs
+## Ladder
 
-One program, `eio_fiber_stream` (built from `eio_bench.ml`). It spawns 4
-producer fibers and 4 consumer fibers on a single domain. Each producer pushes
-15 million tuples of the form `(id, i, String.make 64 c)` onto a bounded
-`Eio.Stream` with capacity 1024; the consumers pop them until the whole batch
-is drained.
+Input size = the **degree of concurrency** (`n_pairs`), the axis an effects
+scheduler exists for. A driver (`eio_conc_bench.ml`) runs `n_pairs` independent
+producer/consumer fiber pairs, each pair on its *own* bounded stream, with a fixed
+20000 items per fiber. All `2·n_pairs` fibers are alive at once, so the working set
+— the parked fibers' continuations plus data buffered across the streams — grows
+~linearly with `n_pairs` (per-pair streams keep scheduling ~linear, whereas one
+shared stream's O(n) waiter queue makes wall blow up super-linearly). Measured on
+OCaml 5.5.0, Ryzen 9 9950X (`fingerprint.sh` `v=0x400`; olly gc%/pause from
+`perf_grp1|re-25|md-2`):
 
-That works out to 60 million items total (4 producers times 15M each), and
-roughly 3.6 GB of fresh 64-byte strings allocated and immediately thrown away.
-The bounded stream (capacity 1024) forces producers and consumers to interleave:
-a full stream parks the producer, an empty one parks the consumer, so every
-push and pop tends to bounce through the scheduler.
+| rung | n_pairs | wall | RSS | gc% | max pause |
+| --- | --- | --- | --- | --- | --- |
+| `small` | 3000 | 5.7s | 0.69 GB | 61.9% | 6.5 ms |
+| `default` | 9000 | 17.1s | 1.99 GB | 62.6% | 36 ms |
+| `large` | 21000 | 40.6s | 4.96 GB | 63.0% | 76 ms |
 
-There are no command-line arguments. The counts are compiled in. The program
-prints how many items it processed and the wall time.
+This is a promotion-bound, live-set concurrency ladder: the buffered/in-flight data
+is genuinely retained (top_heap 84 → 619 M words, RSS 0.69 → 4.96 GB), the promotion
+fraction is high and flat (~0.85), so gc% sits at a heavy ~62% (second only to
+liq_video_frames in the suite) and pauses lengthen with the live heap (6.5 → 76 ms).
+It is the effects-scheduler counterpart to the allocation-churn (goblint) and
+off-heap-footprint (pplacer) ladders. A huge band is deferred (`n_pairs` ~45000
+would be ~min-scale at ~10 GB).
 
-## What it stresses
+## Legacy
 
-- Effects and the OCaml 5 scheduler. Eio's `Stream.add`/`take` and
-  `Fiber.both`/`all` are built on `Effect.perform` and deep effect handlers, so
-  a high volume of stream traffic means a high volume of effect performs and
-  fiber switches.
-- The minor GC and promotion. Sixty million short-lived strings is a lot of
-  minor-heap churn. Because producers can run ahead of consumers up to the
-  stream's capacity, some of that data survives long enough to be promoted, so
-  this leans on the minor-to-major copy path too.
-- Atomics, indirectly, through the stream's bounded-queue synchronization.
+Kept for reference, not run by default (`RUNNING_TAG=legacy`):
 
-The one thing it obtains but does not use is the domain manager: it grabs
-`Stdenv.domain_mgr` and then never spawns a second domain. This is a
-single-domain benchmark.
-
-## Reading the results
-
-Expect a wall time of around 6s. GC is promotion-heavy: roughly 10% of
-allocated data gets promoted, with a fairly high ratio of major to minor
-collections for this suite (on the order of thousands of minor collections and
-over a thousand major ones). RSS is modest since the working set is small and
-the data is discarded as fast as it is made.
-
-This is the suite's cleanest signal for effects and fiber scheduling. If
-`eio_fiber_stream` moves and none of the allocation-heavy benchmarks do, look
-at effect-handler internals or the fiber-stack path. If it moves along with all
-the promotion-heavy benchmarks, suspect the minor-to-major copy path instead.
+- `eio_fiber_stream` — the original throughput bench: a few fibers stream many items
+  through one shared bounded stream (~9 MB constant live set, data discarded as fast
+  as it is made).
 
 ## Notes
 
-Requires OCaml 5.2 or newer (it needs Eio 1.x and effects). Built with
-`dune --profile release` into a per-runtime build directory; nothing unusual in
-the build glue.
+- Requires OCaml 5.2 or newer (Eio 1.x and effects). Built with `dune --profile
+  release`; nothing unusual in the build glue.

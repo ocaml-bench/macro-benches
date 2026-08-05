@@ -2,3 +2,8 @@
  (name eio_bench)
  (modules eio_bench)
  (libraries eio eio_main unix))
+
+(executable
+ (name eio_conc_bench)
+ (modules eio_conc_bench)
+ (libraries eio eio_main unix))

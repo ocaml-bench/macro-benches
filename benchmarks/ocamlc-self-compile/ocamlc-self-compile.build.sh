@@ -31,25 +31,23 @@ RUNTIME_TAG="${RUNNING_OCAML_RUNTIME_NAME:-default}"
 echo "Building ocamlc-self-compile benchmark for runtime: ${RUNTIME_TAG}"
 
 # ----------------------------------------------------------------------
-# 1. Locate the runtime's ocamlc.
+# 1. Locate the runtime's ocamlc — the compiler being measured.
 #
-# Under running-ng each variant has its own opam switch named
-# running-ng-${RUNTIME_TAG}, and we want THAT variant's ocamlc, not the tools
-# switch's. Outside running-ng (CI, a hand-driven build) there is no such
-# switch, so fall back to the compiler on PATH — which is by definition the
-# runtime under test, since that is how the build scripts get their ocamlopt.
+# An orchestrator may point us at its switch via RUNNING_OCAML_SWITCH_PREFIX (a
+# prefix path) or RUNNING_OCAML_SWITCH (an opam switch name we resolve with
+# `opam var prefix`); standalone, the compiler on PATH is the runtime under test
+# (that is how the build scripts get their ocamlopt too). No orchestrator needed.
 # ----------------------------------------------------------------------
 if [[ -n "${RUNNING_OCAML_SWITCH_PREFIX:-}" ]]; then
   OCAMLC="${RUNNING_OCAML_SWITCH_PREFIX}/bin/ocamlc"
-elif [[ -x "${HOME}/.opam/running-ng-${RUNTIME_TAG}/bin/ocamlc" ]]; then
-  OCAMLC="${HOME}/.opam/running-ng-${RUNTIME_TAG}/bin/ocamlc"
+elif [[ -n "${RUNNING_OCAML_SWITCH:-}" ]] && _p="$(opam var prefix --switch="${RUNNING_OCAML_SWITCH}" 2>/dev/null)" && [[ -n "${_p}" ]]; then
+  OCAMLC="${_p}/bin/ocamlc"
 else
   OCAMLC="$(command -v ocamlc || true)"
 fi
 if [[ -z "${OCAMLC}" || ! -x "${OCAMLC}" ]]; then
-  echo "ERROR: ocamlc not found" >&2
-  echo "  (looked for \$RUNNING_OCAML_SWITCH_PREFIX/bin/ocamlc," >&2
-  echo "   ~/.opam/running-ng-${RUNTIME_TAG}/bin/ocamlc, then ocamlc on PATH)" >&2
+  echo "ERROR: ocamlc not found. Put it on PATH, or set RUNNING_OCAML_SWITCH_PREFIX" >&2
+  echo "  (a switch prefix) or RUNNING_OCAML_SWITCH (an opam switch name)." >&2
   exit 1
 fi
 echo "  using ocamlc: ${OCAMLC}"

@@ -1,53 +1,42 @@
 # irmin
 
 Irmin is a Git-like, persistent, branchable store for OCaml. This benchmark
-(`irmin_mem_rw`) drives Irmin's in-memory backend through a read/write workload
-built on Lwt promises. It is the only Lwt benchmark in the suite.
+builds an in-memory `Irmin_mem.KV` store over string contents and runs a
+write/read/mixed workload on top of Lwt promises — the only Lwt benchmark in the
+suite, so it exercises `Lwt.bind` continuation chaining at volume alongside
+persistent-tree allocation.
 
-## What it runs
+## Ladder
 
-One program, `irmin_mem_rw` (built from `irmin_mem_rw.ml`). It builds an
-in-memory `Irmin_mem.KV` store over string contents and runs three phases:
+The ladder scales the **store size** (`n_keys`), with the mixed-op count kept
+small so the write phase dominates. Because every `set_exn` puts its key into the
+single flat `["root"; …]` directory node, Irmin re-hashes and re-serializes that
+whole node on every insert, so the write phase is **O(n_keys²)** in
+persistent-hash-tree / `Hashtbl` churn. Measured on OCaml 5.5.0, Ryzen 9 9950X
+(`fingerprint.sh` `v=0x400`; olly gc%/pause from `perf_grp1|re-25|md-2`):
 
-1. Write phase: put `n_keys` entries, each a key `key-<i>` with a ~100-byte
-   value.
-2. Read phase: read back all `n_keys` entries.
-3. Mixed phase: run `total_ops` operations against the same key space with a
-   fixed read percentage (an op reads when `i mod 100 < read_pct`).
+| rung | n_keys | wall | RSS | gc% | major GC | max pause |
+| --- | --- | --- | --- | --- | --- | --- |
+| `_small` | 6000 | 5.4s | 31 MB | 20% | 293 | 0.49 ms |
+| `_default` | 10000 | 15.7s | 44 MB | 25% | 674 | 0.79 ms |
+| `_large` | 18000 | 51.7s | 74 MB | 29% | 1523 | 1.56 ms |
 
-Every write goes through `Store.set_exn` with a fresh commit info, so each
-`set` extends Irmin's persistent tree along the path `["root"; key]`. The
-program prints per-phase timings and a total.
+This is a **churn / throughput** ladder, not a footprint one: RSS stays modest
+(< 100 MB) and pauses stay tiny (< 2 ms), while wall grows quadratically and gc%
+rises (20 → 29 %) as churn intensifies. It is the suite's signal for Lwt plus
+persistent-hash-tree allocation churn at scale; co-movement with the Eio
+benchmark points at general scheduler/continuation performance, movement here
+alone at something Lwt-specific. A huge band is deferred (the write phase is
+quadratic; 18k keys is already ~52 s).
 
-The workload sizes are command-line arguments, not compile-time constants. The
-program takes exactly four positional args: `<n_keys> <n_ops> <read_pct>
-<total_ops>`, and exits with a usage message if they are missing. The
-orchestrator's usual invocation is 3000 keys, 80% reads, and 20000 mixed ops.
-Heads up: the second argument (`n_ops`) is parsed but never used anywhere in
-the driver, so only three of the four numbers actually affect the run.
+## Legacy
 
-## What it stresses
+Kept for reference, not run by default (`RUNNING_TAG=legacy`):
 
-- Lwt promises. Every store operation returns an `'a Lwt.t` and the whole thing
-  runs under `Lwt_main.run`, so this exercises `Lwt.bind` continuation chaining
-  at volume. If something regresses here but not on the Eio benchmark, Lwt
-  codegen is the first suspect.
-- Persistent immutable tree building. Each `set` creates new tree nodes along
-  the path rather than mutating in place, so there is steady allocation of
-  small tree structure plus the hashing Irmin does over keys and content.
-- Moderate GC pressure. The values are small and there is no giant working set,
-  so nothing here is extreme.
-
-## Reading the results
-
-Expect a wall time of around 12s, with GC overhead near 11% and a moderate
-collection count (roughly 6800 minor / 130 major). Nothing about this benchmark
-is a sharp edge; it sits in the middle on every axis, which makes it useful
-mostly as the Lwt reference point. Co-movement with `eio_fiber_stream` points
-at general scheduler or continuation performance; movement here alone points at
-something Lwt-specific.
+- `irmin_mem_rw` — the original fixed-store repetition bench (3000 keys, 80 %
+  reads, 20000 mixed ops).
 
 ## Notes
 
-Uses the `irmin` and `irmin.mem` libraries plus `lwt`/`lwt.unix`. Built with
-`dune --profile release`; no build quirks.
+- Uses the `irmin` and `irmin.mem` libraries plus `lwt`/`lwt.unix`; built with
+  `dune --profile release`, no build quirks.

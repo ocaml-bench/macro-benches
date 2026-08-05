@@ -93,7 +93,7 @@ while IFS=$'\t' read -r name tool timeout_s expected_exit args; do
       failed=$((failed + 1))
       ;;
   esac
-done < <(python3 "${MONOREPO_DIR}/scripts/ci-manifest.py" list | cut -f1,2,4,5,6)
+done < <(python3 "${MONOREPO_DIR}/scripts/ci-manifest.py" list-run | cut -f1,2,4,5,6)
 
 echo ""
 echo "=== ${count} programs, $((count - failed)) ran clean, ${failed} failed ==="

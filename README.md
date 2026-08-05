@@ -23,13 +23,18 @@ You can use it two ways:
 
 ## The benchmarks
 
-20 active tools, 31 programs. Most land in the 5-25s range that keeps a
-benchmark long enough to measure and short enough to iterate on; a few of the
-heavier compiler and proof workloads run longer, and goblint runs much shorter
-(its interest is allocation volume, not wall time).
+22 tools (20 active; `merlin` and `lavyek` disabled — see below). Each active
+tool has an **input-size ladder** — `small` / `default` / `large` (a couple also
+`huge`) rungs whose input is chosen so each reaches a different GC/runtime
+regime, not just a bigger copy of the one below. A bare run
+executes the `default` rung of every tool; other sizes are opt-in via a tag (see
+[Run sweeps](#run-sweeps)). Older single-point benchmarks — original anchors,
+extra per-tool workloads, and the frozen issue reproducers — are kept as
+**legacy** benches, run only with `RUNNING_TAG=legacy`.
 
-Each benchmark has its own page under [docs/benchmarks/](docs/benchmarks) with
-what it runs, what it stresses in the runtime, and how to read its results.
+The table below sketches what each tool does (its `default` rung); each has a
+page under [docs/benchmarks/](docs/benchmarks) with the full ladder and legacy
+benches.
 
 | Benchmark | What it runs | ~Time |
 |-----------|--------------|-------|
@@ -136,6 +141,15 @@ orchestrator to manage the per-runtime switches. Point running-ng at the repo
 (`export RUNNING_MACRO_BENCH_DIR=~/macro-benches`) and drive the sweeps from
 there; see its docs for the available configs.
 
+Which rungs run is selected by `RUNNING_TAG`:
+
+| `RUNNING_TAG` | runs |
+|---|---|
+| *(unset)* | the `default` rung of every tool — the standard suite |
+| `small_run` / `large_run` / `huge_run` | that size across every tool |
+| `legacy` | the pre-ladder anchors, extra workloads, and frozen repros |
+| `all_benches` | everything at once |
+
 ### Clean
 
 ```bash
@@ -151,10 +165,14 @@ The same two phases CI runs, driven off
 
 ```bash
 python3 scripts/ci-manifest.py check             # manifest vs. tree (seconds)
-bash scripts/ci-build-all.sh                     # build every program
-bash scripts/ci-run-all.sh                       # run each once, from a scratch cwd
-ONLY="jsoo goblint" bash scripts/ci-build-all.sh # or just a few
+bash scripts/ci-build-all.sh                     # build every program (all rungs + legacy)
+bash scripts/ci-run-all.sh                       # run the small rung of each tool once
+ONLY="jsoo_small goblint_gen_small" bash scripts/ci-run-all.sh  # or just a few
 ```
+
+CI builds everything (catching build breaks) but only *runs* the small rung of
+each tool — flagged `ci_run: true` in the manifest — since the large rungs don't
+fit a hosted runner.
 
 When you add a benchmark, add it to the manifest in the same commit as its build
 script — `check` fails if the two disagree, including when a new program is added

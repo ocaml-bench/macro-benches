@@ -1,61 +1,49 @@
 # pplacer
 
-pplacer is a phylogenetics tool: it places sequences onto a reference
-evolutionary tree. This benchmark runs pplacer's own OUnit test suite, which
-builds phylogenetic trees, runs numerical work through GSL, and stores
-intermediate state in sqlite3. It is a mixed FFI-plus-tree-allocation
-workload, and one of the heaviest GC-overhead benchmarks in the suite.
+pplacer is a phylogenetics tool that places sequences onto a reference
+evolutionary tree. The ladder lifts pplacer's Felsenstein likelihood hot path
+(`like_bench.ml`, from `tests/pplacer/test_like.ml`): it builds the generalized
+likelihood vectors (Glv) over a reference tree and computes attachment
+likelihoods, with each edge running a fixed 40-point ML pendant-branch-length
+scan — a mixed FFI-plus-tree workload dominated by GSL matrix-vector compute.
 
-## What it runs
+## Ladder
 
-The build script builds `vendor/pplacer/tests.exe` from the manually vendored
-pplacer source and wraps it. The test entry point
-(`vendor/pplacer/tests/tests.ml`) runs four sub-suites: guppy, pplacer, rppr,
-and json (about 224 tests in total, per the README).
+The ladder scales **n_sites** (alignment length, via `PPLACER_LIKE_MULT`) by
+replicating the reference alignment's columns. The Glv are GSL-backed **off-heap**
+`Bigarray`s sized by n_sites, so a bigger alignment grows the off-heap working set
+linearly; the per-edge scan count (40) is held fixed across rungs. Measured on
+OCaml 5.5.0, Ryzen 9 9950X (`fingerprint.sh` `v=0x400`; olly from
+`perf_grp1|re-25|md-2`):
 
-To scale wall time while keeping a single observable OCaml process, the entry
-point reads the `PPLACER_TEST_LOOP` env var (default 1) and runs the whole
-suite that many times. It uses an env var rather than `Sys.argv` on purpose,
-so it does not collide with OUnit's own argument parsing (`-only-test`,
-`-verbose`, and so on). Correctness is only checked on the first pass;
-later passes are purely for wall-time scaling, because at least one test
-(`guppy:gaussian:coastal.v.upwelling`) leaks state between runs and would
-report a false failure on repeat.
+| rung | mult | sites | wall | RSS | allocated | gc% |
+| --- | --- | --- | --- | --- | --- | --- |
+| `_small` | 8 | 17.6k | 4.7s | 0.22 GB | 2.1 G w | 0.6% |
+| `_default` | 25 | 55k | 14.9s | 0.65 GB | 6.6 G w | 0.6% |
+| `_large` | 85 | 187k | 50.6s | 2.18 GB | 22.4 G w | 0.6% |
 
-The wrapper `cd`s into `vendor/pplacer` first, because the tests reference
-`./tests/data/` by relative path, then sets `PPLACER_TEST_LOOP` from the
-runner's first arg and `exec`s the test binary. The suite typically runs at
-arg=5.
+This is the suite's **off-heap-footprint, compute-bound** corner. `top_heap` stays
+~2-8 MB while RSS spans 0.2-2.2 GB — the working set is ~99.6 % GSL off-heap
+`Bigarray`, promotion is ~0, so gc% is a flat ~0.6 % and pauses are sub-ms: almost
+all the time is in the GSL likelihood, not the collector. Read this ladder by
+**RSS and allocated_words** (2.1 → 22.4 G), not `top_heap` — the off-heap caveat,
+same as owl, but on real Felsenstein pruning (owl carries more GC from
+finalisation; every other ladder is GC-bound). A huge band is deferred (mult ~250
+≈ min-scale at ~6 GB).
 
-## What it stresses
+## Legacy
 
-- Explicit `Gc.finalise`. The GSL bindings register finalisers from OCaml
-  (in `sum.ml`, `rng.ml`, and others), which is unusual in this suite.
-- Custom-block finalisation for GSL vectors/matrices and sqlite3 statement
-  handles.
-- GSL and sqlite3 C stubs (numerical work and an in-memory database for the
-  tests).
-- Tree and node allocation in pure OCaml (phylogenetic trees are recursive
-  types), plus polymorphic `compare` on that tree-structured data and
-  `Hashtbl` use in the tree code.
+Kept for reference, not run by default (`RUNNING_TAG=legacy`):
 
-## Reading the results
-
-Expect wall time around 13s at arg=5, with GC overhead near 70% (the top
-tier of the suite) and RSS around 70 MB. Allocation is promotion-heavy,
-roughly a third of minor collections carrying a major step.
-
-Because it mixes FFI and tree allocation, movement here that also shows up in
-owl points at the FFI or numerical-codegen path; movement that tracks a
-tree/AST-allocation benchmark instead points at the tree side; movement on
-its own points at the GSL or sqlite3 wrappers specifically.
+- `pplacer_testsuite` — the original OUnit test-suite bench (guppy/pplacer/rppr/
+  json, ~224 tests) looped in-process via `PPLACER_TEST_LOOP` (fixed data, scaled
+  by repetition; runs at arg=5, ~70 % gc%).
 
 ## Notes
 
-- Vendored manually (not via opam-monorepo), and needs pre-built C libraries:
-  libgsl-dev and sqlite3, plus the bundled mcl in `vendor/pplacer/mcl/`.
-- It does not build on the gc-pacing runtimes (there are
-  `.build-failed` markers for those in the benchmark directory), so it is
+- Vendored manually (not via opam-monorepo); needs pre-built C libraries
+  (libgsl-dev, sqlite3) plus the bundled mcl in `vendor/pplacer/mcl/`.
+- Does not build on the gc-pacing runtimes (`.build-failed` markers), so it is
   absent from gc-pacing comparisons.
-- Under ocaml-mmtk it builds but crashes at run with SIGABRT (a channel
-  finaliser locks an already-closed channel), so exclude it from mmtk sweeps.
+- Under ocaml-mmtk it builds but crashes at run with SIGABRT (a channel finaliser
+  locks an already-closed channel), so exclude it from mmtk sweeps.

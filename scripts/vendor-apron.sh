@@ -62,7 +62,13 @@ echo "      $(ocamlfind query gmp 2>&1)"
 echo "[4/4] apron (configure --prefix; finds camlidl via ocamlfind query)"
 ( cd "$SRC/apron"
   CPPFLAGS="-I$PREFIX/lib" ./configure --prefix "$PREFIX" --no-ppl --no-strip >/dev/null 2>&1
-  make -j4 >/dev/null 2>&1 && make install >/dev/null 2>&1 )
+  # Serial make: apron's recursive Makefile under-declares the dependency of the
+  # OCaml bindings on the C domain libraries, so a parallel build (-j) races and
+  # intermittently dies with exit 2 — reliably enough to fail CI now and then while
+  # passing locally and on master. The build is small; serial costs little and is
+  # the only race-free option for a Makefile with missing deps (mlgmpidl above is
+  # serial for the same reason). Do NOT reintroduce -j here.
+  make >/dev/null 2>&1 && make install >/dev/null 2>&1 )
 echo "      $(ocamlfind query apron 2>&1)"
 echo "      C libs: $(find "$PREFIX" -name 'libapron*.a' | head -1)"
 echo "PREFIX READY: $PREFIX"
