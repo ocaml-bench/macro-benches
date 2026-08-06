@@ -11,8 +11,8 @@
 # bytecode raises an uncaught Sawja_pack.Bir.Bad_stack that aborts capture, and
 # --keep-going does not rescue it.
 #
-# The class SET here is what benchmarks/infer/roots.idx is expressed against, so
-# keep the jar list + versions + exclusions in sync with that file.
+# The class SET here is what benchmarks/infer/roots_<rung>.idx is expressed against,
+# so keep the jar list + versions + exclusions in sync with those files.
 set -euo pipefail
 
 MONOREPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -42,7 +42,7 @@ J4=$(fetch org/bouncycastle/bcprov-jdk18on/1.78/bcprov-jdk18on-1.78.jar 1bf721b0
 
 # Extract .class only, dropping META-INF (multi-release variants under
 # META-INF/versions/*) and any module-info, so the class set is flat and
-# single-release — matching how roots.idx was generated.
+# single-release — matching how the roots_<rung>.idx files were generated.
 for j in "$J1" "$J2" "$J3" "$J4"; do
   ( cd "${DEST}/merge" && unzip -o -q "$j" '*.class' -x 'META-INF/*' )
 done

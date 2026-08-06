@@ -24,7 +24,7 @@ runtime-feature coverage matrix and gaps, the gotchas, and the backlog.
   run auto-applies `default_run`. **Legacy** = the pre-ladder anchors, extra
   per-tool workloads, and frozen issue reproducers (`liq_video_frames_pool` #14533,
   `goblint` #13733) — kept, run only with `RUNNING_TAG=legacy`. In THIS repo the
-  same split is in `benchmarks/manifest.yml`: all 93 programs listed (build-all),
+  same split is in `benchmarks/manifest.yml`: all 95 programs listed (build-all),
   the 20 small rungs flagged `ci_run: true` (what CI runs, via `ci-manifest.py
   list-run`). The `knob-a-rungs` branch name is historical — docs say "input-size
   ladder".
@@ -175,7 +175,7 @@ Three phases, all driven off `benchmarks/manifest.yml`:
   5. one `docs/benchmarks/<tool>.md` per tool, both directions.
 
   It prints the counts it compared (`24 benchmark directories = 22 with programs
-  + 2 disabled`, `93 programs`, `24 docs pages`) so the log shows the numbers,
+  + 2 disabled`, `95 programs`, `24 docs pages`) so the log shows the numbers,
   then lists every problem it found rather than stopping at the first. (21 not 20
   because the compiler tool spans two directories: ocamlc-self-compile and
   ocamlc-compile-uucp.)
@@ -472,15 +472,19 @@ MMTk-only issues:
 | `frama_c_eva_sqlite_small` | 7 | 13 | weak/ephemeron hash-consing (457MB RSS, promo 0.6%) | ephemeron key-scan (#11733), CIL AST hash-cons, `Weak.Make` at scale |
 | `frama_c_eva_sqlite_default` | 16 | 11 | as small, richer domains (641MB RSS, live 77M) | #11733 at higher precision |
 | `frama_c_eva_sqlite_large` | 113 | 3 | max ephemeron churn (165k minor GC, 695MB RSS, 3.3s gc_time, 11.5ms tail pause) | #11733 ephemeron-clean throughput + GC latency (widening thrash, precision 3) |
-| `infer` | ~84† | TBD | multicore shared-heap (allocation-heavy abstract interpretation) | multi-domain shared-heap GC, minor+promotion, hashconsed type env |
+| `infer_small` | ~9† | TBD | multicore shared-heap (72 roots, allocation-heavy abstract interpretation) | input size = #roots analysed; multi-domain shared-heap GC, minor+promotion, hashconsed type env |
+| `infer_default` | ~16† | TBD | as small, more procedures (215 roots) | as small, larger analysis working set |
+| `infer_large` | ~44† | TBD | as small, most procedures (542 roots, ~20x = full corpus) | shared-heap multicore GC at scale; read by wall + (pending) olly GC counts |
 
 (`merlin_bench` and `lavyek_kv_*` omitted — disabled. frama-c input size = `-eva-precision` (2nd
 wrapper arg); slevel is inert; no >5min huge rung reachable via EVA knobs — see
 `docs/benchmarks/frama-c.md`. gc% FALLS with size (13→11→3%, mutator-bound at large) while
 tail pause GROWS (3.1→8.9→11.5ms) — small/default GC-throughput-sensitive, large
-GC-latency-sensitive. olly re-25|md-2, 5.5.0, 2026-07-24. †`infer` wall is one cold
-`analyze --multicore` at `-j12` on the dev box (5.4.0/5.5.0); gc% is not yet
-olly-profiled, and wall is machine- and `roots.idx`-relative — see its doc page.)
+GC-latency-sensitive. olly re-25|md-2, 5.5.0, 2026-07-24. †`infer` walls are WARM
+`analyze --multicore` at `-j12` on a 32-core box, 5.5.0 (a cold first analysis is
+~2-2.5x); gc% not yet olly-profiled; wall is machine-, jobs- and roots-relative, and
+the shared per-runtime capture makes back-to-back rungs mildly order-dependent — see
+its doc page.)
 
 ## Runtime-feature coverage matrix
 
@@ -555,7 +559,7 @@ through a `RUNNING_TAG` selector.
 | `ocamlc_self_compile` | hashtbl, marshal (`.cmi`+`.cmo` writeout), bigarray (emit buffer), minor-gc |
 | `ocamlc_compile_uucp{,_small,_default,_large}` | Compiler tool's size ladder = compiling N replicas of uucp (prefix-renamed Uucp→UucpK). uucp's COLLECTED heap → RSS flat ~87-115MB while major-GC scales (N=3/8/25 → major 376/771/1581, promo 0.14/0.40/1.36G w, 6/17/58s). gc% ~17% flat, pauses ~2-4ms. Major-GC-throughput ladder (vs self_compile's monotonic-heap memory-bound). build.sh stages a renamed ocamlc (`..._bin`) for olly attach (like self_compile) |
 | `jsoo{,_small,_default,_large}` | hashtbl, lazy, marshal(cold); input size = input bytecode size (rung arg → generated per-runtime .byte from real JSOO sources × R replicas) → whole-program-IR footprint ladder (RSS 0.5→7.8GB), constant ~33% gc% + 129ms max pause @ large |
-| `infer` | multi-domain shared-heap GC (`--multicore`, `INFER_JOBS` domains), minor-gc + major-promotion (allocation-heavy abstract interpretation), hashtbl (hashconsed type env), marshal (summary tables in/out of the SQLite capture DB); tags doc-grounded — hot-path source audit pending |
+| `infer_{small,default,large}` | multi-domain shared-heap GC (`--multicore`, `INFER_JOBS` domains), minor-gc + major-promotion (allocation-heavy abstract interpretation), hashtbl (hashconsed type env), marshal (summary tables in/out of the SQLite capture DB); input-size ladder = roots-subset size (72/215/542 classes → warm ~9/16/44s at -j12), flat capture footprint; tags doc-grounded — hot-path source audit pending |
 
 ## Coverage gaps — verified
 

@@ -17,12 +17,14 @@
 # one process.  Capture and analyze use the SAME per-runtime binary, so the
 # marshalled capture DB never crosses an OCaml-version boundary.
 #
-# TUNING.  Workload size = benchmarks/infer/roots.idx, a fixed committed subset
-# of the corpus's ~11k classes (~72 -> ~15s at -j12 on a fast 12+-core box; the
-# full corpus is ~24x larger).  To retune for this farm, regenerate roots.idx:
+# TUNING.  Workload size = the rung's roots subset (benchmarks/infer/roots_<rung>.idx),
+# a committed slice of the corpus's ~11k classes.  small/default/large hold
+# 72/215/542 roots (warm -j12 ~9/16/44s on a 32-core box; the full corpus is ~20x
+# the large rung, so there is years of headroom).  To retune for a farm, resample
+# each rung:
 #   infer debug --source-files -o <capture> | grep '\.class$' | sort \
-#     | awk 'NR % K == 1' > benchmarks/infer/roots.idx
-# and pick K so the wrapper lands in the 5-25s band.  Parallelism is INFER_JOBS
+#     | awk 'NR % K == 1' > benchmarks/infer/roots_<rung>.idx
+# and pick K per rung so its wall lands where you want.  Parallelism is INFER_JOBS
 # (default 12); a fork/parmap wall-clock companion is INFER_MULTICORE=0.
 set -euo pipefail
 
@@ -35,7 +37,17 @@ BUILD_DIR="${MONOREPO_DIR}/_build-${SAFE_TAG}"
 JS_PREFIX="${MONOREPO_DIR}/vendor/.infer-js-prefix-${SAFE_TAG}"
 CORPUS="${MONOREPO_DIR}/vendor/.infer-corpus/corpus.jar"
 CAPTURE="${MONOREPO_DIR}/vendor/.infer-capture-${SAFE_TAG}"
-ROOTS="${BENCH_DIR}/roots.idx"
+# Input-size ladder: the rung is baked into the output name (small/default/large),
+# each selecting a committed roots subset (roots_<rung>.idx — a sampled slice of the
+# ~11k-class corpus). More roots = more procedures analysed = more shared-heap
+# allocation + multicore GC, at a flat capture footprint. Warm walls at -j12 on a
+# 32-core box: small ~9s (72 roots), default ~16s (215), large ~44s (542); a cold
+# first analysis is ~2-2.5x. Retune counts per farm by resampling (see the doc page).
+case "$(basename "${OUT}")" in
+  *infer_small*) ROOTS="${BENCH_DIR}/roots_small.idx" ;;
+  *infer_large*) ROOTS="${BENCH_DIR}/roots_large.idx" ;;
+  *)             ROOTS="${BENCH_DIR}/roots_default.idx" ;;
+esac
 JOBS="${INFER_JOBS:-12}"
 
 echo "Building infer (monorepo) for runtime: ${RUNTIME_TAG}"
@@ -93,10 +105,14 @@ REAL_EXE="${BUILD_DIR}/default/vendor/infer/infer/src/infer.exe"
 # 4. Capture the corpus once with THIS runtime's binary (JVM-free: javalib
 #    parses .class directly).  Verified: analyze is READ-ONLY on the 251 MB
 #    capture.db (freshly_captured stays set), so the wrapper re-analyses in
-#    place with no per-run copy.
-rm -rf "${CAPTURE}"
-"${REAL_EXE}" capture -o "${CAPTURE}" \
-  --generated-classes "${CORPUS}" --classpath "${CORPUS}" >/dev/null 2>&1
+#    place with no per-run copy.  Cached across the three ladder rungs (which
+#    share this per-runtime capture) — re-captured only when infer.exe is newer
+#    than the capture, i.e. after an actual rebuild of this runtime's binary.
+if [ ! -d "${CAPTURE}" ] || [ "${REAL_EXE}" -nt "${CAPTURE}" ]; then
+  rm -rf "${CAPTURE}"
+  "${REAL_EXE}" capture -o "${CAPTURE}" \
+    --generated-classes "${CORPUS}" --classpath "${CORPUS}" >/dev/null 2>&1
+fi
 
 # 5. Emit the wrapper: analyze the roots subset IN PLACE.  --changed-files-index
 #    re-invalidates + re-analyses the roots on every run (no incremental skip),

@@ -9,9 +9,11 @@ recently.
 
 ## What it runs
 
-One program, `infer`, running `infer analyze --multicore` over a pre-built capture database.
-The workload is the **analysis** phase only: bytecode capture (parsing `.class` files into
-Infer's IR) is done once at build time and excluded from measurement.
+Three programs — `infer_small` / `infer_default` / `infer_large`, an **input-size ladder** —
+each running `infer analyze --multicore` over the same pre-built capture database and differing
+only in how many classes are analysed. The workload is the **analysis** phase only: bytecode
+capture (parsing `.class` files into Infer's IR) is done once at build time, shared across the
+three rungs, and excluded from measurement.
 
 The corpus is four pinned, real-world Java libraries — guava 27.0 (collections), byte-buddy
 1.12.21 (bytecode generation), lucene-core 9.12.0 (search), bcprov-jdk18on 1.78 (crypto),
@@ -20,18 +22,30 @@ The corpus is four pinned, real-world Java libraries — guava 27.0 (collections
 the vendored sawja; clojure was excluded because its synthetic bytecode aborts capture with an
 uncaught `Sawja_pack.Bir.Bad_stack`.
 
-Analysing all 11364 classes takes minutes, so the measured workload is tuned down with
-`--changed-files-index benchmarks/infer/roots.idx`, a committed subset of ~72 classes chosen to
-land in the 5-25s band at 12-way parallelism. The full corpus is ~20x that, so the workload can
-be grown for years by relaxing the index — no new corpus needed. To retune for a given machine:
+Analysing all 11364 classes takes minutes, so each rung is tuned down with
+`--changed-files-index benchmarks/infer/roots_<rung>.idx`, a committed subset of the corpus
+sampled at a fixed stride. The **input-size axis is the number of roots** — more roots means more
+procedures analysed, so more shared-heap allocation and multicore GC, at a flat capture footprint:
+
+| rung | roots | warm wall (`-j12`, 32-core) |
+|------|------:|-----------------------------|
+| `infer_small`   |  72 | ~9 s  |
+| `infer_default` | 215 | ~16 s |
+| `infer_large`   | 542 | ~44 s |
+
+A **cold** first analysis is ~2–2.5× the warm figure, and because the three rungs share one
+per-runtime capture, back-to-back rungs are mildly order-dependent (each reaches its own steady
+state when run repeatedly in isolation, as running-ng does). Walls are machine-, `INFER_JOBS`- and
+roots-relative. The full corpus is ~20× the large rung, so there is years of headroom. To resample
+a rung for a given machine:
 
 ```
 infer debug --source-files -o <capture> | grep '\.class$' | sort \
-  | awk 'NR % K == 1' > benchmarks/infer/roots.idx
+  | awk 'NR % K == 1' > benchmarks/infer/roots_<rung>.idx
 ```
 
-and pick `K` so the wrapper lands in range. Parallelism is `INFER_JOBS` (default 12); the build
-is oriented at machines with at least that many cores.
+and pick `K` per rung so its wall lands where you want. Parallelism is `INFER_JOBS` (default 12);
+the build is oriented at machines with at least that many cores.
 
 ## Why multicore
 
@@ -80,7 +94,7 @@ trunk (5.6) and `ocaml-mmtk` are not yet exercised. The pieces:
 | `scripts/vendor-infer.sh` | clone java-only Infer (`ngorogiannis/infer`, pinned in `sources.yml`) into `vendor/infer`, lay down the `dune-overlays/infer/` dune files |
 | `scripts/vendor-javalib-sawja.sh` | build cppo + extlib + camlzip + javalib + sawja into a per-runtime prefix (non-dune deps; the apron model) |
 | `scripts/vendor-infer-corpus.sh` | fetch 4 pinned Maven Central jars + merge → `vendor/.infer-corpus/corpus.jar` |
-| `benchmarks/infer/roots.idx` | committed class subset selecting the workload size |
+| `benchmarks/infer/roots_{small,default,large}.idx` | committed roots subsets — the input-size ladder rungs (72/215/542 classes) |
 | `benchmarks/infer/infer.build.sh` | the running-ng build hook (prefix → dune build → capture → wrapper) |
 
 `macro-bench-infer` in `dune-project` / `macro-bench-infer.opam(.template)` declares Infer's OCaml
@@ -96,25 +110,27 @@ so the whole chain is opam-free.
 `OPAMSWITCH=running-ng-tools opam monorepo lock` then `make clean-all && make setup`, and commit
 `macro-benches.opam.locked` + `dune-project` + `*.opam`.
 
-**Standalone sanity (one runtime):**
+**Standalone sanity (one runtime).** The rung is selected from the output basename
+(`infer_small` / `infer_default` / `infer_large`); anything else falls to the default rung:
 ```sh
-RUNNING_OCAML_RUNTIME_NAME=5.4.1 RUNNING_OCAML_OUTPUT=/tmp/infer-5.4.1 \
+RUNNING_OCAML_RUNTIME_NAME=5.4.1 RUNNING_OCAML_OUTPUT=/tmp/infer_default-5.4.1 \
   bash benchmarks/infer/infer.build.sh
-/tmp/infer-5.4.1                        # runs analyze --multicore -j12; time it
+/tmp/infer_default-5.4.1                # runs analyze --multicore -j12; time it
 ```
-The 251 MB `capture.db` is built once per runtime by the hook; the wrapper re-analyses in place.
+The 251 MB `capture.db` is built once per runtime by the hook (shared across rungs, re-captured
+only when the runtime's `infer.exe` is rebuilt); the wrapper re-analyses in place.
 
-**Tuning to a farm.** Absolute time is machine-relative; the committed `roots.idx` (~72 classes)
-is a starting point. Regenerate with `infer debug --source-files -o <capture> | grep '\.class$'
-| sort | awk 'NR % K == 1' > benchmarks/infer/roots.idx`, picking `K` so the wrapper lands
-mid-band (full corpus ≈ 20× the default, ~350 s at `-j12` — the ceiling). Commit the result.
+**Tuning to a farm.** Absolute time is machine-relative; the committed rungs (72/215/542 roots)
+are a starting point. Resample any rung with `infer debug --source-files -o <capture> |
+grep '\.class$' | sort | awk 'NR % K == 1' > benchmarks/infer/roots_<rung>.idx`, picking `K` per
+rung (full corpus ≈ 20× the large rung, ~350 s at `-j12` — the ceiling). Commit the result.
 
 **Variants.** Default `--multicore` (shared-heap domains, single process, `INFER_JOBS` domains);
 `INFER_MULTICORE=0` gives the fork/parmap wall-clock companion — worth registering as a second
 program if throughput is wanted alongside the shared-heap GC signal.
 
-**running-ng registration.** Add `infer` to the `OCamlBenchmarkSuite` config (and its test-build
-list) pointing at `benchmarks/infer/infer.build.sh`. Suggested ring size `re-25` (bump to `re-26`
+**running-ng registration.** Add `infer_small` / `infer_default` / `infer_large` to the
+`OCamlBenchmarkSuite` config (and its test-build list) pointing at `benchmarks/infer/infer.build.sh`. Suggested ring size `re-25` (bump to `re-26`
 on runtime_events overflow). The output is a wrapper, not a copied binary, so on a rebuild delete
 the wrapper output as well as `_build-<runtime>` (see the top-level CLAUDE.md gotcha).
 
