@@ -127,6 +127,20 @@ bash benchmarks/eio/eio.build.sh
 ./benchmarks/eio/eio-runtime
 ```
 
+The build script assumes the compiler you want to measure is already on `PATH`
+and writes its binary to `$RUNNING_OCAML_OUTPUT` (defaulting to
+`<tool>-<runtime>` in the benchmark's own directory). See
+[§Build-script contract](#build-script-contract).
+
+Arguments matter — most benchmarks take an input file, an input size, or a rung
+selector, so running a binary bare is a different benchmark from what the sweep
+runs. Ask the manifest, which prints
+*name, tool, script, timeout, expected exit, args*:
+
+```bash
+python3 scripts/ci-manifest.py list | grep -E '^(eio_conc_small|jsoo_small)\b'
+```
+
 The custom-`.ml` benchmarks can also be built straight from the dune workspace:
 
 ```bash
@@ -194,6 +208,22 @@ to a tool that already has a build script. See [CLAUDE.md](CLAUDE.md) §CI.
    on PATH, into a per-runtime `_build-<runtime>/` directory so different
    runtimes don't clobber each other.
 
+## Build-script contract
+
+A `benchmarks/<tool>/<tool>.build.sh` is called with the runtime's opam switch
+already activated, so its compiler and `dune` are on `PATH`. It reads:
+
+| Variable | Meaning | Fallback when unset |
+|---|---|---|
+| `RUNNING_OCAML_BENCH_DIR` | the benchmark's own directory (`benchmarks/<tool>/`) | the script's own directory |
+| `RUNNING_OCAML_OUTPUT` | where to write the binary (absolute) | `<bench dir>/<tool>-<runtime>` |
+| `RUNNING_OCAML_RUNTIME_NAME` | runtime tag, e.g. `ocaml-5.5.0` | `runtime` |
+| `RUNNING_OCAML_SWITCH` | the active opam switch | unset |
+| `RUNNING_OCAML_SWITCH_PREFIX` | that switch's prefix path | resolved from `RUNNING_OCAML_SWITCH`, else the `ocamlc` on `PATH` |
+
+A script derives the monorepo root from its bench dir, builds into a per-runtime
+`_build-<runtime>/`, and copies the result out. 
+
 ## Layout
 
 ```text
@@ -209,7 +239,8 @@ macro-benches.opam.locked   the lock file                 (committed)
 ## More documentation
 
 - [docs/benchmarks/](docs/benchmarks) has a page per benchmark.
-- [CLAUDE.md](CLAUDE.md) has the operational detail: the build-script contract,
+- [CLAUDE.md](CLAUDE.md) has the operational detail beyond the build-script
+  contract above:
   the in-process iteration and ring-size mechanics, the vendored-source patch
   table, the runtime-feature coverage matrix and known gaps, the backlog, and
   the gotchas worth knowing before you touch the build.

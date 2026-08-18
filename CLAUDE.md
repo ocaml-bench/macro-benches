@@ -65,13 +65,11 @@ runtime-feature coverage matrix and gaps, the gotchas, and the backlog.
 
 ## Build / run
 
-running-ng calls `<tool>.build.sh` with the runtime compiler on PATH and the env
-vars below. Scripts `unset` opam/OCAML env vars to avoid cross-runtime `.cmi`
-contamination, then `dune build --root <monorepo> --build-dir _build-<runtime>
---profile release <target>` and copy the result out. Because every benchmark
-lives at `benchmarks/<tool>/`, each script derives the monorepo root from
-`BENCH_DIR` (`$(cd "${BENCH_DIR}/../.." && pwd)`); no macro-specific env var is
-needed, and the contract matches `~/benches/` name-for-name.
+`README.md` §Build-script contract states the variable table for humans and
+points here for everything below — keep the two in sync.
+
+running-ng calls `<tool>.build.sh` with the runtime compiler on PATH and these
+env vars:
 
 | Variable | Meaning | Fallback when unset |
 |----------|---------|---------------------|
@@ -79,7 +77,48 @@ needed, and the contract matches `~/benches/` name-for-name.
 | `RUNNING_OCAML_OUTPUT` | Path where the built binary must be written | `${BENCH_DIR}/<tool>-${RUNTIME_NAME}` |
 | `RUNNING_OCAML_RUNTIME_NAME` | Runtime identifier (e.g. `ocaml-5.4.1`) | `runtime` |
 | `RUNNING_OCAML_SWITCH` | Opam switch name (when applicable) | unset |
-| `RUNNING_OCAML_SWITCH_PREFIX` | Prefix of the runtime's switch. Only `ocamlc-self-compile` and `jsoo` need it — they run the runtime's *own* `ocamlc` / `ocamlc.byte` as the workload, so they need the switch, not just a compiler on PATH | `~/.opam/running-ng-<RUNTIME_TAG>` if it exists, else the prefix of the `ocamlc` on PATH |
+| `RUNNING_OCAML_SWITCH_PREFIX` | Prefix of the runtime's switch. Only `ocamlc-self-compile`, `ocamlc-compile-uucp` and `jsoo` need it — they run the runtime's *own* `ocamlc` / `ocamlc.byte` as the workload, so they need the switch, not just a compiler on PATH | `opam var prefix --switch "$RUNNING_OCAML_SWITCH"` when that is set, else the `ocamlc` on PATH |
+
+A script first clears the ambient `OPAM_SWITCH_PREFIX`,
+`OCAMLTOP_INCLUDE_PATH`, `CAML_LD_LIBRARY_PATH`, `OCAMLLIB` and `OCAMLPATH` so a
+previously active switch can't contaminate the build with its `.cmi`s (the few
+benchmarks needing a library path — goblint's apron, coq's rocq prefix — set
+`OCAMLPATH` themselves afterwards), then `dune build --root <monorepo>
+--build-dir _build-<runtime> --profile release <target>` and copies the result
+out. Because every benchmark lives at `benchmarks/<tool>/`, each script derives
+the monorepo root from `BENCH_DIR` (`$(cd "${BENCH_DIR}/../.." && pwd)`); no
+macro-specific env var is needed, and the contract matches `~/benches/`
+name-for-name. (`RUNNING_MACRO_BENCH_DIR` is a *run*-time variable — the
+manifest's `args` interpolate it to reach input files — not a build-time one.)
+
+Because `_build-<runtime>` is keyed by the runtime tag, two runtimes never
+clobber each other; benches shares one `_build/` per benchmark across runtimes,
+so switching runtime there rebuilds from scratch.
+
+**`RUNNING_OCAML_OUTPUT` selects the program**, not just the destination. Where
+one script backs several programs (`eio.build.sh` → `eio_fiber_stream` + the
+`eio_conc_*` ladder; `ahrefs-devkit.build.sh` → seven; also cpdf, goblint, jsoo,
+pplacer, ocamlc-compile-uucp) they differ in *dune target*, and the script cases
+on `basename "${OUT}"` (or `BM_NAME`, that basename minus the runtime suffix) to
+pick it. This is the one place the contract is load-bearing beyond "write the
+binary here" — benches has no equivalent, because programs sharing a script there
+build the same binary and differ only in the config's arguments. `ci-manifest.py
+check` only cross-checks the `case "${BM_NAME}"` / `case "${OUT_BASE}"` form
+(ahrefs-devkit today); a `case "$(basename "${OUT}")"` block is invisible to it.
+
+**Generated inputs are the build script's job** — there is no
+`<name>.build.deps.sh` split as in benches. alt-ergo's `fill_x100.why` and
+congruence chains, goblint's state machines, ocamlformat's line ladder and jsoo's
+replicated sources are generated in the build script, skipped if already present,
+and gitignored. Runtime-independent ones are generated once and shared by every
+runtime in a sweep; the ones that must be built *by the runtime under test*
+(jsoo's and `ocamlc-compile-uucp`'s bytecode) carry the runtime tag in their
+filename instead. Manifest entries whose `args` name such a file need
+`inputs_generated: true` (see §CI check 4).
+
+Outputs come in two shapes — copied binaries and wrapper scripts that `exec` into
+`_build-<runtime>/`. Both satisfy the contract; see §Gotchas before deleting a
+build directory by hand.
 
 Standalone usage (no running-ng): set `RUNNING_MACRO_BENCH_DIR=~/macro-benches` and
 drive `~/running-ng`'s `build_ocaml_binaries_gc_sweep.sh` / `run_ocaml_bench_gc_sweep.sh`.
@@ -126,8 +165,12 @@ Three phases, all driven off `benchmarks/manifest.yml`:
      with `Unknown benchmark`;
   4. every in-tree input path in a program's `args` exists, so a program can't be
      added without committing its input. Generated inputs opt out with
-     `inputs_generated: true` (only `alt_ergo_fill`, whose `fill_x100.why` is built
-     by its build script and gitignored — a fresh checkout does not have it);
+     `inputs_generated: true` — the `alt_ergo_{fill,chain_small,chain_default,
+     chain_large}` and `ocamlformat_rocq_{small,default,large}` entries, whose
+     `.why`/`.ml` inputs are built by their build script and gitignored, so a
+     fresh checkout does not have them. Benchmarks that generate inputs but take a
+     rung *selector* rather than a path (goblint, jsoo) need no flag: the check
+     only looks at in-tree paths in `args`;
   5. one `docs/benchmarks/<tool>.md` per tool, both directions.
 
   It prints the counts it compared (`23 benchmark directories = 21 with programs
