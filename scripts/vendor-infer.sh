@@ -33,11 +33,11 @@
 #   dune build vendor/infer/infer/src/infer.exe
 set -euo pipefail
 
-# Pinned source: the java-only, OCaml 5.2–5.4 tree, tagged `inferbench-v1.0`.
+# Pinned source: the java-only, OCaml 5.2–5.4 tree, tagged `inferbench-v1.1`.
 # Pinned to an immutable release tag (not a branch name) so the benchmark
 # source can't shift under us if development branches are later updated.
 INFER_URL="${INFER_URL:-https://github.com/ngorogiannis/infer.git}"
-INFER_REF="${INFER_REF:-inferbench-v1.0}"
+INFER_REF="${INFER_REF:-inferbench-v1.1}"
 
 MONOREPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 VENDOR_DIR="${MONOREPO_DIR}/vendor"
