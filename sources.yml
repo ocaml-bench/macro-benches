@@ -217,10 +217,10 @@ cppo:
 
 infer:
   repo: "https://github.com/ngorogiannis/infer.git"
-  branch: "inferbench-v1.0"
-  commit: "31180587125311b6dde2ef08d207621694926800"
+  branch: "inferbench-v1.1"
+  commit: "72c2bcaf9216d948622af7dccd60ab335b498848"
   date: "2026-07-31"
-  notes: "java-only Infer fork; tag inferbench-v1.0. Vendored by scripts/vendor-infer.sh, built as an in-tree dune project via the dune-overlays/infer overlay."
+  notes: "java-only Infer fork; tag inferbench-v1.1. Vendored by scripts/vendor-infer.sh, built as an in-tree dune project via the dune-overlays/infer overlay."
 
 extlib:
   repo: "https://github.com/ygrek/ocaml-extlib.git"
