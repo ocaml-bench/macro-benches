@@ -53,7 +53,7 @@ JOBS="${INFER_JOBS:-12}"
 echo "Building infer (monorepo) for runtime: ${RUNTIME_TAG}"
 
 # 0. Vendored Infer source (idempotent; normally done by setup-monorepo.sh).
-[ -f "${MONOREPO_DIR}/vendor/infer/infer/src/infer.ml" ] \
+[ -f "${MONOREPO_DIR}/vendor/infer/infer/src/base/Version.ml" ] \
   || bash "${MONOREPO_DIR}/scripts/vendor-infer.sh"
 
 # 1. Corpus jars (runtime-independent; fetch + merge once).

@@ -48,7 +48,15 @@ OVERLAY_DIR="${MONOREPO_DIR}/dune-overlays/infer"
 # INFER_URL/INFER_REF above are kept only for the overlay-regeneration comment.
 source "${MONOREPO_DIR}/scripts/lib-sources.sh"
 
-if [ -d "${INFER_DIR}" ] && [ -f "${INFER_DIR}/infer/dune-project" ]; then
+# Idempotence sentinel: base/Version.ml, which ONLY the overlay below supplies
+# (upstream ships Version.ml.in + Version.mli and generates the .ml via
+# ./configure).  Deliberately not a source-tree file like infer/dune-project or
+# src/infer.ml: those exist in a bare clone, so if vendoring aborted part-way —
+# e.g. clone_pinned rejecting a bad pin — the half-vendored tree would look
+# "already vendored" here and the build would fail much later with a confusing
+# `(modules_without_implementation version)` dune error.  Keyed on an
+# overlay-only file, an interrupted vendoring re-runs and self-heals.
+if [ -f "${INFER_DIR}/infer/src/base/Version.ml" ]; then
   echo "vendor/infer/ already exists. Remove it first to re-vendor."
   exit 0
 fi
