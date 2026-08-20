@@ -1,0 +1,1586 @@
+{
+  "schema_version": "1.0",
+  "run_id": "monolith-2026-08-19-Wed-030433",
+  "created_at": "2026-08-19T06:38:39Z",
+  "machine": {
+    "hostname": "monolith",
+    "cpu_model": "AMD Ryzen 9 9950X 16-Core Processor",
+    "cores": 32,
+    "kernel": "6.17.0-41-generic"
+  },
+  "tool_versions": { "perf": "6.17.13" },
+  "configs": [
+    {
+      "config_id": "cfg_935443cd38f8778b801bd863514ffe45",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 1048576,
+        "custom_major_ratio": 11
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-1048576", "M-11"
+      ]
+    },
+    {
+      "config_id": "cfg_61ddbba863fa842ad21e19d84fa115ce",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 1048576,
+        "custom_major_ratio": 176
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-1048576", "M-176"
+      ]
+    },
+    {
+      "config_id": "cfg_672ba087f27a05ab80553cecfd8e272a",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 1048576,
+        "custom_major_ratio": 22
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-1048576", "M-22"
+      ]
+    },
+    {
+      "config_id": "cfg_e99206562d26b3892d808d7e912a6fb0",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 1048576,
+        "custom_major_ratio": 44
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-1048576", "M-44"
+      ]
+    },
+    {
+      "config_id": "cfg_44fd1723ef38d2096f16b47d9e6fc3bd",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 1048576,
+        "custom_major_ratio": 88
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-1048576", "M-88"
+      ]
+    },
+    {
+      "config_id": "cfg_35648a0b779bb09febe1080a3fb90102",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 131072,
+        "custom_major_ratio": 11
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-131072", "M-11"
+      ]
+    },
+    {
+      "config_id": "cfg_42ec755f0050a3ed12220e6e18a5e3d8",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 131072,
+        "custom_major_ratio": 176
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-131072", "M-176"
+      ]
+    },
+    {
+      "config_id": "cfg_9ef61dc98d74ae782466dc80698bcb13",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 131072,
+        "custom_major_ratio": 22
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-131072", "M-22"
+      ]
+    },
+    {
+      "config_id": "cfg_5ab66d30b4effc88ace6885be5897f8e",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 131072,
+        "custom_major_ratio": 44
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-131072", "M-44"
+      ]
+    },
+    {
+      "config_id": "cfg_72315a82b2641bc7da7d8d41a518b1a5",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 131072,
+        "custom_major_ratio": 88
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-131072", "M-88"
+      ]
+    },
+    {
+      "config_id": "cfg_a4266c8113c82b07aff4bdf15756243e",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 2097152,
+        "custom_major_ratio": 11
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-2097152", "M-11"
+      ]
+    },
+    {
+      "config_id": "cfg_4cba1c10310c2ecc38412d86cf387248",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 2097152,
+        "custom_major_ratio": 176
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-2097152", "M-176"
+      ]
+    },
+    {
+      "config_id": "cfg_f1505ac97972e85b440db1e81766f229",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 2097152,
+        "custom_major_ratio": 22
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-2097152", "M-22"
+      ]
+    },
+    {
+      "config_id": "cfg_0f12f225364a6d53afb104fdf437f027",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 2097152,
+        "custom_major_ratio": 44
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-2097152", "M-44"
+      ]
+    },
+    {
+      "config_id": "cfg_fd626e662430805dbb70d50f7871f9b0",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 2097152,
+        "custom_major_ratio": 88
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-2097152", "M-88"
+      ]
+    },
+    {
+      "config_id": "cfg_84ac8f6dcbf0aba1636657b3b0b32ae7",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 262144,
+        "custom_major_ratio": 11
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-262144", "M-11"
+      ]
+    },
+    {
+      "config_id": "cfg_dc67426eca2249c18c62951bef68eb4d",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 262144,
+        "custom_major_ratio": 176
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-262144", "M-176"
+      ]
+    },
+    {
+      "config_id": "cfg_67b310f9f06460d5447d2fc1acd22b28",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 262144,
+        "custom_major_ratio": 22
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-262144", "M-22"
+      ]
+    },
+    {
+      "config_id": "cfg_f75d2b6ec6fd8bac82d08c91c3c35a20",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 262144,
+        "custom_major_ratio": 44
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-262144", "M-44"
+      ]
+    },
+    {
+      "config_id": "cfg_9a6ecae491a3d1be21487a56604e24d0",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 262144,
+        "custom_major_ratio": 88
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-262144", "M-88"
+      ]
+    },
+    {
+      "config_id": "cfg_2554a1c2f156ec67fa36e923daeffad4",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 524288,
+        "custom_major_ratio": 11
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-524288", "M-11"
+      ]
+    },
+    {
+      "config_id": "cfg_999378c7502a8dd2e7124f44187340be",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 524288,
+        "custom_major_ratio": 176
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-524288", "M-176"
+      ]
+    },
+    {
+      "config_id": "cfg_cf0305bc72b23c7bd83c5b804d69445f",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 524288,
+        "custom_major_ratio": 22
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-524288", "M-22"
+      ]
+    },
+    {
+      "config_id": "cfg_b7bf88d16efb30e20d0fd59d4addd7ed",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 524288,
+        "custom_major_ratio": 44
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-524288", "M-44"
+      ]
+    },
+    {
+      "config_id": "cfg_a0c0031cd545956bcd4cdf6507852017",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 524288,
+        "custom_major_ratio": 88
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-524288", "M-88"
+      ]
+    },
+    {
+      "config_id": "cfg_ca64ac89f3f66e4b5761dcda4256565e",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": { "minor_heap": 1048576, "custom_major_ratio": 11 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [ "perf_grp1", "s-1048576", "M-11" ]
+    },
+    {
+      "config_id": "cfg_6703f730cc84d94695a6a7ab4b4892b9",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": { "minor_heap": 1048576, "custom_major_ratio": 176 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [ "perf_grp1", "s-1048576", "M-176" ]
+    },
+    {
+      "config_id": "cfg_cc38f915e4dec8a593a58f58b82942cb",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": { "minor_heap": 1048576, "custom_major_ratio": 22 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [ "perf_grp1", "s-1048576", "M-22" ]
+    },
+    {
+      "config_id": "cfg_1728437a5e6017f01ad9547ed9da6e58",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": { "minor_heap": 1048576, "custom_major_ratio": 44 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [ "perf_grp1", "s-1048576", "M-44" ]
+    },
+    {
+      "config_id": "cfg_40148bae9c3d765a975289bccaebebe3",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": { "minor_heap": 1048576, "custom_major_ratio": 88 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [ "perf_grp1", "s-1048576", "M-88" ]
+    },
+    {
+      "config_id": "cfg_272830fa12c66e20521e3ea33f3c7e75",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": { "minor_heap": 131072, "custom_major_ratio": 11 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [ "perf_grp1", "s-131072", "M-11" ]
+    },
+    {
+      "config_id": "cfg_33ee18d940b85f5ca144c65cd9e10d3b",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": { "minor_heap": 131072, "custom_major_ratio": 176 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [ "perf_grp1", "s-131072", "M-176" ]
+    },
+    {
+      "config_id": "cfg_a11635ba0dafd1d630c41f133a181926",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": { "minor_heap": 131072, "custom_major_ratio": 22 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [ "perf_grp1", "s-131072", "M-22" ]
+    },
+    {
+      "config_id": "cfg_0a734c1675392729f5ff2379e58029c6",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": { "minor_heap": 131072, "custom_major_ratio": 44 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [ "perf_grp1", "s-131072", "M-44" ]
+    },
+    {
+      "config_id": "cfg_a160268b3977a0faf6aa65fdd2336e2c",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": { "minor_heap": 131072, "custom_major_ratio": 88 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [ "perf_grp1", "s-131072", "M-88" ]
+    },
+    {
+      "config_id": "cfg_47bf6955da71b9f494023d893481ea39",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": { "minor_heap": 2097152, "custom_major_ratio": 11 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [ "perf_grp1", "s-2097152", "M-11" ]
+    },
+    {
+      "config_id": "cfg_716895addfe1f0f728b77645173b35c1",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": { "minor_heap": 2097152, "custom_major_ratio": 176 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [ "perf_grp1", "s-2097152", "M-176" ]
+    },
+    {
+      "config_id": "cfg_0c0408dbb7c43939018c85204e982a72",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": { "minor_heap": 2097152, "custom_major_ratio": 22 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [ "perf_grp1", "s-2097152", "M-22" ]
+    },
+    {
+      "config_id": "cfg_e2d0463ab404cab6083fb63879a13344",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": { "minor_heap": 2097152, "custom_major_ratio": 44 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [ "perf_grp1", "s-2097152", "M-44" ]
+    },
+    {
+      "config_id": "cfg_2f3a4d0c8744d78926eddc640138d46f",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": { "minor_heap": 2097152, "custom_major_ratio": 88 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [ "perf_grp1", "s-2097152", "M-88" ]
+    },
+    {
+      "config_id": "cfg_158a74e2e9dbc6447b187108ec48383c",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": { "minor_heap": 262144, "custom_major_ratio": 11 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [ "perf_grp1", "s-262144", "M-11" ]
+    },
+    {
+      "config_id": "cfg_f910c58bdcfa715527964432df0d3822",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": { "minor_heap": 262144, "custom_major_ratio": 176 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [ "perf_grp1", "s-262144", "M-176" ]
+    },
+    {
+      "config_id": "cfg_030771b3ec80360686e8d63c8e7ef807",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": { "minor_heap": 262144, "custom_major_ratio": 22 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [ "perf_grp1", "s-262144", "M-22" ]
+    },
+    {
+      "config_id": "cfg_44732aa3fc54cb47322c76db5c5918b0",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": { "minor_heap": 262144, "custom_major_ratio": 44 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [ "perf_grp1", "s-262144", "M-44" ]
+    },
+    {
+      "config_id": "cfg_ae3ad17fb4039a83b987ec6e20e45e24",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": { "minor_heap": 262144, "custom_major_ratio": 88 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [ "perf_grp1", "s-262144", "M-88" ]
+    },
+    {
+      "config_id": "cfg_8a1f17259f822c4ad1487c23d23aa731",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": { "minor_heap": 524288, "custom_major_ratio": 11 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [ "perf_grp1", "s-524288", "M-11" ]
+    },
+    {
+      "config_id": "cfg_7b78e31d6bf730bb9f38423c2f11b614",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": { "minor_heap": 524288, "custom_major_ratio": 176 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [ "perf_grp1", "s-524288", "M-176" ]
+    },
+    {
+      "config_id": "cfg_f476c3e5759721cdd6e5ddf165d02625",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": { "minor_heap": 524288, "custom_major_ratio": 22 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [ "perf_grp1", "s-524288", "M-22" ]
+    },
+    {
+      "config_id": "cfg_04a1728aacbe52844b943bcc3400156d",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": { "minor_heap": 524288, "custom_major_ratio": 44 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [ "perf_grp1", "s-524288", "M-44" ]
+    },
+    {
+      "config_id": "cfg_570a007e907c013c97dedc5c8034d5c1",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-pr14571",
+        "commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+      },
+      "dimensions": { "minor_heap": 524288, "custom_major_ratio": 88 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-pr14571",
+      "_modifiers": [ "perf_grp1", "s-524288", "M-88" ]
+    },
+    {
+      "config_id": "cfg_9393eb23e6f4ca0569b26197555ddd13",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 1048576,
+        "custom_major_ratio": 11
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-1048576", "M-11"
+      ]
+    },
+    {
+      "config_id": "cfg_24899ecdefb9e22cd82521217883d728",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 1048576,
+        "custom_major_ratio": 176
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-1048576", "M-176"
+      ]
+    },
+    {
+      "config_id": "cfg_85598cabb596c45aa283d5e60032c5c9",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 1048576,
+        "custom_major_ratio": 22
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-1048576", "M-22"
+      ]
+    },
+    {
+      "config_id": "cfg_2f2e2c2d04c811177f104e967547f0f7",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 1048576,
+        "custom_major_ratio": 44
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-1048576", "M-44"
+      ]
+    },
+    {
+      "config_id": "cfg_c35fc59921288794a2ff9c3e97ccd120",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 1048576,
+        "custom_major_ratio": 88
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-1048576", "M-88"
+      ]
+    },
+    {
+      "config_id": "cfg_6e6b6153aaeeab75fa106c79c9df0b80",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 131072,
+        "custom_major_ratio": 11
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-131072", "M-11"
+      ]
+    },
+    {
+      "config_id": "cfg_05e3d34096a267348b2c83745a1811b7",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 131072,
+        "custom_major_ratio": 176
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-131072", "M-176"
+      ]
+    },
+    {
+      "config_id": "cfg_968f011616e017f929baf2fd12b77d26",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 131072,
+        "custom_major_ratio": 22
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-131072", "M-22"
+      ]
+    },
+    {
+      "config_id": "cfg_a8e422816444a03493b34e33feedb246",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 131072,
+        "custom_major_ratio": 44
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-131072", "M-44"
+      ]
+    },
+    {
+      "config_id": "cfg_e72eff5b12a8f87728aa7bd07ca242cc",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 131072,
+        "custom_major_ratio": 88
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-131072", "M-88"
+      ]
+    },
+    {
+      "config_id": "cfg_7e1da4e31d3c2da1806bbf4d572a2d8c",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 2097152,
+        "custom_major_ratio": 11
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-2097152", "M-11"
+      ]
+    },
+    {
+      "config_id": "cfg_6a1fe4926398165ab29d4c14e371680a",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 2097152,
+        "custom_major_ratio": 176
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-2097152", "M-176"
+      ]
+    },
+    {
+      "config_id": "cfg_b4cb7faefa931b981d3b40ab3aeeee80",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 2097152,
+        "custom_major_ratio": 22
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-2097152", "M-22"
+      ]
+    },
+    {
+      "config_id": "cfg_56ade27ec0773e17a005516699f69b58",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 2097152,
+        "custom_major_ratio": 44
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-2097152", "M-44"
+      ]
+    },
+    {
+      "config_id": "cfg_71f209dac6e236c4a7ab0feac1725d62",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 2097152,
+        "custom_major_ratio": 88
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-2097152", "M-88"
+      ]
+    },
+    {
+      "config_id": "cfg_ab44deb0d217776a916217e3cf32b17f",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 262144,
+        "custom_major_ratio": 11
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-262144", "M-11"
+      ]
+    },
+    {
+      "config_id": "cfg_0eb31437be44f3befa07b0d61bf5ff0a",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 262144,
+        "custom_major_ratio": 176
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-262144", "M-176"
+      ]
+    },
+    {
+      "config_id": "cfg_a39017c1c2912119e2d55f14ba194147",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 262144,
+        "custom_major_ratio": 22
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-262144", "M-22"
+      ]
+    },
+    {
+      "config_id": "cfg_715ca9e1e5abfb0a2cb5f0b2fb6ef612",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 262144,
+        "custom_major_ratio": 44
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-262144", "M-44"
+      ]
+    },
+    {
+      "config_id": "cfg_7ba3ff8a943f72c8bb3a1c654f89d115",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 262144,
+        "custom_major_ratio": 88
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-262144", "M-88"
+      ]
+    },
+    {
+      "config_id": "cfg_fadffb36c07db5bd906fafecb0e55b5b",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 524288,
+        "custom_major_ratio": 11
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-524288", "M-11"
+      ]
+    },
+    {
+      "config_id": "cfg_84962c2d95f939690f75e1391d184517",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 524288,
+        "custom_major_ratio": 176
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-524288", "M-176"
+      ]
+    },
+    {
+      "config_id": "cfg_7a210320db34217606c2cf2449039598",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 524288,
+        "custom_major_ratio": 22
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-524288", "M-22"
+      ]
+    },
+    {
+      "config_id": "cfg_ace288bfd7794875fda0f46854f9a18b",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 524288,
+        "custom_major_ratio": 44
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-524288", "M-44"
+      ]
+    },
+    {
+      "config_id": "cfg_1c0882aa0fb1cc6cc6def81bda0c1816",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": {
+        "malloc_mmap32m": true,
+        "malloc_trim64m": true,
+        "minor_heap": 524288,
+        "custom_major_ratio": 88
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [
+        "perf_grp1", "malloc_mmap32m", "malloc_trim64m", "s-524288", "M-88"
+      ]
+    },
+    {
+      "config_id": "cfg_6e4c52e05cbb0655faf10bf67cb52a30",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": { "minor_heap": 1048576, "custom_major_ratio": 11 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [ "perf_grp1", "s-1048576", "M-11" ]
+    },
+    {
+      "config_id": "cfg_69e86d687c8f9a4befed37fc042a6c92",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": { "minor_heap": 1048576, "custom_major_ratio": 176 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [ "perf_grp1", "s-1048576", "M-176" ]
+    },
+    {
+      "config_id": "cfg_6b19b894a2ad148c97b32e4e3e4d1575",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": { "minor_heap": 1048576, "custom_major_ratio": 22 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [ "perf_grp1", "s-1048576", "M-22" ]
+    },
+    {
+      "config_id": "cfg_11e7e5c39927b87f3345d10eacf76644",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": { "minor_heap": 1048576, "custom_major_ratio": 44 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [ "perf_grp1", "s-1048576", "M-44" ]
+    },
+    {
+      "config_id": "cfg_9ac837478a6a9b18f034738887533b48",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": { "minor_heap": 1048576, "custom_major_ratio": 88 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [ "perf_grp1", "s-1048576", "M-88" ]
+    },
+    {
+      "config_id": "cfg_c9daa9dc6c2b61ee9a1c28edd11879a4",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": { "minor_heap": 131072, "custom_major_ratio": 11 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [ "perf_grp1", "s-131072", "M-11" ]
+    },
+    {
+      "config_id": "cfg_5b9db96db90d4abe8b1ed61694c2776a",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": { "minor_heap": 131072, "custom_major_ratio": 176 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [ "perf_grp1", "s-131072", "M-176" ]
+    },
+    {
+      "config_id": "cfg_244bad0e1ff8d9981034ba96d48de112",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": { "minor_heap": 131072, "custom_major_ratio": 22 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [ "perf_grp1", "s-131072", "M-22" ]
+    },
+    {
+      "config_id": "cfg_c478f425b8107d7e435c35f7f9dc0a3c",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": { "minor_heap": 131072, "custom_major_ratio": 44 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [ "perf_grp1", "s-131072", "M-44" ]
+    },
+    {
+      "config_id": "cfg_01e4895d2486b7e4259e274c85765ba8",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": { "minor_heap": 131072, "custom_major_ratio": 88 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [ "perf_grp1", "s-131072", "M-88" ]
+    },
+    {
+      "config_id": "cfg_3645e13d3522d3c086a3f5f1a7ebfe18",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": { "minor_heap": 2097152, "custom_major_ratio": 11 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [ "perf_grp1", "s-2097152", "M-11" ]
+    },
+    {
+      "config_id": "cfg_28087b55e27e53cce36f5dc1d9014965",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": { "minor_heap": 2097152, "custom_major_ratio": 176 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [ "perf_grp1", "s-2097152", "M-176" ]
+    },
+    {
+      "config_id": "cfg_09341e7d5d20c1e223de33d5e3645c0f",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": { "minor_heap": 2097152, "custom_major_ratio": 22 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [ "perf_grp1", "s-2097152", "M-22" ]
+    },
+    {
+      "config_id": "cfg_81db8115962184380ca0edf4e26aae13",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": { "minor_heap": 2097152, "custom_major_ratio": 44 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [ "perf_grp1", "s-2097152", "M-44" ]
+    },
+    {
+      "config_id": "cfg_2df8068438fbc09f45e8b269f605e279",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": { "minor_heap": 2097152, "custom_major_ratio": 88 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [ "perf_grp1", "s-2097152", "M-88" ]
+    },
+    {
+      "config_id": "cfg_70fda8fafe0b22f71d86f8e1712ed802",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": { "minor_heap": 262144, "custom_major_ratio": 11 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [ "perf_grp1", "s-262144", "M-11" ]
+    },
+    {
+      "config_id": "cfg_0aeb00fc8aaf8d07bc0553d64fcfb2df",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": { "minor_heap": 262144, "custom_major_ratio": 176 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [ "perf_grp1", "s-262144", "M-176" ]
+    },
+    {
+      "config_id": "cfg_0210cd94023ddaf23a46e3bb9e442fd2",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": { "minor_heap": 262144, "custom_major_ratio": 22 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [ "perf_grp1", "s-262144", "M-22" ]
+    },
+    {
+      "config_id": "cfg_8f0a2a9e02805f5fbb2a118a0ef562e8",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": { "minor_heap": 262144, "custom_major_ratio": 44 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [ "perf_grp1", "s-262144", "M-44" ]
+    },
+    {
+      "config_id": "cfg_41b17a44b65837b3aadf35656feb1cca",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": { "minor_heap": 262144, "custom_major_ratio": 88 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [ "perf_grp1", "s-262144", "M-88" ]
+    },
+    {
+      "config_id": "cfg_3686c850acce6abf57ca785471f1d555",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": { "minor_heap": 524288, "custom_major_ratio": 11 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [ "perf_grp1", "s-524288", "M-11" ]
+    },
+    {
+      "config_id": "cfg_07d0dbcdc7d63ec07a232c4da5f18e1a",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": { "minor_heap": 524288, "custom_major_ratio": 176 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [ "perf_grp1", "s-524288", "M-176" ]
+    },
+    {
+      "config_id": "cfg_a0526e695181414d7f1fb65e4b5593a1",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": { "minor_heap": 524288, "custom_major_ratio": 22 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [ "perf_grp1", "s-524288", "M-22" ]
+    },
+    {
+      "config_id": "cfg_1c558ff23be01836e25f6caaa4306f05",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": { "minor_heap": 524288, "custom_major_ratio": 44 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [ "perf_grp1", "s-524288", "M-44" ]
+    },
+    {
+      "config_id": "cfg_23d507d49499ba2238801d8049400dd0",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-3b14dfbc",
+        "commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "dimensions": { "minor_heap": 524288, "custom_major_ratio": 88 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-3b14dfbc",
+      "_modifiers": [ "perf_grp1", "s-524288", "M-88" ]
+    }
+  ],
+  "comparisons": [
+    {
+      "kind": "inter",
+      "label": "faster minor GC PR vs trunk merge-base (owl_gc_default)",
+      "over": "runtime",
+      "mode": "pairwise",
+      "baseline": {
+        "runtime.version": "ocaml-trunk-3b14dfbc",
+        "runtime.options": [],
+        "runtime.commit": "3b14dfbcca7c6c24803fc9bbbc5d4a8cc2e7f75b"
+      },
+      "variants": [
+        {
+          "runtime.version": "ocaml-pr14571",
+          "runtime.options": [],
+          "runtime.commit": "16cc07f26ded44a3c2f85ba3c0c9a032e242912f"
+        }
+      ]
+    }
+  ],
+  "benchmarks": [ { "name": "owl_gc_default", "suite": "macro-owl" } ],
+  "_produced_by": "running-ng (native)"
+}

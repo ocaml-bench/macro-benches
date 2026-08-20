@@ -1,0 +1,124 @@
+{
+  "schema_version": "1.0",
+  "run_id": "monolith-2026-07-24-Fri-015106",
+  "created_at": "2026-07-24T03:06:23Z",
+  "machine": {
+    "hostname": "monolith",
+    "cpu_model": "AMD Ryzen 9 9950X 16-Core Processor",
+    "cores": 32,
+    "kernel": "6.17.0-19-generic"
+  },
+  "tool_versions": { "perf": "6.17.13", "olly": "0.5.4-24-g5a53174" },
+  "configs": [
+    {
+      "config_id": "cfg_db30caa7ce0b64df08b1d87bbe43f3f4",
+      "runtime": { "kind": "OCaml", "version": "5.5.0" },
+      "dimensions": { "runtime_events_ring_log2": 25, "max_domains": 2 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-5.5.0",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek"
+      ]
+    },
+    {
+      "config_id": "cfg_bc79b4864d1c01ae06a2649efa6e0226",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "5.5.0",
+        "options": [ "--enable-frame-pointers" ]
+      },
+      "dimensions": { "runtime_events_ring_log2": 25, "max_domains": 2 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-5.5.0-fp",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek"
+      ]
+    },
+    {
+      "config_id": "cfg_f284f58d64e1da9f95d29fbdef41c874",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "5.5.0",
+        "options": [ "--enable-flambda" ]
+      },
+      "dimensions": { "runtime_events_ring_log2": 25, "max_domains": 2 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-5.5.0-flambda",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek"
+      ]
+    },
+    {
+      "config_id": "cfg_a2ef0386ebb302b42fa08217756c8fa8",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "5.5.0",
+        "options": [ "--enable-frame-pointers", "--enable-flambda" ]
+      },
+      "dimensions": { "runtime_events_ring_log2": 25, "max_domains": 2 },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-5.5.0-fp-flambda",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek"
+      ]
+    }
+  ],
+  "comparisons": [
+    {
+      "kind": "inter",
+      "label": "5.5.0: fp+flambda vs stock",
+      "over": "runtime",
+      "mode": "pairwise",
+      "baseline": { "runtime.version": "5.5.0", "runtime.options": [] },
+      "variants": [
+        {
+          "runtime.version": "5.5.0",
+          "runtime.options": [ "--enable-frame-pointers" ]
+        },
+        {
+          "runtime.version": "5.5.0",
+          "runtime.options": [ "--enable-flambda" ]
+        },
+        {
+          "runtime.version": "5.5.0",
+          "runtime.options": [
+            "--enable-frame-pointers", "--enable-flambda"
+          ]
+        }
+      ]
+    }
+  ],
+  "benchmarks": [
+    { "name": "menhir_ocamly", "suite": "macro-menhir-monorepo" },
+    { "name": "menhir_sql_parser", "suite": "macro-menhir-monorepo" },
+    { "name": "menhir_sysver", "suite": "macro-menhir-monorepo" },
+    { "name": "cpdf_merge", "suite": "macro-cpdf-monorepo" },
+    { "name": "cpdf_blacktext", "suite": "macro-cpdf-monorepo" },
+    { "name": "cpdf_scale", "suite": "macro-cpdf-monorepo" },
+    { "name": "cpdf_squeeze", "suite": "macro-cpdf-monorepo" },
+    { "name": "alt_ergo_fill", "suite": "macro-alt-ergo-monorepo" },
+    { "name": "alt_ergo_yyll", "suite": "macro-alt-ergo-monorepo" },
+    { "name": "frama_c_eva_t", "suite": "macro-frama-c-monorepo" },
+    { "name": "frama_c_eva_sqlite", "suite": "macro-frama-c-monorepo" },
+    { "name": "goblint", "suite": "macro-goblint-monorepo" },
+    { "name": "coqc_corelib_stress", "suite": "macro-coq-monorepo" },
+    { "name": "devkit_htmlstream", "suite": "macro-devkit" },
+    { "name": "devkit_stre", "suite": "macro-devkit" },
+    { "name": "devkit_network", "suite": "macro-devkit" },
+    { "name": "devkit_gzip", "suite": "macro-devkit" },
+    { "name": "irmin_mem_rw", "suite": "macro-irmin" },
+    { "name": "ocamlformat_rocq", "suite": "macro-ocamlformat" },
+    { "name": "test_decompress", "suite": "macro-decompress" },
+    { "name": "eio_fiber_stream", "suite": "macro-eio" },
+    { "name": "sedlex_tokenize", "suite": "macro-sedlex" },
+    { "name": "ydump_repeat", "suite": "macro-yojson" },
+    { "name": "zarith_pi", "suite": "macro-zarith" },
+    { "name": "owl_gc", "suite": "macro-owl" },
+    { "name": "ocamlc_self_compile", "suite": "macro-ocamlc-self-compile" },
+    { "name": "liq_parse_typecheck", "suite": "macro-liquidsoap-lang" },
+    { "name": "jsoo", "suite": "macro-jsoo" },
+    { "name": "liq_video_frames_pool", "suite": "macro-liq-video-frames" },
+    { "name": "pplacer_testsuite", "suite": "macro-pplacer" }
+  ],
+  "_produced_by": "running-ng (native)"
+}
