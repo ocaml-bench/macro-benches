@@ -246,13 +246,21 @@ Consequences worth knowing:
   `compiler/lib/magic_number.ml`) and the branch is gone. Bumping this pin changes
   *two* benchmarks — `ocamlc_self_compile` takes its workload from
   `duniverse/js_of_ocaml/benchmarks/sources/ml`.
-- **Pins are commits, never tags.** A tag can be re-pointed upstream. Watch for
-  annotated tags when resolving one: `git ls-remote <url> 'refs/tags/<t>^{}'`
-  gives the commit, while plain `refs/tags/<t>` gives the tag object.
+- **Pins are commits, never tags.** A tag can be re-pointed upstream. Resolve one
+  with `git ls-remote <url> 'refs/tags/<t>^{}'`, which gives the commit; plain
+  `refs/tags/<t>` gives the *tag object* for an annotated tag, which is a
+  different sha. `clone_pinned` peels a tag-object pin (`_peel_commit`) and
+  carries on with a note, because the tag object is immutable too — so the pin is
+  still a pin. Prefer the commit anyway: it is what `rev-parse HEAD` will show
+  you. Getting this wrong used to fail the *whole* checkout with `checked out
+  <sha>, expected <sha>`, and the half-vendored tree it left behind was then
+  mis-built by the next caller.
 - **`clone_pinned` tries three fetches**: the commit directly (GitHub allows it);
   else the recorded branch/tag shallow, then verifies the commit matches (GitLab
   refuses bare commits — this is the frama-c path, and it is still pinned because
-  a moved ref fails the verify); else a full clone.
+  a moved ref fails the verify: the pinned commit is not in the shallow object
+  store, so there is nothing to peel and the compare is against the raw pin);
+  else a full clone.
 - **`ci-manifest.py check` enforces this**: every `src_field`/`clone_pinned` key
   must exist in `sources.yml` with the fields it asks for, every `commit:` must be
   full 40-hex, and **no script may call `git clone` directly** (only
