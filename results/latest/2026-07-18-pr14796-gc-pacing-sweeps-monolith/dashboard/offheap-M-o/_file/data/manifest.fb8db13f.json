@@ -1,0 +1,1043 @@
+{
+  "schema_version": "1.0",
+  "run_id": "monolith-2026-07-18-Sat-174632",
+  "created_at": "2026-07-18T21:25:02Z",
+  "machine": {
+    "hostname": "monolith",
+    "cpu_model": "AMD Ryzen 9 9950X 16-Core Processor",
+    "cores": 32,
+    "kernel": "6.17.0-19-generic"
+  },
+  "tool_versions": { "perf": "6.17.13", "olly": "0.5.4-12-g3d37a0b" },
+  "configs": [
+    {
+      "config_id": "cfg_eab8971dfaf278743ac9b0596e77af37",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-e53a0322",
+        "commit": "e53a032298229338268c3dc3640214e1fa710c95"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 11,
+        "space_overhead": 40
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-e53a0322",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-11", "o-40"
+      ]
+    },
+    {
+      "config_id": "cfg_b2031533dacea8a048656e5502b9ee2a",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-e53a0322",
+        "commit": "e53a032298229338268c3dc3640214e1fa710c95"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 11,
+        "space_overhead": 80
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-e53a0322",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-11", "o-80"
+      ]
+    },
+    {
+      "config_id": "cfg_9576b7fc8ed085c7b86df197c9e9a36f",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-e53a0322",
+        "commit": "e53a032298229338268c3dc3640214e1fa710c95"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 11,
+        "space_overhead": 120
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-e53a0322",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-11", "o-120"
+      ]
+    },
+    {
+      "config_id": "cfg_a6cb5b5343c7fab1b186d26509e35dc2",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-e53a0322",
+        "commit": "e53a032298229338268c3dc3640214e1fa710c95"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 11,
+        "space_overhead": 150
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-e53a0322",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-11", "o-150"
+      ]
+    },
+    {
+      "config_id": "cfg_89d14025fe0e874eb34e576c5e56dbef",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-e53a0322",
+        "commit": "e53a032298229338268c3dc3640214e1fa710c95"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 11,
+        "space_overhead": 200
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-e53a0322",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-11", "o-200"
+      ]
+    },
+    {
+      "config_id": "cfg_e7eccb16851b94468fee96447a2e44ab",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-e53a0322",
+        "commit": "e53a032298229338268c3dc3640214e1fa710c95"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 22,
+        "space_overhead": 40
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-e53a0322",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-22", "o-40"
+      ]
+    },
+    {
+      "config_id": "cfg_64135135ad10027928b996a24eced7ca",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-e53a0322",
+        "commit": "e53a032298229338268c3dc3640214e1fa710c95"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 22,
+        "space_overhead": 80
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-e53a0322",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-22", "o-80"
+      ]
+    },
+    {
+      "config_id": "cfg_6bdf6664127f5bb44723151ab44f2732",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-e53a0322",
+        "commit": "e53a032298229338268c3dc3640214e1fa710c95"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 22,
+        "space_overhead": 120
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-e53a0322",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-22", "o-120"
+      ]
+    },
+    {
+      "config_id": "cfg_290367eb3476209cb075ca6bbf196bcd",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-e53a0322",
+        "commit": "e53a032298229338268c3dc3640214e1fa710c95"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 22,
+        "space_overhead": 150
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-e53a0322",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-22", "o-150"
+      ]
+    },
+    {
+      "config_id": "cfg_3e8939b7a8a9e3dff52bf053be444667",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-e53a0322",
+        "commit": "e53a032298229338268c3dc3640214e1fa710c95"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 22,
+        "space_overhead": 200
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-e53a0322",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-22", "o-200"
+      ]
+    },
+    {
+      "config_id": "cfg_0eedaf9804a7a7e37de0461198db7215",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-e53a0322",
+        "commit": "e53a032298229338268c3dc3640214e1fa710c95"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 44,
+        "space_overhead": 40
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-e53a0322",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-44", "o-40"
+      ]
+    },
+    {
+      "config_id": "cfg_b3be07058a781a5f1b9b55b8589b422a",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-e53a0322",
+        "commit": "e53a032298229338268c3dc3640214e1fa710c95"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 44,
+        "space_overhead": 80
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-e53a0322",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-44", "o-80"
+      ]
+    },
+    {
+      "config_id": "cfg_45fe6e6805871a9e58adc56bdc520701",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-e53a0322",
+        "commit": "e53a032298229338268c3dc3640214e1fa710c95"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 44,
+        "space_overhead": 120
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-e53a0322",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-44", "o-120"
+      ]
+    },
+    {
+      "config_id": "cfg_ede5fcbfa047158df7b80108b1c65536",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-e53a0322",
+        "commit": "e53a032298229338268c3dc3640214e1fa710c95"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 44,
+        "space_overhead": 150
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-e53a0322",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-44", "o-150"
+      ]
+    },
+    {
+      "config_id": "cfg_2724b94f12de2136159a0b0438962203",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-e53a0322",
+        "commit": "e53a032298229338268c3dc3640214e1fa710c95"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 44,
+        "space_overhead": 200
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-e53a0322",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-44", "o-200"
+      ]
+    },
+    {
+      "config_id": "cfg_8a611b1a3c3089a6db70a5377b00ee50",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-e53a0322",
+        "commit": "e53a032298229338268c3dc3640214e1fa710c95"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 100,
+        "space_overhead": 40
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-e53a0322",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-100", "o-40"
+      ]
+    },
+    {
+      "config_id": "cfg_92566f4f0a4beec7dcd91e046573e9f6",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-e53a0322",
+        "commit": "e53a032298229338268c3dc3640214e1fa710c95"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 100,
+        "space_overhead": 80
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-e53a0322",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-100", "o-80"
+      ]
+    },
+    {
+      "config_id": "cfg_0ce4a4c8517689a5c0307604f0315063",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-e53a0322",
+        "commit": "e53a032298229338268c3dc3640214e1fa710c95"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 100,
+        "space_overhead": 120
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-e53a0322",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-100", "o-120"
+      ]
+    },
+    {
+      "config_id": "cfg_c442bb0a866d871732471d87db7c1522",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-e53a0322",
+        "commit": "e53a032298229338268c3dc3640214e1fa710c95"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 100,
+        "space_overhead": 150
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-e53a0322",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-100", "o-150"
+      ]
+    },
+    {
+      "config_id": "cfg_92ff0ccff222147159846a6e2ca9b036",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-e53a0322",
+        "commit": "e53a032298229338268c3dc3640214e1fa710c95"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 100,
+        "space_overhead": 200
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-e53a0322",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-100", "o-200"
+      ]
+    },
+    {
+      "config_id": "cfg_8e7b3afd19835fe752fc4523a1ed0135",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-e53a0322",
+        "commit": "e53a032298229338268c3dc3640214e1fa710c95"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 250,
+        "space_overhead": 40
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-e53a0322",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-250", "o-40"
+      ]
+    },
+    {
+      "config_id": "cfg_9014b15e4363239b7ebcd1d704c3cc10",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-e53a0322",
+        "commit": "e53a032298229338268c3dc3640214e1fa710c95"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 250,
+        "space_overhead": 80
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-e53a0322",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-250", "o-80"
+      ]
+    },
+    {
+      "config_id": "cfg_052ab19b4e6914d7221cd97412223f4e",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-e53a0322",
+        "commit": "e53a032298229338268c3dc3640214e1fa710c95"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 250,
+        "space_overhead": 120
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-e53a0322",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-250", "o-120"
+      ]
+    },
+    {
+      "config_id": "cfg_090b67a1d97bf39dbfd6308995dd9172",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-e53a0322",
+        "commit": "e53a032298229338268c3dc3640214e1fa710c95"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 250,
+        "space_overhead": 150
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-e53a0322",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-250", "o-150"
+      ]
+    },
+    {
+      "config_id": "cfg_20bb90073db2dfce3430a7b3e6171fae",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-trunk-e53a0322",
+        "commit": "e53a032298229338268c3dc3640214e1fa710c95"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 250,
+        "space_overhead": 200
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-trunk-e53a0322",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-250", "o-200"
+      ]
+    },
+    {
+      "config_id": "cfg_a490723648567805effc5d7da2732fb3",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-gc-pacing-72c712d4",
+        "commit": "72c712d414aa46e2e524bb2f7d1cd43abc76cb37"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 11,
+        "space_overhead": 40
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-gc-pacing-72c712d4",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-11", "o-40"
+      ]
+    },
+    {
+      "config_id": "cfg_a552938c9d75279ce8bd8edfdf651b5d",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-gc-pacing-72c712d4",
+        "commit": "72c712d414aa46e2e524bb2f7d1cd43abc76cb37"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 11,
+        "space_overhead": 80
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-gc-pacing-72c712d4",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-11", "o-80"
+      ]
+    },
+    {
+      "config_id": "cfg_5b82d079757310f8f6d1314b362379f5",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-gc-pacing-72c712d4",
+        "commit": "72c712d414aa46e2e524bb2f7d1cd43abc76cb37"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 11,
+        "space_overhead": 120
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-gc-pacing-72c712d4",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-11", "o-120"
+      ]
+    },
+    {
+      "config_id": "cfg_1c5d704c079cf32c1bb630942ee2e048",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-gc-pacing-72c712d4",
+        "commit": "72c712d414aa46e2e524bb2f7d1cd43abc76cb37"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 11,
+        "space_overhead": 150
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-gc-pacing-72c712d4",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-11", "o-150"
+      ]
+    },
+    {
+      "config_id": "cfg_5d7c442a2acb28b2b8293534853a496b",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-gc-pacing-72c712d4",
+        "commit": "72c712d414aa46e2e524bb2f7d1cd43abc76cb37"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 11,
+        "space_overhead": 200
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-gc-pacing-72c712d4",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-11", "o-200"
+      ]
+    },
+    {
+      "config_id": "cfg_d5c33c2cbb123c75c52afdd3d9da76a5",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-gc-pacing-72c712d4",
+        "commit": "72c712d414aa46e2e524bb2f7d1cd43abc76cb37"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 22,
+        "space_overhead": 40
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-gc-pacing-72c712d4",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-22", "o-40"
+      ]
+    },
+    {
+      "config_id": "cfg_4f6cf7ee4f6ce9163ddb8bc88b61dc6f",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-gc-pacing-72c712d4",
+        "commit": "72c712d414aa46e2e524bb2f7d1cd43abc76cb37"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 22,
+        "space_overhead": 80
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-gc-pacing-72c712d4",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-22", "o-80"
+      ]
+    },
+    {
+      "config_id": "cfg_627676dbdc2710b1c8e2861cfe7d9929",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-gc-pacing-72c712d4",
+        "commit": "72c712d414aa46e2e524bb2f7d1cd43abc76cb37"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 22,
+        "space_overhead": 120
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-gc-pacing-72c712d4",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-22", "o-120"
+      ]
+    },
+    {
+      "config_id": "cfg_2d78b1cca92515f7a1e6935e12ca8ecb",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-gc-pacing-72c712d4",
+        "commit": "72c712d414aa46e2e524bb2f7d1cd43abc76cb37"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 22,
+        "space_overhead": 150
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-gc-pacing-72c712d4",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-22", "o-150"
+      ]
+    },
+    {
+      "config_id": "cfg_6f902c22d1169845bc4165e555ac3d40",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-gc-pacing-72c712d4",
+        "commit": "72c712d414aa46e2e524bb2f7d1cd43abc76cb37"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 22,
+        "space_overhead": 200
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-gc-pacing-72c712d4",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-22", "o-200"
+      ]
+    },
+    {
+      "config_id": "cfg_35b7c1f4509bb76e7da7684f36bd64d5",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-gc-pacing-72c712d4",
+        "commit": "72c712d414aa46e2e524bb2f7d1cd43abc76cb37"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 44,
+        "space_overhead": 40
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-gc-pacing-72c712d4",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-44", "o-40"
+      ]
+    },
+    {
+      "config_id": "cfg_98f4b5ffd2afa1b1bfae25639594fa45",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-gc-pacing-72c712d4",
+        "commit": "72c712d414aa46e2e524bb2f7d1cd43abc76cb37"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 44,
+        "space_overhead": 80
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-gc-pacing-72c712d4",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-44", "o-80"
+      ]
+    },
+    {
+      "config_id": "cfg_e16e2916657fd4ca14bdcce4ff1b90d7",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-gc-pacing-72c712d4",
+        "commit": "72c712d414aa46e2e524bb2f7d1cd43abc76cb37"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 44,
+        "space_overhead": 120
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-gc-pacing-72c712d4",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-44", "o-120"
+      ]
+    },
+    {
+      "config_id": "cfg_eee14f4a09b8ccc561e34ca0336ef953",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-gc-pacing-72c712d4",
+        "commit": "72c712d414aa46e2e524bb2f7d1cd43abc76cb37"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 44,
+        "space_overhead": 150
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-gc-pacing-72c712d4",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-44", "o-150"
+      ]
+    },
+    {
+      "config_id": "cfg_47e73e273f0bf68b651284e73d0cc555",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-gc-pacing-72c712d4",
+        "commit": "72c712d414aa46e2e524bb2f7d1cd43abc76cb37"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 44,
+        "space_overhead": 200
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-gc-pacing-72c712d4",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-44", "o-200"
+      ]
+    },
+    {
+      "config_id": "cfg_ecad7d2bc94dd45dbbf0b98c9d2f6321",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-gc-pacing-72c712d4",
+        "commit": "72c712d414aa46e2e524bb2f7d1cd43abc76cb37"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 100,
+        "space_overhead": 40
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-gc-pacing-72c712d4",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-100", "o-40"
+      ]
+    },
+    {
+      "config_id": "cfg_8ce9730e6c5cd2e274576792727cdb61",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-gc-pacing-72c712d4",
+        "commit": "72c712d414aa46e2e524bb2f7d1cd43abc76cb37"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 100,
+        "space_overhead": 80
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-gc-pacing-72c712d4",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-100", "o-80"
+      ]
+    },
+    {
+      "config_id": "cfg_9a624150d2cc2529435601eacf8cc3ee",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-gc-pacing-72c712d4",
+        "commit": "72c712d414aa46e2e524bb2f7d1cd43abc76cb37"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 100,
+        "space_overhead": 120
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-gc-pacing-72c712d4",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-100", "o-120"
+      ]
+    },
+    {
+      "config_id": "cfg_4d33d6be073cb55c42bc4a269f81995a",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-gc-pacing-72c712d4",
+        "commit": "72c712d414aa46e2e524bb2f7d1cd43abc76cb37"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 100,
+        "space_overhead": 150
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-gc-pacing-72c712d4",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-100", "o-150"
+      ]
+    },
+    {
+      "config_id": "cfg_38189b752b5005a11279f02a27208306",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-gc-pacing-72c712d4",
+        "commit": "72c712d414aa46e2e524bb2f7d1cd43abc76cb37"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 100,
+        "space_overhead": 200
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-gc-pacing-72c712d4",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-100", "o-200"
+      ]
+    },
+    {
+      "config_id": "cfg_e5e33c2a90fb1434ed33ed145c0e6476",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-gc-pacing-72c712d4",
+        "commit": "72c712d414aa46e2e524bb2f7d1cd43abc76cb37"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 250,
+        "space_overhead": 40
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-gc-pacing-72c712d4",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-250", "o-40"
+      ]
+    },
+    {
+      "config_id": "cfg_76ab911d3a977521361f6d551ad20eda",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-gc-pacing-72c712d4",
+        "commit": "72c712d414aa46e2e524bb2f7d1cd43abc76cb37"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 250,
+        "space_overhead": 80
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-gc-pacing-72c712d4",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-250", "o-80"
+      ]
+    },
+    {
+      "config_id": "cfg_512633a4aac139df47650a51defb95dd",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-gc-pacing-72c712d4",
+        "commit": "72c712d414aa46e2e524bb2f7d1cd43abc76cb37"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 250,
+        "space_overhead": 120
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-gc-pacing-72c712d4",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-250", "o-120"
+      ]
+    },
+    {
+      "config_id": "cfg_652a0f800620758c2fe2ef9c32b49b90",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-gc-pacing-72c712d4",
+        "commit": "72c712d414aa46e2e524bb2f7d1cd43abc76cb37"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 250,
+        "space_overhead": 150
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-gc-pacing-72c712d4",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-250", "o-150"
+      ]
+    },
+    {
+      "config_id": "cfg_7e4b4211f1a1c4fa04d60d9f4ca0f3ab",
+      "runtime": {
+        "kind": "OCaml",
+        "version": "ocaml-gc-pacing-72c712d4",
+        "commit": "72c712d414aa46e2e524bb2f7d1cd43abc76cb37"
+      },
+      "dimensions": {
+        "runtime_events_ring_log2": 25,
+        "max_domains": 2,
+        "custom_major_ratio": 250,
+        "space_overhead": 200
+      },
+      "tools": [ "olly", "perf" ],
+      "_runtime_name": "ocaml-gc-pacing-72c712d4",
+      "_modifiers": [
+        "perf_grp1", "re-25", "md-2", "re_par-22", "md_par-8", "pin_lavyek",
+        "M-250", "o-200"
+      ]
+    }
+  ],
+  "comparisons": [
+    {
+      "kind": "inter",
+      "label": "gc-pacing PR vs trunk merge-base — off-heap (M, o) sweep 2026-07-13",
+      "over": "runtime",
+      "mode": "pairwise",
+      "baseline": {
+        "runtime.version": "ocaml-trunk-e53a0322",
+        "runtime.commit": "e53a032298229338268c3dc3640214e1fa710c95"
+      },
+      "variants": [
+        {
+          "runtime.version": "ocaml-gc-pacing-72c712d4",
+          "runtime.commit": "72c712d414aa46e2e524bb2f7d1cd43abc76cb37"
+        }
+      ]
+    }
+  ],
+  "benchmarks": [
+    { "name": "cpdf_merge", "suite": "macro-cpdf-monorepo" },
+    { "name": "cpdf_scale", "suite": "macro-cpdf-monorepo" },
+    { "name": "cpdf_squeeze", "suite": "macro-cpdf-monorepo" },
+    { "name": "alt_ergo_fill", "suite": "macro-alt-ergo-monorepo" },
+    { "name": "zarith_pi", "suite": "macro-zarith" },
+    { "name": "owl_gc", "suite": "macro-owl" },
+    { "name": "liq_video_frames_pool", "suite": "macro-liq-video-frames" },
+    { "name": "pplacer_testsuite", "suite": "macro-pplacer" }
+  ],
+  "_produced_by": "running-ng (native)"
+}

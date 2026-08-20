@@ -1,0 +1,791 @@
+benchmarks:
+  macro-alt-ergo-monorepo:
+  - alt_ergo_fill
+  - alt_ergo_yyll
+  - alt_ergo_unsat_smt2
+  macro-coq-monorepo:
+  - coqc_corelib_stress
+  macro-cpdf-monorepo:
+  - cpdf_merge
+  - cpdf_blacktext
+  - cpdf_scale
+  - cpdf_squeeze
+  macro-decompress:
+  - test_decompress
+  macro-devkit:
+  - devkit_htmlstream
+  - devkit_stre
+  - devkit_network
+  - devkit_gzip
+  macro-eio:
+  - eio_fiber_stream
+  macro-frama-c-monorepo:
+  - frama_c_eva_t
+  - frama_c_eva_sqlite
+  macro-goblint-monorepo:
+  - goblint
+  macro-irmin:
+  - irmin_mem_rw
+  macro-jsoo:
+  - jsoo
+  macro-lavyek-monorepo: []
+  macro-liq-video-frames:
+  - liq_video_frames_pool
+  macro-liquidsoap-lang:
+  - liq_parse_typecheck
+  macro-menhir-monorepo:
+  - menhir_ocamly
+  - menhir_sql_parser
+  - menhir_sysver
+  macro-merlin: []
+  macro-ocamlc-self-compile:
+  - ocamlc_self_compile
+  macro-ocamlformat:
+  - ocamlformat_rocq
+  macro-owl:
+  - owl_gc
+  macro-pplacer:
+  - pplacer_testsuite
+  macro-sedlex:
+  - sedlex_tokenize
+  macro-yojson:
+  - ydump_repeat
+  macro-zarith:
+  - zarith_pi
+comparisons:
+- a: ocaml-5.5.0
+  b:
+  - ocaml-5.5.0-fp
+  - ocaml-5.5.0-flambda
+  - ocaml-5.5.0-fp-flambda
+  label: '5.5.0: fp+flambda vs stock'
+compress_logs: false
+configs:
+- ocaml-5.5.0|perf_grp1|re-25|md-2|re_par-22|md_par-8|pin_lavyek
+- ocaml-5.5.0-fp|perf_grp1|re-25|md-2|re_par-22|md_par-8|pin_lavyek
+- ocaml-5.5.0-flambda|perf_grp1|re-25|md-2|re_par-22|md_par-8|pin_lavyek
+- ocaml-5.5.0-fp-flambda|perf_grp1|re-25|md-2|re_par-22|md_par-8|pin_lavyek
+heap_range: 6
+invocations: 5
+minheap_multiplier: 1.0
+modifiers:
+  gc_verbose:
+    type: OCamlRunParam
+    val: v=0x400
+  md:
+    excludes: &id002
+      macro-lavyek-monorepo:
+      - lavyek_kv_1d
+      - lavyek_kv_2d
+      - lavyek_kv_4d
+      - lavyek_kv_8d
+    type: OCamlRunParam
+    val: d={0}
+  md_par:
+    excludes: &id001
+      macro-alt-ergo-monorepo:
+      - alt_ergo_fill
+      - alt_ergo_yyll
+      - alt_ergo_unsat_smt2
+      macro-coq-monorepo:
+      - coqc_corelib_stress
+      macro-cpdf-monorepo:
+      - cpdf_merge
+      - cpdf_blacktext
+      - cpdf_scale
+      - cpdf_squeeze
+      macro-decompress:
+      - test_decompress
+      macro-devkit:
+      - devkit_htmlstream
+      - devkit_stre
+      - devkit_network
+      - devkit_gzip
+      macro-eio:
+      - eio_fiber_stream
+      macro-irmin:
+      - irmin_mem_rw
+      macro-jsoo:
+      - jsoo
+      macro-liq-video-frames:
+      - liq_video_frames_pool
+      macro-liquidsoap-lang:
+      - liq_parse_typecheck
+      macro-menhir-monorepo:
+      - menhir_ocamly
+      - menhir_sql_parser
+      - menhir_sysver
+      macro-merlin:
+      - merlin_bench
+      macro-ocamlc-self-compile:
+      - ocamlc_self_compile
+      macro-ocamlformat:
+      - ocamlformat_rocq
+      macro-owl:
+      - owl_gc
+      macro-pplacer:
+      - pplacer_testsuite
+      macro-sedlex:
+      - sedlex_tokenize
+      macro-yojson:
+      - ydump_repeat
+      macro-zarith:
+      - zarith_pi
+    type: OCamlRunParam
+    val: d={0}
+  perf_grp1:
+    type: PerfAndOllyAttach
+    val: task-clock,page-faults,cycles,instructions
+  perf_grp2:
+    type: PerfAndOllyAttach
+    val: task-clock,cycles,stalled-cycles-frontend,stalled-cycles-backend
+  perf_grp3:
+    type: PerfAndOllyAttach
+    val: task-clock,cycles,cache-misses,LLC-load-misses,dTLB-load-misses,iTLB-load-misses
+  pin_lavyek:
+    excludes: *id001
+    type: Wrapper
+    val: taskset -c 0-15
+  plan:
+    type: EnvVar
+    val: '{0}'
+    var: MMTK_PLAN
+  re:
+    excludes: *id002
+    type: OCamlRunParam
+    val: e={0}
+  re_par:
+    excludes: *id001
+    type: OCamlRunParam
+    val: e={0}
+  threads:
+    type: EnvVar
+    val: '{0}'
+    var: MMTK_THREADS
+  time_stats:
+    type: Wrapper
+    val: /usr/bin/time -f "%Uuser %Ssystem %eelapsed %PCPU (%Xavgtext+%Davgdata %Mmaxresident)k"
+plugins:
+  zulip:
+    request:
+      to:
+      - 361443
+      type: private
+    type: Zulip
+remote_host: null
+runtimes:
+  ocaml-5.5.0:
+    type: OCaml
+    version: 5.5.0
+  ocaml-5.5.0-flambda:
+    configure_args:
+    - --enable-flambda
+    type: OCaml
+    version: 5.5.0
+  ocaml-5.5.0-fp:
+    configure_args:
+    - --enable-frame-pointers
+    type: OCaml
+    version: 5.5.0
+  ocaml-5.5.0-fp-flambda:
+    configure_args:
+    - --enable-frame-pointers
+    - --enable-flambda
+    type: OCaml
+    version: 5.5.0
+schema_version: '1.0'
+spread_factor: 1
+suites:
+  macro-alt-ergo-monorepo:
+    programs:
+      alt_ergo_fill:
+        args: --input native ${RUNNING_MACRO_BENCH_DIR}/benchmarks/alt-ergo/fill_x100.why
+        build_script: alt-ergo.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/alt-ergo
+      alt_ergo_unsat_smt2:
+        args: --timelimit 15 ${RUNNING_MACRO_BENCH_DIR}/benchmarks/alt-ergo/unsat.smt2
+        build_script: alt-ergo.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/alt-ergo
+      alt_ergo_yyll:
+        args: --input native ${RUNNING_MACRO_BENCH_DIR}/benchmarks/alt-ergo/yyll.why
+        build_script: alt-ergo.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/alt-ergo
+    timeout: 300
+    type: OCamlBenchmarkSuite
+  macro-coq-monorepo:
+    programs:
+      coqc_corelib_stress:
+        args: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/coq/coq_corelib_stress.v
+        build_script: coq.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/coq
+    timeout: 900
+    type: OCamlBenchmarkSuite
+  macro-cpdf-monorepo:
+    programs:
+      cpdf_blacktext:
+        args: -blacktext ${RUNNING_MACRO_BENCH_DIR}/benchmarks/cpdf/PDFReference16.pdf_toobig
+          -o /dev/null
+        build_script: cpdf.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/cpdf
+      cpdf_merge:
+        args: -merge ${RUNNING_MACRO_BENCH_DIR}/benchmarks/cpdf/PDFReference16.pdf_toobig
+          ${RUNNING_MACRO_BENCH_DIR}/benchmarks/cpdf/PDFReference16.pdf_toobig -o
+          /dev/null
+        build_script: cpdf.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/cpdf
+      cpdf_scale:
+        args: scale-to-fit a4landscape -twoup ${RUNNING_MACRO_BENCH_DIR}/benchmarks/cpdf/PDFReference16.pdf_toobig
+          -o /dev/null
+        build_script: cpdf.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/cpdf
+      cpdf_squeeze:
+        args: -squeeze ${RUNNING_MACRO_BENCH_DIR}/benchmarks/cpdf/PDFReference16.pdf_toobig
+          -o /dev/null
+        build_script: cpdf.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/cpdf
+    timeout: 300
+    type: OCamlBenchmarkSuite
+  macro-decompress:
+    programs:
+      test_decompress:
+        args: 64 524288
+        build_script: decompress.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/decompress
+    timeout: 120
+    type: OCamlBenchmarkSuite
+  macro-devkit:
+    programs:
+      devkit_gzip:
+        args: '5'
+        build_script: ahrefs-devkit.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/ahrefs-devkit
+      devkit_htmlstream:
+        args: ''
+        build_script: ahrefs-devkit.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/ahrefs-devkit
+      devkit_network:
+        args: '4'
+        build_script: ahrefs-devkit.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/ahrefs-devkit
+      devkit_stre:
+        args: '30'
+        build_script: ahrefs-devkit.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/ahrefs-devkit
+    timeout: 600
+    type: OCamlBenchmarkSuite
+  macro-eio:
+    programs:
+      eio_fiber_stream:
+        args: ''
+        build_script: eio.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/eio
+    timeout: 120
+    type: OCamlBenchmarkSuite
+  macro-frama-c-monorepo:
+    programs:
+      frama_c_eva_sqlite:
+        args: sqlite
+        build_script: frama-c.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/frama-c
+      frama_c_eva_t:
+        args: t
+        build_script: frama-c.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/frama-c
+    timeout: 300
+    type: OCamlBenchmarkSuite
+  macro-goblint-monorepo:
+    programs:
+      goblint:
+        args: ''
+        build_script: goblint.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/goblint
+    timeout: 300
+    type: OCamlBenchmarkSuite
+  macro-irmin:
+    programs:
+      irmin_mem_rw:
+        args: 3000 10000 80 20000
+        build_script: irmin.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/irmin
+    timeout: 300
+    type: OCamlBenchmarkSuite
+  macro-jsoo:
+    programs:
+      jsoo:
+        args: ''
+        build_script: jsoo.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/js_of_ocaml
+    timeout: 120
+    type: OCamlBenchmarkSuite
+  macro-lavyek-monorepo:
+    programs:
+      lavyek_kv_1d:
+        args: 1 100 10000000 ${RUNNING_MACRO_BENCH_DIR}/benchmarks/lavyek/wal/lavyek_wal_1d
+        build_script: lavyek.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/lavyek
+      lavyek_kv_2d:
+        args: 2 100 10000000 ${RUNNING_MACRO_BENCH_DIR}/benchmarks/lavyek/wal/lavyek_wal_2d
+        build_script: lavyek.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/lavyek
+      lavyek_kv_4d:
+        args: 4 100 10000000 ${RUNNING_MACRO_BENCH_DIR}/benchmarks/lavyek/wal/lavyek_wal_4d
+        build_script: lavyek.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/lavyek
+      lavyek_kv_8d:
+        args: 8 100 10000000 ${RUNNING_MACRO_BENCH_DIR}/benchmarks/lavyek/wal/lavyek_wal_8d
+        build_script: lavyek.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/lavyek
+    required_modifiers:
+    - re_par
+    - md_par
+    - pin_lavyek
+    timeout: 120
+    type: OCamlBenchmarkSuite
+  macro-liq-video-frames:
+    programs:
+      liq_video_frames_pool:
+        args: '30000'
+        build_script: liq-video-frames.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/liq-video-frames
+    timeout: 120
+    type: OCamlBenchmarkSuite
+  macro-liquidsoap-lang:
+    programs:
+      liq_parse_typecheck:
+        args: '50000'
+        build_script: liquidsoap-lang.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/liquidsoap-lang
+    timeout: 120
+    type: OCamlBenchmarkSuite
+  macro-menhir-monorepo:
+    programs:
+      menhir_ocamly:
+        args: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/menhir/ocaml.mly --list-errors
+          --no-stdlib --canonical
+        build_script: menhir.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/menhir
+      menhir_sql_parser:
+        args: -v -t ${RUNNING_MACRO_BENCH_DIR}/benchmarks/menhir/keywords.mly ${RUNNING_MACRO_BENCH_DIR}/benchmarks/menhir/sql-parser.mly
+          --base sql-parser
+        build_script: menhir.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/menhir
+      menhir_sysver:
+        args: -v --table ${RUNNING_MACRO_BENCH_DIR}/benchmarks/menhir/sysver.mly
+        build_script: menhir.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/menhir
+    timeout: 600
+    type: OCamlBenchmarkSuite
+  macro-merlin:
+    programs:
+      merlin_bench:
+        args: '4'
+        build_script: merlin.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/merlin
+    timeout: 180
+    type: OCamlBenchmarkSuite
+  macro-ocamlc-self-compile:
+    programs:
+      ocamlc_compile_uucp:
+        args: ''
+        build_script: ocamlc-compile-uucp.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/ocamlc-compile-uucp
+      ocamlc_self_compile:
+        args: ''
+        build_script: ocamlc-self-compile.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/ocamlc-self-compile
+    timeout: 300
+    type: OCamlBenchmarkSuite
+  macro-ocamlformat:
+    programs:
+      ocamlformat_rocq:
+        args: --impl ${RUNNING_MACRO_BENCH_DIR}/benchmarks/ocamlformat/workload_5x.ml
+          -o /dev/null
+        build_script: ocamlformat.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/ocamlformat
+    timeout: 120
+    type: OCamlBenchmarkSuite
+  macro-owl:
+    programs:
+      owl_gc:
+        args: '6'
+        build_script: owl.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/owl
+    timeout: 120
+    type: OCamlBenchmarkSuite
+  macro-pplacer:
+    programs:
+      pplacer_testsuite:
+        args: '5'
+        build_script: pplacer.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/pplacer
+    timeout: 120
+    type: OCamlBenchmarkSuite
+  macro-sedlex:
+    programs:
+      sedlex_tokenize:
+        args: '700000'
+        build_script: sedlex.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/sedlex
+    timeout: 120
+    type: OCamlBenchmarkSuite
+  macro-yojson:
+    programs:
+      ydump_repeat:
+        args: 1000 ${RUNNING_MACRO_BENCH_DIR}/benchmarks/yojson/sample.json
+        build_script: yojson.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/yojson
+    timeout: 120
+    type: OCamlBenchmarkSuite
+  macro-zarith:
+    programs:
+      zarith_pi:
+        args: '15000'
+        build_script: zarith.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/zarith
+      zarith_pi_default:
+        args: '38000'
+        build_script: zarith.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/zarith
+      zarith_pi_huge:
+        args: '180000'
+        build_script: zarith.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/zarith
+      zarith_pi_large:
+        args: '106000'
+        build_script: zarith.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/zarith
+      zarith_pi_small:
+        args: '22000'
+        build_script: zarith.build.sh
+        path: ${RUNNING_MACRO_BENCH_DIR}/benchmarks/zarith
+    timeout: 900
+    type: OCamlBenchmarkSuite
+tags:
+  atomics:
+    cold:
+      macro-devkit:
+      - devkit_stre
+      - devkit_htmlstream
+      - devkit_network
+      - devkit_gzip
+      macro-merlin:
+      - merlin_bench
+    description: "Atomic.* operations on the hot path \u2014 caml_atomic_*.  Includes\n\
+      compare_and_set, fetch_and_add, exchange.  Distinct from `kcas`\n(which is a\
+      \ library on top of Atomic).\n"
+    exercised_by:
+      macro-eio:
+      - eio_fiber_stream
+      macro-lavyek-monorepo:
+      - lavyek_kv_1d
+      - lavyek_kv_2d
+      - lavyek_kv_4d
+      - lavyek_kv_8d
+    verified_at:
+    - "duniverse/lavyek/src/memtable.ml:25-67 \u2014 Atomic.make, get, compare_and_set,\
+      \ incr on bucket arrays"
+    - "duniverse/lavyek/src/chunk_file.ml:9-18 \u2014 Atomic.compare_and_set on pending-writes\
+      \ tuple"
+    - "duniverse/lavyek/src/memfilter.ml:7-15 \u2014 Atomic.compare_and_set on Bloom\
+      \ filter bits"
+    - "duniverse/eio/lib_eio/sem_state.ml:79-168 \u2014 Atomic.fetch_and_add/exchange/CAS\
+      \ for semaphore internals"
+    - "benchmarks/lavyek/lavyek_bench.ml \u2014 Atomic.fetch_and_add chunk dispatcher"
+  bigarrays:
+    description: "Bigarray allocation (caml_ba_alloc) \u2014 bulk off-heap byte data\n\
+      with header on the OCaml heap.  A proper subset of\n`custom_block_finalisation`\
+      \ (every Bigarray is a custom block\nwith caml_ba_finalize as its `finalize`\
+      \ op), but worth its own\ntag because Bigarray-specific regressions hit a narrower\
+      \ code\npath.\n"
+    exercised_by:
+      macro-decompress:
+      - test_decompress
+      macro-liq-video-frames:
+      - liq_video_frames_pool
+      macro-ocamlc-self-compile:
+      - ocamlc_self_compile
+      macro-owl:
+      - owl_gc
+    verified_at:
+    - "compiler-libs bytecomp/emitcode.ml:53 \u2014 `Bigarray.Array1.create Bigarray.Char\
+      \ Bigarray.c_layout` for the emit buffer"
+    - "benchmarks/owl/owl_gc.ml:79 \u2014 Bigarray.Array2.create Bigarray.Float64"
+    - "benchmarks/liq-video-frames/liq_video_frames.ml:102-104 \u2014 Bigarray.Array1.create\
+      \ Bigarray.Char per frame"
+  custom_block_finalisation:
+    description: "caml_alloc_custom / caml_alloc_custom_mem allocation plus the\n\
+      finalize callback registered in the custom_operations struct.\nIncludes Bigarrays\
+      \ (via caml_ba_finalize), Zarith Z.t (GMP-aware\nfinaliser), zlib z_stream blocks,\
+      \ sqlite3 statement handles, GSL\nworkspaces (via Gc.finalise).  Distinct from\
+      \ `bigarrays` (a\nproper subset \u2014 Bigarray IS one kind of custom block).\n"
+    exercised_by:
+      macro-decompress:
+      - test_decompress
+      macro-devkit:
+      - devkit_gzip
+      macro-liq-video-frames:
+      - liq_video_frames_pool
+      macro-owl:
+      - owl_gc
+      macro-pplacer:
+      - pplacer_testsuite
+      macro-zarith:
+      - zarith_pi
+    verified_at:
+    - "duniverse/Zarith/caml_z.c:323-324 \u2014 caml_alloc_custom + ml_z_custom_ops"
+    - "benchmarks/liq-video-frames/pool_stubs.c:34 \u2014 caml_alloc_custom_mem"
+    - "duniverse/gsl-ocaml/src/{vector,sum,eigen,odeiv,integration}.ml \u2014 Gc.finalise\
+      \ _free"
+    - "compiler-libs runtime/bigarray.c \u2014 caml_ba_alloc registers caml_ba_finalize"
+  domains:
+    cold:
+      macro-lavyek-monorepo:
+      - lavyek_kv_1d
+      macro-merlin:
+      - merlin_bench
+    description: "Domain.spawn / Domain.join \u2014 real OCaml domain creation\n(multi-OS-threaded).\
+      \  Distinct from `effects` (which Eio uses\nsingle-domain too) and from `atomics`\
+      \ (which doesn't require\nmultiple domains).\n"
+    exercised_by:
+      macro-lavyek-monorepo:
+      - lavyek_kv_2d
+      - lavyek_kv_4d
+      - lavyek_kv_8d
+    verified_at:
+    - "benchmarks/lavyek/lavyek_bench.ml:123 \u2014 `if id_domain = 0 then fn () else\
+      \ Domain_manager.run dmgr fn`"
+    - "benchmarks/merlin/merlin_bench.ml:113 \u2014 Domain.spawn @@ Mpipeline.domain_typer\
+      \ shared"
+  effects:
+    cold:
+      macro-merlin:
+      - merlin_bench
+    description: "Effect.perform \u2014 OCaml 5 effects.  Includes Eio's use of effects\n\
+      under the hood (every Fiber.fork_promise / Stream op / yield\nflows through\
+      \ Effect.perform + deep try_with).\n"
+    exercised_by:
+      macro-eio:
+      - eio_fiber_stream
+      macro-lavyek-monorepo:
+      - lavyek_kv_1d
+      - lavyek_kv_2d
+      - lavyek_kv_4d
+      - lavyek_kv_8d
+    verified_at:
+    - "duniverse/eio/lib_eio/core/suspend.ml:6 \u2014 Effect.perform (Suspend fn)"
+    - "duniverse/eio/lib_eio/core/fiber.ml:11 \u2014 Effect.perform (Fork (...))"
+    - "duniverse/eio/lib_eio/core/cancel.ml:123 \u2014 Effect.perform Get_context"
+  eio_fibers:
+    description: "Eio.Fiber.* / Eio.Stream / Eio.Switch \u2014 Eio's fiber-API surface.\n\
+      Subset of `effects` (every Eio call performs effects under the\nhood), but a\
+      \ narrower tag for Eio-specific regressions.\n"
+    exercised_by:
+      macro-eio:
+      - eio_fiber_stream
+      macro-lavyek-monorepo:
+      - lavyek_kv_1d
+      - lavyek_kv_2d
+      - lavyek_kv_4d
+      - lavyek_kv_8d
+    verified_at:
+    - "benchmarks/eio/eio_bench.ml \u2014 Eio.Stream.add/take, Eio.Fiber.both/all,\
+      \ Eio_main.run"
+    - "benchmarks/lavyek/lavyek_bench.ml \u2014 Fiber.fork_promise, Fiber.all, Fiber.yield\
+      \ via Eio"
+  ephemerons:
+    cold:
+      macro-merlin:
+      - merlin_bench
+    description: "Ephemeron.K1 / K2 / Kn \u2014 used by hash-consing libraries and\n\
+      type-checker caches.  Runtime: caml_ephe_*.\n"
+    exercised_by: {}
+    gap: 'No benchmark exercises ephemerons on the hot path.  The OCaml
+
+      compiler-libs at 5.4.1 and trunk use Hashtbl.Make in typing/btype.ml.
+
+      Merlin''s saved_parts.ml is cold and merlin_bench is also currently
+
+      disabled.  Coq''s CEphemeron is reached only by the VM backend, not
+
+      the kernel reduction workload.  Closing this gap requires either
+
+      re-enabling merlin_bench *and* finding a heavier ephemeron user
+
+      (Saved_parts is small) or porting a sandmark ephemeron microbench.
+
+      '
+    verified_at:
+    - "duniverse/merlin/src/ocaml/typing/saved_parts.ml:3 \u2014 Ephemeron.K1 stash\
+      \ for parse-tree fragments (touched at parse time only)"
+    - "compiler-libs typing/btype.ml:46 \u2014 uses Hashtbl.Make, NOT Ephemeron (verified\
+      \ in 5.4.1 and trunk)"
+    - "duniverse/rocq/clib/cEphemeron.ml \u2014 used by Coq VM backend, but coq_corelib_stress.v\
+      \ is kernel-only and does not reach the VM"
+  ffi_bulk:
+    cold:
+      macro-decompress:
+      - test_decompress
+    description: "Bulk FFI stub calls in inner loops \u2014 OpenBLAS, GMP, GSL, sqlite3,\n\
+      zlib via C bindings.  Sensitive to per-call stub overhead\n(caml_enter_blocking_section\
+      \ / caml_leave_blocking_section\nround-trips, argument marshaling).\n"
+    exercised_by:
+      macro-devkit:
+      - devkit_gzip
+      macro-owl:
+      - owl_gc
+      macro-pplacer:
+      - pplacer_testsuite
+      macro-zarith:
+      - zarith_pi
+    verified_at:
+    - "benchmarks/owl/owl_gc.ml:13 \u2014 Mat.dot dispatches to OpenBLAS GEMM"
+    - "duniverse/Zarith/caml_z.c \u2014 every Z.{add,mul,div} is a GMP stub"
+    - duniverse/gsl-ocaml/src/*.ml + duniverse/sqlite3-ocaml/lib/sqlite3_stubs.c
+  io_uring:
+    cold:
+      macro-eio:
+      - eio_fiber_stream
+    description: "Real io_uring async I/O via eio_linux's Uring.t.  Per-domain\nkernel-side\
+      \ rings (iou-wrk-* helper threads), sqe submission,\ncqe polling.  Note: eio_fiber_stream\
+      \ uses Eio but its workload\nis in-memory only \u2014 it never hits the ring.\n"
+    exercised_by:
+      macro-lavyek-monorepo:
+      - lavyek_kv_1d
+      - lavyek_kv_2d
+      - lavyek_kv_4d
+      - lavyek_kv_8d
+    verified_at:
+    - "duniverse/eio/lib_eio_linux/sched.ml:50,115-117,189-190 \u2014 Uring.t integration"
+    - "benchmarks/lavyek/lavyek_bench.ml \u2014 per-domain WAL writes go through io_uring"
+  kcas:
+    description: 'Lock-free multi-CAS via the kcas library.  Runtime: contention on
+
+      caml_atomic_* under MCAS retry loops.
+
+      '
+    exercised_by: {}
+    gap: 'Lavyek''s dune-project lists kcas/kcas_data as deps, but the actual
+
+      in-memory index, compaction queue, and Bloom filter are hand-rolled
+
+      Atomic.compare_and_set loops (memtable.ml, chunk_file.ml,
+
+      memfilter.ml, compact.ml).  kcas itself is never invoked from any
+
+      benchmark in the suite.  A standalone benchmark wrapping kcas
+
+      directly (e.g. a kcas_data.Hashtbl workload) would close this.
+
+      '
+    verified_at:
+    - "duniverse/lavyek/dune-project \u2014 lists kcas + kcas_data as deps"
+    - "grep -rn 'Kcas\\.\\|Kcas_data\\.\\|Loc\\.' duniverse/lavyek/src/ \u2014 returns\
+      \ nothing"
+    - "duniverse/lavyek/REMOVED.md:22 \u2014 module Queue = Kcas_data.Queue removed\
+      \ as vestige"
+  lwt:
+    description: "Lwt cooperative-threading promises \u2014 Lwt.bind continuations.\
+      \  Hot\npath goes through Lwt's scheduler on every async op.\n"
+    exercised_by:
+      macro-irmin:
+      - irmin_mem_rw
+    verified_at:
+    - "benchmarks/irmin/irmin_mem_rw.ml \u2014 `>>=` chains for every store op (write\
+      \ 3000 + read 3000 + 20000 mixed)"
+    - "duniverse/irmin/src/irmin/mem/irmin_mem.ml \u2014 let* desugaring in find/set/test_and_set"
+  marshal:
+    cold:
+      macro-jsoo:
+      - jsoo
+      macro-liquidsoap-lang:
+      - liq_parse_typecheck
+    description: "Marshal.to_* / from_* \u2014 OCaml's binary serialization.  Runtime:\n\
+      caml_output_value*, caml_input_value*.\n"
+    exercised_by:
+      macro-ocamlc-self-compile:
+      - ocamlc_self_compile
+    verified_at:
+    - "compiler-libs file_formats/cmi_format.ml:87 \u2014 Compression.output_value\
+      \ oc (cmi.cmi_name, cmi.cmi_sign)"
+    - "compiler-libs bytecomp/emitcode.ml:33 \u2014 Marshal.to_channel outchan obj\
+      \ (bytecode emission)"
+  off_heap_accounting:
+    cold:
+      macro-decompress:
+      - test_decompress
+      macro-owl:
+      - owl_gc
+      macro-zarith:
+      - zarith_pi
+    description: 'caml_alloc_custom_mem off-heap accounting and its interaction
+
+      with the major-heap pacer (custom_major_ratio M, space_overhead).
+
+      The only benchmark whose wall+RSS Pareto front actually moves
+
+      with M.
+
+      '
+    exercised_by:
+      macro-liq-video-frames:
+      - liq_video_frames_pool
+    verified_at:
+    - "benchmarks/liq-video-frames/liq_video_frames.ml \u2014 POOL=1 path calls caml_alloc_custom_mem\
+      \ with mem = 921 600/230 400 bytes per frame"
+    - "benchmarks/liq-video-frames/pool_stubs.c:34 \u2014 caml_alloc_custom_mem(&pool_ops,\
+      \ sizeof(intnat), sz)"
+    - "ocaml/ocaml#14533 \u2014 the issue this benchmark reproduces"
+  pthread_affinity:
+    description: 'pthread_setaffinity_np via ocaml-processor''s Processor.Affinity.
+
+      Per-domain CPU pinning makes multi-domain wall times reproducible
+
+      across runs (without it, the kernel migrates domains within the
+
+      inherited mask).
+
+      '
+    exercised_by:
+      macro-lavyek-monorepo:
+      - lavyek_kv_1d
+      - lavyek_kv_2d
+      - lavyek_kv_4d
+      - lavyek_kv_8d
+    verified_at:
+    - "benchmarks/lavyek/lavyek_bench.ml:59 \u2014 Processor.Affinity.set_cpus [physical_cpus.(id_domain\
+      \ mod n)]"
+    - "duniverse/processor/ \u2014 pthread_setaffinity_np stubs"
+  signals:
+    cold:
+      macro-alt-ergo-monorepo:
+      - alt_ergo_fill
+      - alt_ergo_yyll
+    description: 'Sys.set_signal handlers and their delivery.  Runtime:
+
+      caml_install_signal_handler + caml_record_signal.  Suite registers
+
+      handlers but no benchmark exercises high-frequency delivery in a
+
+      tight loop.
+
+      '
+    exercised_by:
+      macro-alt-ergo-monorepo:
+      - alt_ergo_unsat_smt2
+    verified_at:
+    - "duniverse/alt-ergo/src/bin/common/signals_profiling.ml:32-89 \u2014 installs\
+      \ SIGINT, SIGVTALRM, SIGPROF"
+    - experiments use --timelimit 15 only on alt_ergo_unsat_smt2, which arms SIGVTALRM
+  weak_refs:
+    description: "Weak.Make / Weak.create \u2014 hash-consing of structurally-identical\n\
+      terms via weak hashsets.  Runtime: caml_weak_*.  Suite's only\nhot-path Weak\
+      \ workload.\n"
+    exercised_by:
+      macro-alt-ergo-monorepo:
+      - alt_ergo_fill
+      - alt_ergo_yyll
+      - alt_ergo_unsat_smt2
+    verified_at:
+    - "duniverse/alt-ergo/src/lib/util/hconsing.ml:51 \u2014 module Make ... WHT.create\
+      \ where WHT = Weak.Make (H_t); every theory-term constructor goes through this\
+      \ weak hashset"

@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="generator" content="Observable Framework v1.13.4">
+<title>OCaml Benchmark Dashboard</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,200..900;1,8..60,200..900&amp;display=swap" crossorigin>
+<link rel="preload" as="style" href="./_observablehq/theme-air,near-midnight.b050d634.css">
+<link rel="preload" as="style" href="./_observablehq/stdlib/inputs.f7bf0e12.css">
+<link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,200..900;1,8..60,200..900&amp;display=swap" crossorigin>
+<link rel="stylesheet" type="text/css" href="./_observablehq/theme-air,near-midnight.b050d634.css">
+<link rel="stylesheet" type="text/css" href="./_observablehq/stdlib/inputs.f7bf0e12.css">
+<link rel="modulepreload" href="./_observablehq/client.793bdc92.js">
+<link rel="modulepreload" href="./_observablehq/runtime.607a8173.js">
+<link rel="modulepreload" href="./_observablehq/stdlib.23790ac1.js">
+<link rel="modulepreload" href="./_import/components/bench.af615334.js">
+<link rel="modulepreload" href="./_npm/htl@1.0.0/11521f02.js">
+<link rel="modulepreload" href="./_observablehq/stdlib/inputs.f7175400.js">
+<link rel="modulepreload" href="./_npm/@observablehq/plot@0.6.17/93ce672e.js">
+<link rel="modulepreload" href="./_npm/isoformat@0.2.1/604cb63b.js">
+<link rel="modulepreload" href="./_npm/d3@7.9.0/080cf928.js">
+<link rel="modulepreload" href="./_npm/interval-tree-1d@1.0.4/f53f17b2.js">
+<link rel="modulepreload" href="./_npm/d3-array@3.2.4/b8e751b6.js">
+<link rel="modulepreload" href="./_npm/d3-axis@3.0.0/c662ea05.js">
+<link rel="modulepreload" href="./_npm/d3-brush@3.0.0/d162d8c6.js">
+<link rel="modulepreload" href="./_npm/d3-chord@3.0.1/5cedd0be.js">
+<link rel="modulepreload" href="./_npm/d3-color@3.1.0/65d51007.js">
+<link rel="modulepreload" href="./_npm/d3-contour@4.0.2/c576a91a.js">
+<link rel="modulepreload" href="./_npm/d3-delaunay@6.0.4/8b43826d.js">
+<link rel="modulepreload" href="./_npm/d3-dispatch@3.0.1/3fb06f14.js">
+<link rel="modulepreload" href="./_npm/d3-drag@3.0.0/20b76948.js">
+<link rel="modulepreload" href="./_npm/d3-dsv@3.0.1/097745a2.js">
+<link rel="modulepreload" href="./_npm/d3-ease@3.0.1/8683b012.js">
+<link rel="modulepreload" href="./_npm/d3-fetch@3.0.1/5c319046.js">
+<link rel="modulepreload" href="./_npm/d3-force@3.0.0/33924f3e.js">
+<link rel="modulepreload" href="./_npm/d3-format@3.1.2/8d67a1ae.js">
+<link rel="modulepreload" href="./_npm/d3-geo@3.1.1/8037bd0b.js">
+<link rel="modulepreload" href="./_npm/d3-hierarchy@3.1.2/a9ba0229.js">
+<link rel="modulepreload" href="./_npm/d3-interpolate@3.0.1/e0a47f97.js">
+<link rel="modulepreload" href="./_npm/d3-path@3.1.0/f9e9e0ab.js">
+<link rel="modulepreload" href="./_npm/d3-polygon@3.0.1/2da8eb3b.js">
+<link rel="modulepreload" href="./_npm/d3-quadtree@3.0.1/09002e01.js">
+<link rel="modulepreload" href="./_npm/d3-random@3.0.1/5108797c.js">
+<link rel="modulepreload" href="./_npm/d3-scale@4.0.2/c9f2571b.js">
+<link rel="modulepreload" href="./_npm/d3-scale-chromatic@3.1.0/f3c78e0d.js">
+<link rel="modulepreload" href="./_npm/d3-selection@3.0.0/28717d05.js">
+<link rel="modulepreload" href="./_npm/d3-shape@3.2.0/7c6e2a50.js">
+<link rel="modulepreload" href="./_npm/d3-time@3.1.0/3d1d57c6.js">
+<link rel="modulepreload" href="./_npm/d3-time-format@4.1.0/643581a8.js">
+<link rel="modulepreload" href="./_npm/d3-timer@3.0.1/e99232db.js">
+<link rel="modulepreload" href="./_npm/d3-transition@3.0.1/bd07fd9a.js">
+<link rel="modulepreload" href="./_npm/d3-zoom@3.0.0/d09f7cc9.js">
+<link rel="modulepreload" href="./_npm/binary-search-bounds@2.0.5/5f640032.js">
+<link rel="modulepreload" href="./_npm/internmap@2.0.3/af036d7e.js">
+<link rel="modulepreload" href="./_npm/delaunator@5.1.0/7b06abe7.js">
+<link rel="modulepreload" href="./_npm/robust-predicates@3.0.3/b42f30a7.js">
+<script type="module">
+
+import {define} from "./_observablehq/client.793bdc92.js";
+import {registerFile} from "./_observablehq/stdlib.23790ac1.js";
+
+registerFile("./data/manifest.json", {"name":"./data/manifest.json","mimeType":"application/json","path":"./_file/data/manifest.fb8db13f.json","lastModified":1784598315904,"size":31794});
+registerFile("./data/measurements.json", {"name":"./data/measurements.json","mimeType":"application/json","path":"./_file/data/measurements.87c890e8.json","lastModified":1784598315894,"size":4545343});
+
+define({id: "c3b89a23", inputs: ["FileAttachment"], outputs: ["measurements","manifest","B"], body: async (FileAttachment) => {
+const B = await import("./_import/components/bench.af615334.js");
+const measurements = await FileAttachment("./data/measurements.json").json();
+const manifest = await FileAttachment("./data/manifest.json").json();
+
+return {measurements,manifest,B};
+}});
+
+define({id: "38be0d77", inputs: ["B","measurements","manifest"], outputs: ["cell","benches","configs","cmps"], body: (B,measurements,manifest) => {
+const cell = B.index(measurements);
+const benches = B.benchmarksOf(measurements);
+const configs = manifest.configs ?? [];
+const cmps = B.comparisons(manifest);
+return {cell,benches,configs,cmps};
+}});
+
+define({id: "beaee3a9", inputs: ["manifest","html","display","configs","B"], outputs: ["mach","machineFields","runMeta","kv"], body: (manifest,html,display,configs,B) => {
+const mach = manifest.machine ?? {};
+// Every machine field the contract carries, in a sensible order; only the ones
+// actually recorded for this run are shown (legacy runs may only have a host).
+const machineFields = [
+  ["Host", mach.hostname],
+  ["CPU", mach.cpu_model],
+  ["Cores", mach.cores],
+  ["Kernel", mach.kernel],
+  ["Governor", mach.governor],
+  ["isolcpus", mach.isolcpus],
+  ["Turbo", mach.turbo == null ? null : mach.turbo ? "on" : "off"],
+].filter(([, v]) => v != null && v !== "");
+const runMeta = [
+  ["Run", manifest.run_id],
+  ["Created", manifest.created_at],
+  ["Produced by", manifest._produced_by],
+  ["Tools", Object.entries(manifest.tool_versions ?? {}).map(([t, v]) => `${t} ${v}`).join(" · ") || null],
+].filter(([, v]) => v != null && v !== "");
+const kv = (pairs) => html`<dl style="display:grid; grid-template-columns:auto 1fr; gap:.15rem 1rem; margin:.4rem 0 0;">
+  ${pairs.map(([k, v]) => html`<dt style="color:var(--theme-foreground-muted); white-space:nowrap;">${k}</dt><dd style="margin:0; word-break:break-word;">${v}</dd>`)}
+</dl>`;
+display(html`<div class="grid grid-cols-2" style="gap:1rem;">
+  <div class="card"><h2 style="margin:0 0 .1rem;">Machine</h2>${kv(machineFields)}</div>
+  <div class="card"><h2 style="margin:0 0 .1rem;">Run</h2>${kv(runMeta)}
+    <dl style="display:grid; grid-template-columns:auto 1fr; gap:.15rem 1rem; margin:.15rem 0 0;">
+      <dt style="color:var(--theme-foreground-muted); white-space:nowrap;">Runtimes</dt>
+      <dd style="margin:0;">${[...new Set(configs.map(B.label))].join(" · ")}</dd>
+    </dl>
+  </div>
+</div>`);
+return {mach,machineFields,runMeta,kv};
+}});
+
+define({id: "6581daa8", inputs: ["view","Inputs","B","configs"], outputs: ["metric","pins"], body: (view,Inputs,B,configs) => {
+const metric = view(Inputs.select(B.METRICS.map((m) => m.name), {
+  label: "Metric", value: "instructions", format: B.metricLabel,
+}));
+const pins = view(B.dimPinsInput(configs));
+return {metric,pins};
+}});
+
+define({id: "4405f57f", inputs: ["B","configs","pins","display","html","cmps","cell","benches","metric"], outputs: ["shown"], body: (B,configs,pins,display,html,cmps,cell,benches,metric) => {
+const shown = B.filterByDims(configs, pins);
+display(html`<div>${
+  cmps.map((cmp) => {
+    if (cmp.kind && cmp.kind !== "inter")
+      return html`<div class="card"><h2>${cmp.label ?? cmp.kind}</h2>
+        <p><em>“${cmp.kind}” comparisons are shown on the
+        <a href="./sweep">Parameter sweeps</a> page.</em></p></div>`;
+    const rows = B.interRows(cmp, { cell, benches, configs: shown, metric });
+    if (!rows.length)
+      return html`<div class="card"><h2>${cmp.label ?? "Comparison"}</h2><p><em>No overlapping data for ${B.metricLabel(metric)}.</em></p></div>`;
+    const nImp = rows.filter((r) => r.verdict === "improvement").length;
+    const nReg = rows.filter((r) => r.verdict === "regression").length;
+    return html`<div>
+      <h2>${cmp.label ?? "inter-runtime comparison"}</h2>
+      <p>${nImp} improvement(s), ${nReg} regression(s) across ${new Set(rows.map((r) => r.benchmark)).size} benchmark(s).</p>
+      ${B.deltaChart(rows, metric)}
+      <details><summary>Table</summary>${B.deltaTable(rows)}</details>
+    </div>`;
+  })
+}</div>`);
+return {shown};
+}});
+
+</script>
+</head>
+<body>
+<input id="observablehq-sidebar-toggle" type="checkbox" title="Toggle sidebar">
+<label id="observablehq-sidebar-backdrop" for="observablehq-sidebar-toggle"></label>
+<nav id="observablehq-sidebar">
+  <ol>
+    <label id="observablehq-sidebar-close" for="observablehq-sidebar-toggle"></label>
+    <li class="observablehq-link observablehq-link-active"><a href="./">OCaml Benchmark Dashboard</a></li>
+  </ol>
+  <ol>
+    <li class="observablehq-link observablehq-link-active"><a href="./">Overview (regression)</a></li>
+    <li class="observablehq-link"><a href="./absolute">Absolute values</a></li>
+    <li class="observablehq-link"><a href="./sweep">Parameter sweeps</a></li>
+    <li class="observablehq-link"><a href="./curves">Sweep curves</a></li>
+  </ol>
+</nav>
+<script>{const e=document.querySelector("#observablehq-sidebar"),o=document.querySelector("#observablehq-sidebar-toggle"),r=sessionStorage.getItem("observablehq-sidebar");r?o.checked=r==="true":o.indeterminate=!0;for(const t of document.querySelectorAll("#observablehq-sidebar summary")){const s=t.parentElement;switch(sessionStorage.getItem(`observablehq-sidebar:${t.textContent}`)){case"true":s.open=!0;break;case"false":s.classList.contains("observablehq-section-active")||(s.open=!1);break}}addEventListener("beforeunload",()=>sessionStorage.setItem("observablehq-sidebar-scrolly",`${e.scrollTop}`));const a=sessionStorage.getItem("observablehq-sidebar-scrolly");a!=null&&(e.style.cssText="overflow: hidden;",e.scrollTop=+a,e.style.cssText="");}</script>
+<div id="observablehq-center">
+<aside id="observablehq-toc" data-selector="h1:not(:first-of-type)[id], h2:first-child[id], :not(h1) + h2[id]">
+<nav>
+</nav>
+</aside>
+<main id="observablehq-main" class="observablehq">
+<h1 id="o-caml-benchmark-dashboard" tabindex="-1"><a class="observablehq-header-anchor" href="#o-caml-benchmark-dashboard">OCaml Benchmark Dashboard</a></h1>
+<div class="observablehq observablehq--block"><!--:c3b89a23:--></div>
+<div class="observablehq observablehq--block"><!--:38be0d77:--></div>
+<div class="observablehq observablehq--block"><!--:beaee3a9:--></div>
+<p>Regression view: each <strong>comparison declared in the run manifest</strong> is rendered
+below. Pick the metric to compare; negative Δ is better (fewer instructions,
+less time). Thresholds: ±1% warn, ±3% regression/improvement.</p>
+<p>If this run swept GC parameters, pick the point to compare at — otherwise the
+same runtime shows up once per parameter combination. (Parameters with a single
+value are omitted; use <a href="./sweep">Parameter sweeps</a> to see the whole grid.)</p>
+<div class="observablehq observablehq--block"><!--:6581daa8:--></div>
+<div class="observablehq observablehq--block"><!--:4405f57f:--></div>
+<hr>
+<p><em>This page renders the manifest's declared <code>comparisons</code>. See also
+<a href="./absolute">Absolute values</a>, and
+<a href="./sweep">Parameter sweeps</a>. Charts are Observable Plot in <code>src/</code> — edit freely.</em></p>
+</main>
+<footer id="observablehq-footer">
+<nav><a rel="next" href="./absolute"><span>Absolute values</span></a></nav>
+<div>Built with <a href="https://observablehq.com/" target="_blank" rel="noopener noreferrer">Observable</a> on <a title="2026-07-21T01:45:15">Jul 21, 2026</a>.</div>
+</footer>
+</div>
+</body>
+</html>
