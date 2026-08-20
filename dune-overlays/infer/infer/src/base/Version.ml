@@ -18,7 +18,7 @@ let minor = 3
 
 let patch = 0
 
-let commit = "72c2bcaf92"
+let commit = "49f84c8226"
 
 let branch = "inferbench-v1.1"
 

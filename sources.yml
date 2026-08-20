@@ -218,8 +218,8 @@ cppo:
 infer:
   repo: "https://github.com/ngorogiannis/infer.git"
   branch: "inferbench-v1.1"
-  commit: "72c2bcaf9216d948622af7dccd60ab335b498848"
-  date: "2026-07-31"
+  commit: "49f84c822647a1d35c9961e0e13cc5186277f592"
+  date: "2026-08-19"
   notes: "java-only Infer fork; tag inferbench-v1.1. Vendored by scripts/vendor-infer.sh, built as an in-tree dune project via the dune-overlays/infer overlay."
 
 extlib:
