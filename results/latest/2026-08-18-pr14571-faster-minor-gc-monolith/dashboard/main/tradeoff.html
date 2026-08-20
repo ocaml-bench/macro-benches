@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="generator" content="Observable Framework v1.13.4">
+<title>Space × time tradeoff | OCaml Benchmark Dashboard</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,200..900;1,8..60,200..900&amp;display=swap" crossorigin>
+<link rel="preload" as="style" href="./_observablehq/theme-air,near-midnight.b050d634.css">
+<link rel="preload" as="style" href="./_observablehq/stdlib/inputs.f7bf0e12.css">
+<link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,200..900;1,8..60,200..900&amp;display=swap" crossorigin>
+<link rel="stylesheet" type="text/css" href="./_observablehq/theme-air,near-midnight.b050d634.css">
+<link rel="stylesheet" type="text/css" href="./_observablehq/stdlib/inputs.f7bf0e12.css">
+<link rel="modulepreload" href="./_observablehq/client.793bdc92.js">
+<link rel="modulepreload" href="./_observablehq/runtime.607a8173.js">
+<link rel="modulepreload" href="./_observablehq/stdlib.23790ac1.js">
+<link rel="modulepreload" href="./_import/components/bench.53886928.js">
+<link rel="modulepreload" href="./_npm/htl@1.0.0/11521f02.js">
+<link rel="modulepreload" href="./_observablehq/stdlib/inputs.f7175400.js">
+<link rel="modulepreload" href="./_npm/@observablehq/plot@0.6.17/93ce672e.js">
+<link rel="modulepreload" href="./_npm/isoformat@0.2.1/604cb63b.js">
+<link rel="modulepreload" href="./_npm/d3@7.9.0/080cf928.js">
+<link rel="modulepreload" href="./_npm/interval-tree-1d@1.0.4/f53f17b2.js">
+<link rel="modulepreload" href="./_npm/d3-array@3.2.4/b8e751b6.js">
+<link rel="modulepreload" href="./_npm/d3-axis@3.0.0/c662ea05.js">
+<link rel="modulepreload" href="./_npm/d3-brush@3.0.0/d162d8c6.js">
+<link rel="modulepreload" href="./_npm/d3-chord@3.0.1/5cedd0be.js">
+<link rel="modulepreload" href="./_npm/d3-color@3.1.0/65d51007.js">
+<link rel="modulepreload" href="./_npm/d3-contour@4.0.2/c576a91a.js">
+<link rel="modulepreload" href="./_npm/d3-delaunay@6.0.4/8b43826d.js">
+<link rel="modulepreload" href="./_npm/d3-dispatch@3.0.1/3fb06f14.js">
+<link rel="modulepreload" href="./_npm/d3-drag@3.0.0/20b76948.js">
+<link rel="modulepreload" href="./_npm/d3-dsv@3.0.1/097745a2.js">
+<link rel="modulepreload" href="./_npm/d3-ease@3.0.1/8683b012.js">
+<link rel="modulepreload" href="./_npm/d3-fetch@3.0.1/5c319046.js">
+<link rel="modulepreload" href="./_npm/d3-force@3.0.0/33924f3e.js">
+<link rel="modulepreload" href="./_npm/d3-format@3.1.2/8d67a1ae.js">
+<link rel="modulepreload" href="./_npm/d3-geo@3.1.1/8037bd0b.js">
+<link rel="modulepreload" href="./_npm/d3-hierarchy@3.1.2/a9ba0229.js">
+<link rel="modulepreload" href="./_npm/d3-interpolate@3.0.1/e0a47f97.js">
+<link rel="modulepreload" href="./_npm/d3-path@3.1.0/f9e9e0ab.js">
+<link rel="modulepreload" href="./_npm/d3-polygon@3.0.1/2da8eb3b.js">
+<link rel="modulepreload" href="./_npm/d3-quadtree@3.0.1/09002e01.js">
+<link rel="modulepreload" href="./_npm/d3-random@3.0.1/5108797c.js">
+<link rel="modulepreload" href="./_npm/d3-scale@4.0.2/c9f2571b.js">
+<link rel="modulepreload" href="./_npm/d3-scale-chromatic@3.1.0/f3c78e0d.js">
+<link rel="modulepreload" href="./_npm/d3-selection@3.0.0/28717d05.js">
+<link rel="modulepreload" href="./_npm/d3-shape@3.2.0/7c6e2a50.js">
+<link rel="modulepreload" href="./_npm/d3-time@3.1.0/3d1d57c6.js">
+<link rel="modulepreload" href="./_npm/d3-time-format@4.1.0/643581a8.js">
+<link rel="modulepreload" href="./_npm/d3-timer@3.0.1/e99232db.js">
+<link rel="modulepreload" href="./_npm/d3-transition@3.0.1/bd07fd9a.js">
+<link rel="modulepreload" href="./_npm/d3-zoom@3.0.0/d09f7cc9.js">
+<link rel="modulepreload" href="./_npm/binary-search-bounds@2.0.5/5f640032.js">
+<link rel="modulepreload" href="./_npm/internmap@2.0.3/af036d7e.js">
+<link rel="modulepreload" href="./_npm/delaunator@5.1.0/7b06abe7.js">
+<link rel="modulepreload" href="./_npm/robust-predicates@3.0.3/b42f30a7.js">
+<script type="module">
+
+import {define} from "./_observablehq/client.793bdc92.js";
+import {registerFile} from "./_observablehq/stdlib.23790ac1.js";
+
+registerFile("./data/manifest.json", {"name":"./data/manifest.json","mimeType":"application/json","path":"./_file/data/manifest.df6bc829.json","lastModified":1787101554095,"size":4370});
+registerFile("./data/measurements.json", {"name":"./data/measurements.json","mimeType":"application/json","path":"./_file/data/measurements.8f24ea19.json","lastModified":1787101554089,"size":929154});
+
+define({id: "c3b89a23", inputs: ["FileAttachment"], outputs: ["measurements","manifest","B"], body: async (FileAttachment) => {
+const B = await import("./_import/components/bench.53886928.js");
+const measurements = await FileAttachment("./data/measurements.json").json();
+const manifest = await FileAttachment("./data/manifest.json").json();
+
+return {measurements,manifest,B};
+}});
+
+define({id: "907cbbfb", inputs: ["Generators"], outputs: ["dark"], body: (Generators) => {
+// Series colors are picked per surface (they are validated against each), so the
+// charts re-render when the theme flips.
+const dark = Generators.dark();
+return {dark};
+}});
+
+define({id: "b4c9f180", inputs: ["B","measurements","manifest"], outputs: ["cell","benches","configs","cmps","cmpDims","dims"], body: (B,measurements,manifest) => {
+const cell = B.index(measurements);
+const benches = B.benchmarksOf(measurements);
+const configs = manifest.configs ?? [];
+const cmps = B.comparisons(manifest).filter((c) => !c.kind || c.kind === "inter");
+// Swept parameters only: a comparison axis (e.g. gc_plan, used to select
+// LXR/Bactrian) identifies a runtime, so it is a series here, not a parameter to
+// trace along.
+const cmpDims = B.comparisonDims(cmps);
+const dims = B.varyingDims(configs).map((d) => d.dim).filter((d) => !cmpDims.includes(d));
+return {cell,benches,configs,cmps,cmpDims,dims};
+}});
+
+define({id: "9918e429", inputs: ["view","Inputs","B","benches"], outputs: ["bench","xMetric","yMetric"], body: (view,Inputs,B,benches) => {
+const bench = view(Inputs.select([B.ALL_BENCHES, ...benches], { label: "Benchmark" }));
+const xMetric = view(Inputs.select(["max_rss", "major_words", "page_faults", "minor_words"], { label: "Space (x)", value: "max_rss", format: B.metricLabel }));
+const yMetric = view(Inputs.select(["wall_time", "cpu_time", "gc_time", "gc_overhead", "mean_latency", "instructions", "cycles"], { label: "Time (y)", value: "wall_time", format: B.metricLabel }));
+return {bench,xMetric,yMetric};
+}});
+
+define({id: "7c9c9837", inputs: ["view","Inputs","dims"], outputs: ["traceDim"], body: (view,Inputs,dims) => {
+// The traced parameter orders the points into a curve; the rest can be faceted
+// into small multiples, or left as "(all)" to put every candidate point in one
+// panel — unpinned parameters are extra frontier candidates, not noise.
+const traceDim = view(Inputs.select(["(none)", ...dims], { label: "Trace along", value: dims[0] ?? "(none)" }));
+return {traceDim};
+}});
+
+define({id: "5fc67035", inputs: ["view","Inputs","dims","traceDim"], outputs: ["facetDim"], body: (view,Inputs,dims,traceDim) => {
+const facetDim = view(Inputs.select(["(none)", ...dims.filter((d) => d !== traceDim)], { label: "Facet by", value: "(none)" }));
+return {facetDim};
+}});
+
+define({id: "486d5a7c", inputs: ["view","B","configs","traceDim","facetDim","Inputs"], outputs: ["pins","showPareto"], body: (view,B,configs,traceDim,facetDim,Inputs) => {
+const pins = view(B.dimPinsInput(configs, [traceDim, facetDim].filter((d) => d && d !== "(none)"), { allowAll: true }));
+const showPareto = view(Inputs.toggle({ label: "Pareto frontier", value: true }));
+return {pins,showPareto};
+}});
+
+define({id: "04d0939c", inputs: ["traceDim","facetDim","B","configs","pins","cell","benches","bench","xMetric","yMetric","dims"], outputs: ["trace","facet","shown","val","rows","xLabel","yLabel"], body: (traceDim,facetDim,B,configs,pins,cell,benches,bench,xMetric,yMetric,dims) => {
+const trace = traceDim === "(none)" ? null : traceDim;
+const facet = facetDim === "(none)" ? null : facetDim;
+const shown = B.filterByDims(configs, pins);
+const val = B.valueTable({ cell, configs: shown, benches, bench, metrics: [xMetric, yMetric] });
+const rows = B.withPareto(B.tradeoffRows({ val, configs: shown, xMetric, yMetric, traceDim: trace, facetDim: facet, sweepDims: dims }));
+const xLabel = B.tradeoffAxis(xMetric, bench, val.benches.length);
+const yLabel = B.tradeoffAxis(yMetric, bench, val.benches.length);
+return {trace,facet,shown,val,rows,xLabel,yLabel};
+}});
+
+define({id: "e8f2ad3b", inputs: ["display","html","dims","trace","val","benches"], body: (display,html,dims,trace,val,benches) => {
+display(html`<div>
+  ${dims.length
+    ? html`<p>Swept parameters in this run: <b>${dims.join(", ")}</b>${trace ? html` — tracing along <b>${trace}</b>` : ""}. Lower-left is better on both axes.</p>`
+    : html`<p><em>This run swept no parameters, so each runtime contributes a single point — the tradeoff between runtimes is still visible, but there is no frontier to walk.</em></p>`}
+  ${val.dropped.length
+    ? html`<p><small><em>Aggregating ${val.benches.length} of ${benches.length} benchmarks; excluded because they were not measured under every shown configuration: <b>${val.dropped.join(", ")}</b>. An unbalanced set would give the two runtimes' geomeans different suites to summarize.</em></small></p>`
+    : ""}
+</div>`);
+}});
+
+define({id: "80a5849a", inputs: ["display","rows","html","B","xMetric","yMetric","trace","facet","xLabel","yLabel","showPareto","dark","bench"], body: (display,rows,html,B,xMetric,yMetric,trace,facet,xLabel,yLabel,showPareto,dark,bench) => {
+display((() => {
+  if (!rows.length) return html`<div class="card"><p><em>No data for that selection.</em></p></div>`;
+  const nSeries = new Set(rows.map((r) => r.runtime)).size;
+  const chart = B.tradeoffChart(rows, { xMetric, yMetric, traceDim: trace, facetDim: facet, xLabel, yLabel, pareto: showPareto, dark, absolute: bench !== B.ALL_BENCHES });
+  // Every series in a scatter is adjacent to every other, so past three the hues
+  // stop being separable under color-vision deficiency; symbol + label encoding
+  // still carries identity, but a facet or a pin is the better fix.
+  return nSeries > 3
+    ? html`<div>${chart}<p><small><em>${nSeries} series in one panel — hue alone is no longer reliable at this count (symbols and the table below still identify them). Facet or pin a dimension to get back to ≤ 3.</em></small></p></div>`
+    : chart;
+})());
+}});
+
+define({id: "599d39cc", inputs: ["display","rows","html","B","xMetric","yMetric","bench"], body: (display,rows,html,B,xMetric,yMetric,bench) => {
+display(rows.some((r) => r.front)
+  ? html`<details><summary>Frontier configurations (table)</summary>${B.paretoTable(rows, { xMetric, yMetric, bench })}</details>`
+  : html``);
+}});
+
+define({id: "a48cda25", inputs: ["display","cmps","B","val","shown","xMetric","yMetric","trace","facet","dims","configs","html","dark"], body: (display,cmps,B,val,shown,xMetric,yMetric,trace,facet,dims,configs,html,dark) => {
+display((() => {
+  const blocks = [];
+  for (const cmp of cmps)
+    for (const varSel of cmp.variants ?? []) {
+      const dRows = B.tradeoffDeltaRows({ val, configs: shown, xMetric, yMetric, baseSel: cmp.baseline, varSel, traceDim: trace, facetDim: facet, sweepDims: dims });
+      if (!dRows.length) continue;
+      const b = B.resolve(shown, cmp.baseline)[0] ?? B.resolve(configs, cmp.baseline)[0];
+      const v = B.resolve(shown, varSel)[0] ?? B.resolve(configs, varSel)[0];
+      blocks.push(html`<div><h3>${B.compareTitle(v, b, configs)}</h3>${B.tradeoffDeltaChart(dRows, { xMetric, yMetric, traceDim: trace, facetDim: facet, dark })}</div>`);
+    }
+  return blocks.length
+    ? html`<div>${blocks}</div>`
+    : html`<div class="card"><p><em>No inter-runtime comparison for this run (need two runtimes over the same parameter points).</em></p></div>`;
+})());
+}});
+
+</script>
+</head>
+<body>
+<input id="observablehq-sidebar-toggle" type="checkbox" title="Toggle sidebar">
+<label id="observablehq-sidebar-backdrop" for="observablehq-sidebar-toggle"></label>
+<nav id="observablehq-sidebar">
+  <ol>
+    <label id="observablehq-sidebar-close" for="observablehq-sidebar-toggle"></label>
+    <li class="observablehq-link"><a href="./">OCaml Benchmark Dashboard</a></li>
+  </ol>
+  <ol>
+    <li class="observablehq-link"><a href="./">Overview (regression)</a></li>
+    <li class="observablehq-link"><a href="./absolute">Absolute values</a></li>
+    <li class="observablehq-link"><a href="./sweep">Parameter sweeps</a></li>
+    <li class="observablehq-link"><a href="./curves">Sweep curves</a></li>
+    <li class="observablehq-link observablehq-link-active"><a href="./tradeoff">Space × time tradeoff</a></li>
+  </ol>
+</nav>
+<script>{const e=document.querySelector("#observablehq-sidebar"),o=document.querySelector("#observablehq-sidebar-toggle"),r=sessionStorage.getItem("observablehq-sidebar");r?o.checked=r==="true":o.indeterminate=!0;for(const t of document.querySelectorAll("#observablehq-sidebar summary")){const s=t.parentElement;switch(sessionStorage.getItem(`observablehq-sidebar:${t.textContent}`)){case"true":s.open=!0;break;case"false":s.classList.contains("observablehq-section-active")||(s.open=!1);break}}addEventListener("beforeunload",()=>sessionStorage.setItem("observablehq-sidebar-scrolly",`${e.scrollTop}`));const a=sessionStorage.getItem("observablehq-sidebar-scrolly");a!=null&&(e.style.cssText="overflow: hidden;",e.scrollTop=+a,e.style.cssText="");}</script>
+<div id="observablehq-center">
+<aside id="observablehq-toc" data-selector="h1:not(:first-of-type)[id], h2:first-child[id], :not(h1) + h2[id]">
+<nav>
+<div>Contents</div>
+<ol>
+<li class="observablehq-secondary-link"><a href="#selection">Selection</a></li>
+<li class="observablehq-secondary-link"><a href="#cost-benefit-quadrant">Cost / benefit quadrant</a></li>
+</ol>
+</nav>
+</aside>
+<main id="observablehq-main" class="observablehq">
+<h1 id="space-time-tradeoff" tabindex="-1"><a class="observablehq-header-anchor" href="#space-time-tradeoff">Space × time tradeoff</a></h1>
+<p>A GC parameter point never just "wins": it buys time with memory, or memory with
+time. This page plots both axes at once — a <strong>space</strong> metric against a <strong>time</strong>
+metric, one point per configuration — so a sweep reads as a <em>curve of available
+tradeoffs</em> rather than two separate rankings.</p>
+<p>The dashed line through the enlarged points is the <strong>Pareto frontier</strong>: the
+configurations no other configuration of the same runtime beats on <em>both</em> axes.
+Everything off the frontier is strictly worse than something on it. Comparing two
+runtimes then means comparing frontiers — a runtime whose frontier sits below and
+to the left offers a better tradeoff <em>at every operating point</em>, which a
+single-metric Δ can hide.</p>
+<p>Labels mark each frontier's anchors: its cheapest-space end, its fastest end, and
+its <strong>knee</strong> — the point nearest the ideal corner once both axes are normalized,
+i.e. the compromise configuration. Hover any point for its full parameter set,
+and open the table below for every frontier configuration.</p>
+<p>Related: <a href="./sweep">Parameter sweeps</a> is one metric over two parameters,
+<a href="./curves">Sweep curves</a> is one metric over one parameter; this page is two
+metrics over the whole parameter set.</p>
+<div class="observablehq observablehq--block"><!--:c3b89a23:--></div>
+<div class="observablehq observablehq--block"><!--:907cbbfb:--></div>
+<div class="observablehq observablehq--block"><!--:b4c9f180:--></div>
+<div class="card">
+<h2 id="selection" tabindex="-1"><a class="observablehq-header-anchor" href="#selection">Selection</a></h2>
+<div class="observablehq observablehq--block"><!--:9918e429:--></div>
+<div class="observablehq observablehq--block"><!--:7c9c9837:--></div>
+<div class="observablehq observablehq--block"><!--:5fc67035:--></div>
+<div class="observablehq observablehq--block"><!--:486d5a7c:--></div>
+</div>
+<div class="observablehq observablehq--block"><!--:04d0939c:--></div>
+<div class="observablehq observablehq--block"><!--:e8f2ad3b:--></div>
+<div class="observablehq observablehq--block"><!--:80a5849a:--></div>
+<div class="observablehq observablehq--block"><!--:599d39cc:--></div>
+<h2 id="cost-benefit-quadrant" tabindex="-1"><a class="observablehq-header-anchor" href="#cost-benefit-quadrant">Cost / benefit quadrant</a></h2>
+<p>The same tradeoff expressed as a <strong>comparison</strong>: each point is one parameter
+point, positioned by how much space the variant costs (x) and how much time it
+costs (y) relative to the baseline <em>at that same parameter point</em>. Lower-left is
+better on both; the off-diagonal quadrants are where a real tradeoff is being
+made. Each trace's two ends are labelled with their traced-parameter value.</p>
+<div class="observablehq observablehq--block"><!--:a48cda25:--></div>
+<blockquote>
+<p><strong>Reading the aggregate.</strong> With <em>★ all benchmarks</em> selected, each benchmark is
+first divided by the best value any shown configuration reached on it, then the
+ratios are combined as a geometric mean — so no single large benchmark
+dominates, and <code>1.0</code> means "as good as the best point in this view". The
+normalizer cancels in a ratio, so the quadrant chart above is exactly the
+geometric mean of the per-benchmark Δs either way.</p>
+</blockquote>
+<hr>
+<p><em>See also <a href="./">Overview</a>, <a href="./absolute">Absolute values</a>, <a href="./sweep">Parameter sweeps</a>, <a href="./curves">Sweep curves</a>.</em></p>
+</main>
+<footer id="observablehq-footer">
+<nav><a rel="prev" href="./curves"><span>Sweep curves</span></a></nav>
+<div>Built with <a href="https://observablehq.com/" target="_blank" rel="noopener noreferrer">Observable</a> on <a title="2026-08-19T01:05:53">Aug 19, 2026</a>.</div>
+</footer>
+</div>
+</body>
+</html>
