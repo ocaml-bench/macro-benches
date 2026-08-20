@@ -1,25 +1,42 @@
 ; ahrefs-devkit GC benchmark executables.
 
+; Resolve libevent's path at build time so this links on any multiarch target
+; (x86_64, aarch64, ...) from a single committed file — no hard-coded triplet.
+;
+; Why the *full path* to libevent.so and not a bare -levent: dune places
+; (link_flags ...) ahead of libevent's C-stub archive on the link line, so a
+; bare -levent is processed before the stubs' references to it and gets dropped
+; (link-order; --no-as-needed doesn't help). An absolute .so stays available to
+; resolve those later references. libcurl has no such ordering issue, so -lcurl
+; is fine. pkg-config is the same mechanism vendor/libevent/Makefile uses, with
+; a gcc fallback.
+(rule
+ (target devkit_link_flags.sexp)
+ (action
+  (with-stdout-to devkit_link_flags.sexp
+   (system
+    "d=$(pkg-config --variable=libdir libevent 2>/dev/null); [ -n \"$d\" ] || d=$(dirname \"$(gcc -print-file-name=libevent.so)\"); printf '(-cclib -Wl,-rpath,%s -cclib %s/libevent.so -cclib -lcurl)' \"$d\" \"$d\""))))
+
 (executable
  (name htmlStream_bench)
  (modules htmlStream_bench)
  (libraries devkit)
- (link_flags (-cclib -Wl,-rpath,/usr/lib/x86_64-linux-gnu -cclib /usr/lib/x86_64-linux-gnu/libevent.so -cclib -lcurl)))
+ (link_flags (:include devkit_link_flags.sexp)))
 
 (executable
  (name stre_bench)
  (modules stre_bench)
  (libraries devkit)
- (link_flags (-cclib -Wl,-rpath,/usr/lib/x86_64-linux-gnu -cclib /usr/lib/x86_64-linux-gnu/libevent.so -cclib -lcurl)))
+ (link_flags (:include devkit_link_flags.sexp)))
 
 (executable
  (name network_bench)
  (modules network_bench)
  (libraries devkit)
- (link_flags (-cclib -Wl,-rpath,/usr/lib/x86_64-linux-gnu -cclib /usr/lib/x86_64-linux-gnu/libevent.so -cclib -lcurl)))
+ (link_flags (:include devkit_link_flags.sexp)))
 
 (executable
  (name gzip_bench)
  (modules gzip_bench)
  (libraries devkit)
- (link_flags (-cclib -Wl,-rpath,/usr/lib/x86_64-linux-gnu -cclib /usr/lib/x86_64-linux-gnu/libevent.so -cclib -lcurl)))
+ (link_flags (:include devkit_link_flags.sexp)))
