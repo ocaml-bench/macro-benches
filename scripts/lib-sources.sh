@@ -33,6 +33,21 @@ src_field() {
   ' "$_SOURCES_YML"
 }
 
+# _peel_commit <dir> <sha> — print the commit <sha> denotes, as seen from <dir>.
+#
+# A pin copied out of `git ls-remote` can name an *annotated tag object* rather
+# than the commit it points at: ls-remote prints the tag object for
+# `refs/tags/<t>` and the commit only for the `refs/tags/<t>^{}` line. Checking
+# such a pin out lands on the commit, so a literal compare against the pin fails
+# even though the tree is exactly the pinned one. Peel before comparing.
+#
+# Falls back to printing <sha> unchanged when the object is not in <dir> (no
+# checkout yet, or a genuinely wrong sha), so a real mismatch still fails loudly
+# instead of silently passing.
+_peel_commit() {
+  git -C "$1" rev-parse -q --verify "$2^{commit}" 2>/dev/null || printf '%s\n' "$2"
+}
+
 # clone_pinned <sources.yml key> <destination dir>
 #
 # Idempotent: if the destination is already at the pinned commit this does
@@ -43,7 +58,7 @@ src_field() {
 # why recovering the pins in the first place meant reverse-engineering tree hashes.
 clone_pinned() {
   local key="$1" dest="$2"
-  local repo commit branch got
+  local repo commit branch got want
   repo="$(src_field "$key" repo)"
   commit="$(src_field "$key" commit)"
   branch="$(src_field "$key" branch)"
@@ -53,7 +68,10 @@ clone_pinned() {
     return 1
   fi
 
-  if [ "$(git -C "${dest}" rev-parse HEAD 2>/dev/null)" = "${commit}" ]; then
+  # `|| true`: with no ${dest} yet — every first clone — `git -C` exits 128, and a
+  # bare failing assignment is fatal under the callers' `set -e`.
+  got="$(git -C "${dest}" rev-parse HEAD 2>/dev/null || true)"
+  if [ -n "${got}" ] && [ "${got}" = "$(_peel_commit "${dest}" "${commit}")" ]; then
     echo "  ${key}: already at pinned ${commit:0:12}. Skipping."
     return 0
   fi
@@ -81,9 +99,16 @@ clone_pinned() {
     git -C "${dest}" checkout -q --detach "${commit}"
   fi
 
-  got="$(git -C "${dest}" rev-parse HEAD 2>/dev/null)"
-  if [ "${got}" != "${commit}" ]; then
-    echo "ERROR: ${key} checked out ${got:-nothing}, expected ${commit}" >&2
+  # Verify against the *peeled* pin: an annotated-tag pin is still a pin (the tag
+  # object is immutable too), so accept it and say so rather than failing on a
+  # tree that is bit-for-bit the pinned one.
+  want="$(_peel_commit "${dest}" "${commit}")"
+  if [ "${want}" != "${commit}" ]; then
+    echo "    (pin ${commit:0:12} is an annotated tag object; it peels to commit ${want:0:12})"
+  fi
+  got="$(git -C "${dest}" rev-parse HEAD 2>/dev/null || true)"
+  if [ "${got}" != "${want}" ]; then
+    echo "ERROR: ${key} checked out ${got:-nothing}, expected ${want}" >&2
     return 1
   fi
 }

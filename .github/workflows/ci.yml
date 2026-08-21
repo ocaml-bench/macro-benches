@@ -124,7 +124,7 @@ jobs:
             duniverse
             vendor
             _rocq_prefix
-          key: vendor-${{ steps.compiler.outputs.id }}-${{ hashFiles('macro-benches.opam.locked', 'sources.yml', 'dune-project', 'scripts/setup-monorepo.sh', 'scripts/vendor-*.sh') }}
+          key: vendor-${{ steps.compiler.outputs.id }}-${{ hashFiles('macro-benches.opam.locked', 'sources.yml', 'dune-project', 'scripts/setup-monorepo.sh', 'scripts/vendor-*.sh', 'scripts/lib-sources.sh') }}
 
       - name: Set up the monorepo (vendor sources, patch, bootstrap rocq)
         run: |
