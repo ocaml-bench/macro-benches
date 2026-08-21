@@ -68,7 +68,9 @@ clone_pinned() {
     return 1
   fi
 
-  got="$(git -C "${dest}" rev-parse HEAD 2>/dev/null)"
+  # `|| true`: with no ${dest} yet — every first clone — `git -C` exits 128, and a
+  # bare failing assignment is fatal under the callers' `set -e`.
+  got="$(git -C "${dest}" rev-parse HEAD 2>/dev/null || true)"
   if [ -n "${got}" ] && [ "${got}" = "$(_peel_commit "${dest}" "${commit}")" ]; then
     echo "  ${key}: already at pinned ${commit:0:12}. Skipping."
     return 0
@@ -104,7 +106,7 @@ clone_pinned() {
   if [ "${want}" != "${commit}" ]; then
     echo "    (pin ${commit:0:12} is an annotated tag object; it peels to commit ${want:0:12})"
   fi
-  got="$(git -C "${dest}" rev-parse HEAD 2>/dev/null)"
+  got="$(git -C "${dest}" rev-parse HEAD 2>/dev/null || true)"
   if [ "${got}" != "${want}" ]; then
     echo "ERROR: ${key} checked out ${got:-nothing}, expected ${want}" >&2
     return 1
