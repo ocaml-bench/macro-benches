@@ -37,7 +37,7 @@ page under [docs/benchmarks/](docs/benchmarks) with the full ladder and legacy
 benches.
 
 | Benchmark | What it runs | Category | ~Time |
-|-----------|--------------|-------|
+|-----------|--------------|-------|-------|
 | [menhir](docs/benchmarks/menhir.md) | Generates LR(1) parsers for three grammars (the OCaml grammar canonically, plus SQL and a verifier grammar) | Text processing | 3-33s |
 | [cpdf](docs/benchmarks/cpdf.md) | Four PDF transforms (merge, blacktext, scale, squeeze) on an ~8.7 MB reference PDF | Text/media | 5-36s |
 | [alt-ergo](docs/benchmarks/alt-ergo.md) | SMT solving on three problems (a `.why` fill, a larger `.why`, and an unsat `.smt2`) | SMT solver | 14-19s |
