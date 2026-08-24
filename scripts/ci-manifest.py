@@ -22,6 +22,9 @@ Two modes:
                             - every in-tree input path in a program's args exists
                             - every tool has a docs/benchmarks/<tool>.md page,
                               and every page has a tool
+                            - the README benchmark table names a real program
+                              for each tool, and every tool with a `default`
+                              rung has a row
                           Prints the counts it compared, then exits 1 with the
                           list of problems if anything is off.
 
@@ -230,6 +233,38 @@ def cmd_check():
                 f"{page.relative_to(ROOT)} documents a tool with no "
                 f"benchmarks/{page.stem}/*.build.sh"
             )
+
+    # 6. The README benchmark table must name real programs. It is one row per
+    #    active tool giving that tool's `default` rung, so the table rots the
+    #    moment a ladder changes name or a tool is added. Checked both ways.
+    readme = (ROOT / "README.md").read_text()
+    rows = re.findall(
+        r"^\| \[([^\]]+)\]\(docs/benchmarks/[^)]+\) \| `([a-z0-9_]+)` \|",
+        readme, re.M)
+    if not rows:
+        problems.append("README.md: no benchmark table rows matched — has the "
+                        "table's shape changed? (expected "
+                        "`| [tool](docs/benchmarks/tool.md) | `program` | …`)")
+    else:
+        listed_tools = set()
+        for tool, prog in rows:
+            listed_tools.add(tool)
+            if prog not in programs:
+                problems.append(
+                    f"README.md: the {tool} row names `{prog}`, which is not a "
+                    f"program in benchmarks/manifest.yml")
+            elif programs[prog]["tool"] != tool:
+                problems.append(
+                    f"README.md: the {tool} row names `{prog}`, but the manifest "
+                    f"lists that program under tool `{programs[prog]['tool']}`")
+        # Every tool with a `default` rung is part of a bare sweep, so it belongs
+        # in the table. Legacy-only tools (no `_default` program) do not.
+        for tool in sorted({p["tool"] for n, p in programs.items()
+                            if n.endswith("_default")}):
+            if tool not in listed_tools:
+                problems.append(
+                    f"README.md: tool `{tool}` has a `default` rung but no row in "
+                    f"the benchmark table")
 
     problems += check_pins()
 
