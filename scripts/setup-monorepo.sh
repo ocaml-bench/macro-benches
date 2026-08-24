@@ -26,9 +26,48 @@ cd "$MONOREPO_DIR"
 # src_field / clone_pinned — every version and commit comes from sources.yml.
 source "$MONOREPO_DIR/scripts/lib-sources.sh"
 
-_OPAM=$([[ -x /usr/local/bin/opam ]] && echo /usr/local/bin/opam || command -v opam)
+if [[ -x /usr/local/bin/opam ]]; then
+  _OPAM=/usr/local/bin/opam
+else
+  _OPAM="$(command -v opam || true)"
+fi
+if [ -z "${_OPAM:-}" ]; then
+  echo "ERROR: opam not found (no executable /usr/local/bin/opam, none on PATH)." >&2
+  exit 1
+fi
 TOOLS_SWITCH="${TOOLS_SWITCH:-running-ng-tools}"
-TOOLS_BIN="$("$_OPAM" var prefix --switch="$TOOLS_SWITCH" 2>/dev/null)/bin"
+
+# Adopt the tools switch's OWN environment rather than inheriting the caller's.
+#
+# The steps below put $TOOLS_BIN on PATH so dune/ocamlc come from the tools
+# switch, but bytecode linking resolves C stub libraries (dllunixbyt.so and
+# friends) through CAML_LD_LIBRARY_PATH, which is inherited from whatever
+# `opam env` the invoking shell happens to have. Run setup from a shell pointed
+# at a *benchmark* switch and the tools switch's unix.cma gets linked against
+# another switch's stubs, so rocq's bytecode targets die with
+#   Error while linking .../running-ng-tools/lib/ocaml/unix/unix.cma(Unix):
+#   The external function caml_unix_sigwait is not available
+# (caml_unix_sigwait is in 5.4's dllunixbyt.so, absent from 5.2.1's).
+#
+# Ask opam for the switch's environment instead of hand-rolling the paths: it is
+# opam that knows the layout, so this stays correct across opam versions and
+# machines. Note the switch's own ld.conf is NOT sufficient on its own -- it
+# lists lib/ocaml/stublibs but not lib/stublibs, where stubs from opam
+# *packages* (as opposed to the compiler) live -- which is exactly why this has
+# to come from `opam env` rather than from unsetting the variable.
+_tools_env="$("$_OPAM" env --switch="$TOOLS_SWITCH" --set-switch 2>/dev/null || true)"
+if [ -z "$_tools_env" ]; then
+  echo "ERROR: cannot read the environment of opam switch '$TOOLS_SWITCH'." >&2
+  echo "       It must exist before setup runs. Create it, e.g.:" >&2
+  echo "         opam switch create $TOOLS_SWITCH ocaml-base-compiler.5.4.0" >&2
+  echo "       or point setup at an existing switch with TOOLS_SWITCH=<name>." >&2
+  exit 1
+fi
+eval "$_tools_env"
+unset _tools_env
+
+TOOLS_PREFIX="$("$_OPAM" var prefix --switch="$TOOLS_SWITCH")"
+TOOLS_BIN="$TOOLS_PREFIX/bin"
 
 echo "=== Macro-benches monorepo setup ==="
 echo "Monorepo dir: $MONOREPO_DIR"
