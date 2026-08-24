@@ -32,33 +32,41 @@ executes the `default` rung of every tool; other sizes are opt-in via a tag (see
 extra per-tool workloads, and the frozen issue reproducers — are kept as
 **legacy** benches, run only with `RUNNING_TAG=legacy`.
 
-The table below sketches what each tool does (its `default` rung); each has a
-page under [docs/benchmarks/](docs/benchmarks) with the full ladder and legacy
-benches.
+One row per active tool below, naming the `default` rung it runs — i.e. exactly
+what a bare sweep executes. The `default` rungs are sized to land in the same
+band as each other (~10-25s on the reference machine), so the table carries no
+timings: wall time is a property of the machine, not of the benchmark, and the
+measured numbers per rung — wall, RSS, gc%, pauses — live on each tool's page
+under [docs/benchmarks/](docs/benchmarks), together with the rest of its ladder
+and its legacy benches.
 
-| Benchmark | What it runs | Category | ~Time |
-|-----------|--------------|-------|-------|
-| [menhir](docs/benchmarks/menhir.md) | Generates LR(1) parsers for three grammars (the OCaml grammar canonically, plus SQL and a verifier grammar) | Text processing | 3-33s |
-| [cpdf](docs/benchmarks/cpdf.md) | Four PDF transforms (merge, blacktext, scale, squeeze) on an ~8.7 MB reference PDF | Text/media | 5-36s |
-| [alt-ergo](docs/benchmarks/alt-ergo.md) | SMT solving on three problems (a `.why` fill, a larger `.why`, and an unsat `.smt2`) | SMT solver | 14-19s |
-| [coq](docs/benchmarks/coq.md) | Coq/rocq kernel reduction over unary `nat` (fib, ack, sum, tree) | Proof assistant | ~52s |
-| [ahrefs-devkit](docs/benchmarks/ahrefs-devkit.md) | Four Devkit stress loops: gzip, string ops, IPv4/CIDR, HTML streaming | Web | 10-25s |
-| [irmin](docs/benchmarks/irmin.md) | Read/write against an in-memory Irmin store | Database | ~12s |
-| [ocamlformat](docs/benchmarks/ocamlformat.md) | Formats a 16k-line OCaml file | Build tool | ~5s |
-| [decompress](docs/benchmarks/decompress.md) | Pure-OCaml zlib decompression | Compression | ~5s |
-| [eio](docs/benchmarks/eio.md) | 60M items through a bounded Eio stream (needs OCaml 5.2+) | Concurrency | ~6s |
-| [sedlex](docs/benchmarks/sedlex.md) | Tokenizes a 700k-line generated input | Text processing | ~5.5s |
-| [yojson](docs/benchmarks/yojson.md) | Parses and reserializes a 670 KB JSON file 1000 times | Text processing |  ~5.5s |
-| [zarith](docs/benchmarks/zarith.md) | Computes 15000 digits of pi with GMP | ML/Numerics | ~7s |
-| [owl](docs/benchmarks/owl.md) | Gromov-Wasserstein distances over 100x100 matrices via OpenBLAS | ML/Numerics | ~16s |
-| [pplacer](docs/benchmarks/pplacer.md) | 224-test phylogenetics suite (GSL + sqlite3) | Bioinformatics | ~17s |
-| [ocamlc-self-compile](docs/benchmarks/ocamlc-self-compile.md) | The runtime's own `ocamlc` on a 400k-line generated file | Compiler | ~8.6s |
-| [liquidsoap-lang](docs/benchmarks/liquidsoap-lang.md) | Parses and typechecks a Liquidsoap script 50000 times | Compiler | ~26s |
-| [liq-video-frames](docs/benchmarks/liq-video-frames.md) | A refcounted pool of YUV420 video frames (reproduces [#14533](https://github.com/ocaml/ocaml/issues/14533)) | Text/media | 4-20s |
-| [frama-c](docs/benchmarks/frama-c.md) | Frama-C EVA value analysis on zlib and the SQLite amalgamation (reproduces [#11733](https://github.com/ocaml/ocaml/issues/11733)) | Static analysis | 7-8s |
-| [goblint](docs/benchmarks/goblint.md) | Goblint SV-COMP analysis with apron (reproduces [#13733](https://github.com/ocaml/ocaml/issues/13733)) | Static analysis | 0.2-1s |
-| [js_of_ocaml](docs/benchmarks/js_of_ocaml.md) | Compiles the runtime's own `ocamlc.byte` to JavaScript | Compiler | 7-9s |
-| [ocaml](docs/benchmarks/ocamlc-self-compile.md) | OCaml compiler running a compilation on a sample program | Compiler | ?? |
+| Benchmark | `default` program | What it runs | Category |
+|-----------|-------------------|--------------|----------|
+| [menhir](docs/benchmarks/menhir.md) | `menhir_ocamly` | Builds the canonical LR(1) automaton for the OCaml grammar (`--canonical --list-errors`) | Text processing |
+| [cpdf](docs/benchmarks/cpdf.md) | `cpdf_squeeze_default` | Merges 24 copies of an ~8.7 MB reference PDF and recompresses every object stream | Text/media |
+| [alt-ergo](docs/benchmarks/alt-ergo.md) | `alt_ergo_chain_default` | Proves a 7000-step arithmetic congruence chain (native `.why`) | SMT solver |
+| [coq](docs/benchmarks/coq.md) | `coqc_tree_default` | Coq kernel reduction of `tree_size (make_tree 18)` over unary `nat` | Proof assistant |
+| [ahrefs-devkit](docs/benchmarks/ahrefs-devkit.md) | `devkit_htmlstream_default` | Devkit's `HtmlStream.parse` GC-stress suite at content scale 3 | Web |
+| [irmin](docs/benchmarks/irmin.md) | `irmin_mem_rw_default` | 10000 keys written into one flat directory node of an in-memory Irmin store | Database |
+| [ocamlformat](docs/benchmarks/ocamlformat.md) | `ocamlformat_rocq_default` | Formats a ~100k-line OCaml source (30x the reference workload) | Build tool |
+| [decompress](docs/benchmarks/decompress.md) | `test_decompress_default` | Pure-OCaml zlib round-trip over a 256 MB payload | Compression |
+| [eio](docs/benchmarks/eio.md) | `eio_conc_default` | 9000 producer/consumer fiber pairs, each on its own bounded stream (needs OCaml 5.2+) | Concurrency |
+| [sedlex](docs/benchmarks/sedlex.md) | `sedlex_tokenize_default` | Tokenizes 6M generated lines, retaining every token | Text processing |
+| [yojson](docs/benchmarks/yojson.md) | `ydump_repeat_default` | Parses a generated 771 MB JSON document (6M records) into a tree | Text processing |
+| [zarith](docs/benchmarks/zarith.md) | `zarith_pi_default` | Computes 38000 digits of pi with GMP | ML/Numerics |
+| [owl](docs/benchmarks/owl.md) | `owl_gc_default` | Gromov-Wasserstein distances over 500x500 matrices via OpenBLAS | ML/Numerics |
+| [pplacer](docs/benchmarks/pplacer.md) | `pplacer_like_default` | Felsenstein pruning over a 55k-site alignment (GSL off-heap `Bigarray`s) | Bioinformatics |
+| [ocamlc-compile-uucp](docs/benchmarks/ocamlc-compile-uucp.md) | `ocamlc_compile_uucp_default` | The runtime's own `ocamlc` compiling 8 replicas of the uucp Unicode library | Compiler |
+| [liquidsoap-lang](docs/benchmarks/liquidsoap-lang.md) | `liq_parse_typecheck_default` | Parses and typechecks a generated ~1.8 MB Liquidsoap script | Compiler |
+| [liq-video-frames](docs/benchmarks/liq-video-frames.md) | `liq_video_frames_pool_default` | A refcounted pool of 15000 4K YUV420 video frames (reproduces [#14533](https://github.com/ocaml/ocaml/issues/14533)) | Text/media |
+| [frama-c](docs/benchmarks/frama-c.md) | `frama_c_eva_sqlite_default` | Frama-C EVA value analysis of the SQLite amalgamation at `-eva-precision 2` (reproduces [#11733](https://github.com/ocaml/ocaml/issues/11733)) | Static analysis |
+| [goblint](docs/benchmarks/goblint.md) | `goblint_gen_default` | Goblint octagon (apron) analysis of a 165-variable bit-vector state machine (reproduces [#13733](https://github.com/ocaml/ocaml/issues/13733)) | Static analysis |
+| [js_of_ocaml](docs/benchmarks/js_of_ocaml.md) | `jsoo_default` | Compiles a 14 MB bytecode (80 replicas of the JSOO classics) to JavaScript | Compiler |
+
+`ocamlc` counts as one tool but spans two benchmark directories: the ladder above
+is the uucp companion, and [ocamlc-self-compile](docs/benchmarks/ocamlc-self-compile.md)
+— the runtime's own `ocamlc` on a 400k-line generated file — is a legacy bench,
+kept because it holds a large *monotonic* heap where uucp's is actively collected.
 
 Two more tools ship in the tree but are currently disabled:
 [merlin](docs/benchmarks/merlin.md) (an upstream race in the domains typer) and
