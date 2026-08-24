@@ -26,9 +26,48 @@ cd "$MONOREPO_DIR"
 # src_field / clone_pinned — every version and commit comes from sources.yml.
 source "$MONOREPO_DIR/scripts/lib-sources.sh"
 
-_OPAM=$([[ -x /usr/local/bin/opam ]] && echo /usr/local/bin/opam || command -v opam)
+if [[ -x /usr/local/bin/opam ]]; then
+  _OPAM=/usr/local/bin/opam
+else
+  _OPAM="$(command -v opam || true)"
+fi
+if [ -z "${_OPAM:-}" ]; then
+  echo "ERROR: opam not found (no executable /usr/local/bin/opam, none on PATH)." >&2
+  exit 1
+fi
 TOOLS_SWITCH="${TOOLS_SWITCH:-running-ng-tools}"
-TOOLS_BIN="$("$_OPAM" var prefix --switch="$TOOLS_SWITCH" 2>/dev/null)/bin"
+
+# Adopt the tools switch's OWN environment rather than inheriting the caller's.
+#
+# The steps below put $TOOLS_BIN on PATH so dune/ocamlc come from the tools
+# switch, but bytecode linking resolves C stub libraries (dllunixbyt.so and
+# friends) through CAML_LD_LIBRARY_PATH, which is inherited from whatever
+# `opam env` the invoking shell happens to have. Run setup from a shell pointed
+# at a *benchmark* switch and the tools switch's unix.cma gets linked against
+# another switch's stubs, so rocq's bytecode targets die with
+#   Error while linking .../running-ng-tools/lib/ocaml/unix/unix.cma(Unix):
+#   The external function caml_unix_sigwait is not available
+# (caml_unix_sigwait is in 5.4's dllunixbyt.so, absent from 5.2.1's).
+#
+# Ask opam for the switch's environment instead of hand-rolling the paths: it is
+# opam that knows the layout, so this stays correct across opam versions and
+# machines. Note the switch's own ld.conf is NOT sufficient on its own -- it
+# lists lib/ocaml/stublibs but not lib/stublibs, where stubs from opam
+# *packages* (as opposed to the compiler) live -- which is exactly why this has
+# to come from `opam env` rather than from unsetting the variable.
+_tools_env="$("$_OPAM" env --switch="$TOOLS_SWITCH" --set-switch 2>/dev/null || true)"
+if [ -z "$_tools_env" ]; then
+  echo "ERROR: cannot read the environment of opam switch '$TOOLS_SWITCH'." >&2
+  echo "       It must exist before setup runs. Create it, e.g.:" >&2
+  echo "         opam switch create $TOOLS_SWITCH ocaml-base-compiler.5.4.0" >&2
+  echo "       or point setup at an existing switch with TOOLS_SWITCH=<name>." >&2
+  exit 1
+fi
+eval "$_tools_env"
+unset _tools_env
+
+TOOLS_PREFIX="$("$_OPAM" var prefix --switch="$TOOLS_SWITCH")"
+TOOLS_BIN="$TOOLS_PREFIX/bin"
 
 echo "=== Macro-benches monorepo setup ==="
 echo "Monorepo dir: $MONOREPO_DIR"
@@ -734,6 +773,92 @@ elif [ -f "$GOBLINT_CTRL" ]; then
   echo "  [18] goblint control.ml: no unannotated call sites. Skipping."
 else
   echo "  [18] goblint control.ml: not vendored. Skipping."
+fi
+echo ""
+
+# [21] sedlex unicode data download: make curl fail loudly.
+#
+# duniverse/sedlex/src/generator/data/dune fetches the Unicode tables at build
+# time with `curl -L -s <url> -o <target>`. Without --fail, curl exits 0 on an
+# HTTP error and writes the error *body* to the target, so dune records the rule
+# as successful and caches the garbage. A transient unicode.org outage
+# (2026-08-23: a 16-byte "error code: 522" in place of DerivedCoreProperties.txt)
+# therefore poisoned the build cache, and the only symptom was
+#   Fatal error: exception File ".../gen_unicode.ml", line 97: Assertion failed
+# from gen_unicode parsing the error page -- several steps removed from the cause,
+# and sticky, because the bad artifact was cached as valid.
+#
+# Adding -f makes the rule fail at the download instead. It also changes the
+# rule's digest, which is what evicts an already-poisoned cache entry.
+SEDLEX_DATA_DUNE="duniverse/sedlex/src/generator/data/dune"
+if [ -f "$SEDLEX_DATA_DUNE" ]; then
+  if grep -qE '^\s*-f$' "$SEDLEX_DATA_DUNE"; then
+    echo "  [21] sedlex unicode download: already uses curl --fail. Skipping."
+  else
+    python3 - "$SEDLEX_DATA_DUNE" <<'PYEOF'
+import re, sys
+p = sys.argv[1]
+s = open(p).read()
+# `(run curl -L -s ...)` on one line, and the multi-line `(run\n curl\n -L\n -s\n ...)` form.
+n1 = len(re.findall(r'\(run curl -L -s ', s))
+s = s.replace('(run curl -L -s ', '(run curl -f -L -s ')
+n2 = len(re.findall(r'^(\s*)curl\n\1-L\n\1-s\n', s, re.M))
+s = re.sub(r'^(\s*)curl\n\1-L\n\1-s\n', r'\1curl\n\1-f\n\1-L\n\1-s\n', s, flags=re.M)
+open(p, 'w').write(s)
+print("  [21] sedlex unicode download: added --fail to {} inline + {} block curl rule(s).".format(n1, n2))
+PYEOF
+  fi
+else
+  echo "  [21] sedlex unicode download: not vendored. Skipping."
+fi
+echo ""
+
+# [22] sedlex unicode.ml: stop regenerating it from a live download.
+#
+# duniverse/sedlex/src/syntax/dune has a `(mode promote)` rule that regenerates
+# unicode.ml by running gen_unicode.exe over Unicode tables fetched from
+# www.unicode.org at build time. The vendored tree already SHIPS the generated
+# unicode.ml, so that rule buys nothing here and puts a flaky third-party host on
+# the critical path of every clean build: on 2026-08-23 unicode.org returned
+# intermittent Cloudflare 522s, a different file failing on each attempt, so the
+# smoke build failed non-deterministically (and, before patch [21] added --fail,
+# silently baked an error page into the generated source).
+#
+# Drop the rule so dune treats the shipped unicode.ml as a plain source file.
+# Guarded on that file actually being present and generator-produced, so this can
+# never delete the rule and leave nothing behind. Patch [21] stays as a safety
+# net for anyone who puts the rule back.
+SEDLEX_SYNTAX_DUNE="duniverse/sedlex/src/syntax/dune"
+SEDLEX_UNICODE_ML="duniverse/sedlex/src/syntax/unicode.ml"
+if [ ! -f "$SEDLEX_SYNTAX_DUNE" ]; then
+  echo "  [22] sedlex unicode.ml rule: not vendored. Skipping."
+elif ! grep -q "targets unicode.ml" "$SEDLEX_SYNTAX_DUNE"; then
+  echo "  [22] sedlex unicode.ml rule: already removed. Skipping."
+elif [ ! -f "$SEDLEX_UNICODE_ML" ] || ! grep -q "automatically generated" "$SEDLEX_UNICODE_ML"; then
+  echo "  [22] sedlex unicode.ml rule: shipped unicode.ml missing/unrecognised — KEEPING the" >&2
+  echo "       generation rule, which means this build needs www.unicode.org reachable." >&2
+else
+  python3 - "$SEDLEX_SYNTAX_DUNE" <<'PYEOF'
+import sys
+p = sys.argv[1]
+s = open(p).read()
+old = """(rule
+ (targets unicode.ml)
+ (mode promote)
+ (deps
+  (:gen ../generator/gen_unicode.exe)
+  (glob_files ../generator/data/*.txt))
+ (action
+  (run %{gen} %{targets})))
+"""
+new = """; unicode.ml generation rule removed by macro-benches setup-monorepo.sh [22]:
+; the vendored tree ships the generated unicode.ml, and regenerating it required
+; downloading the Unicode tables from www.unicode.org on every clean build.
+"""
+assert old in s, "unicode.ml rule not in the expected shape - patch [22] needs updating"
+open(p, "w").write(s.replace(old, new, 1))
+print("  [22] sedlex unicode.ml rule: removed; using the shipped unicode.ml.")
+PYEOF
 fi
 echo ""
 
