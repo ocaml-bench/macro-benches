@@ -1,0 +1,82 @@
+(* -*- tuareg -*- *)
+(*
+ * Copyright (c) Facebook, Inc. and its affiliates.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ *)
+(* use strings so that it looks like OCaml even before substituting, e.g. to use ocamlformat *)
+
+let is_yes = String.equal "yes"
+
+let is_empty = String.equal ""
+
+let clang = is_yes "no"
+
+let erlang = is_yes "no"
+
+let hack = is_yes "no"
+
+let java = is_yes "yes"
+
+let python = is_yes "no"
+
+let rust = is_yes "no"
+
+let swift = is_yes "no"
+
+let swift_llvm = is_yes "no"
+
+let facebook = is_yes "no"
+
+let windows = is_yes "no"
+
+let darwin = false (* macro-benches: Linux bench farm; was String.equal "@BUILD_PLATFORM@" "Darwin" *)
+
+let if_platform_env ?(else_ = "") s =
+  match Sys.getenv_opt "PLATFORM_ENV" with Some pe when String.length pe > 0 -> s | _ -> else_
+
+
+let platform_linking_flags =
+  if windows then "(:standard -cclib -lgcc_s -cclib -lole32)"
+  else
+    if_platform_env
+      (Printf.sprintf "-noautolink %s %s %s "
+         ( if swift then
+             "(:include %{project_root}/src/sledge/llvm-config_ldflags.sexp) (:include \
+              %{project_root}/src/linking-flags-llvm.sexp) "
+           else "" )
+         "(:include %{project_root}/src/linking-flags.sexp)"
+         "-cclib -Wl,-Bstatic -cclib -lzstd -cclib -Wl,-Bdynamic" )
+      ~else_:
+        ( if swift && swift_llvm then
+            "(:include %{project_root}/src/sledge/llvm-config_ldflags.sexp) (:include \
+             %{project_root}/src/linking-flags-llvm.sexp) (:include \
+             %{project_root}/src/linking-flags-llvm-swift.sexp) "
+          else "" )
+
+;;
+(* -*- tuareg -*- *)
+(*
+ * Copyright (c) Facebook, Inc. and its affiliates.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ *)
+(* NOTE: prepend dune.common to this file! *)
+
+(* include the open-source modules only in open-source build modes, otherwise this library is empty *)
+
+Jbuild_plugin.V1.send
+  (Format.sprintf
+     {|
+(library
+ (name OpenSource)
+ (public_name infer.OpenSource)
+ (flags (:standard -open Core))
+ (libraries core)
+ %s
+ (preprocess (pps ppx_compare))
+)
+|}
+     (if facebook then "(modules)" else "(modules :standard)") )

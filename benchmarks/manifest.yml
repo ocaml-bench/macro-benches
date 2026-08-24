@@ -426,6 +426,26 @@ programs:
     tool: pplacer
     build_script: pplacer.build.sh
     args: "85"
+  # Input-size ladder = roots-subset size (roots_<rung>.idx), baked into the output
+  # name by infer.build.sh; the wrapper execs `infer analyze --multicore` on that
+  # subset of the shared captured corpus. No in-tree args (corpus + roots generated
+  # at build time). Not ci_run: the build (corpus fetch + javalib/sawja + infer.exe
+  # + 261MB capture) is heavy and network-dependent — CI builds it but doesn't run it.
+  infer_small:
+    tool: infer
+    build_script: infer.build.sh
+    inputs_generated: true
+    args: ""
+  infer_default:
+    tool: infer
+    build_script: infer.build.sh
+    inputs_generated: true
+    args: ""
+  infer_large:
+    tool: infer
+    build_script: infer.build.sh
+    inputs_generated: true
+    args: ""
 
 disabled:
   lavyek:
