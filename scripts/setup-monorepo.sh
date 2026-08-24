@@ -776,6 +776,92 @@ else
 fi
 echo ""
 
+# [21] sedlex unicode data download: make curl fail loudly.
+#
+# duniverse/sedlex/src/generator/data/dune fetches the Unicode tables at build
+# time with `curl -L -s <url> -o <target>`. Without --fail, curl exits 0 on an
+# HTTP error and writes the error *body* to the target, so dune records the rule
+# as successful and caches the garbage. A transient unicode.org outage
+# (2026-08-23: a 16-byte "error code: 522" in place of DerivedCoreProperties.txt)
+# therefore poisoned the build cache, and the only symptom was
+#   Fatal error: exception File ".../gen_unicode.ml", line 97: Assertion failed
+# from gen_unicode parsing the error page -- several steps removed from the cause,
+# and sticky, because the bad artifact was cached as valid.
+#
+# Adding -f makes the rule fail at the download instead. It also changes the
+# rule's digest, which is what evicts an already-poisoned cache entry.
+SEDLEX_DATA_DUNE="duniverse/sedlex/src/generator/data/dune"
+if [ -f "$SEDLEX_DATA_DUNE" ]; then
+  if grep -qE '^\s*-f$' "$SEDLEX_DATA_DUNE"; then
+    echo "  [21] sedlex unicode download: already uses curl --fail. Skipping."
+  else
+    python3 - "$SEDLEX_DATA_DUNE" <<'PYEOF'
+import re, sys
+p = sys.argv[1]
+s = open(p).read()
+# `(run curl -L -s ...)` on one line, and the multi-line `(run\n curl\n -L\n -s\n ...)` form.
+n1 = len(re.findall(r'\(run curl -L -s ', s))
+s = s.replace('(run curl -L -s ', '(run curl -f -L -s ')
+n2 = len(re.findall(r'^(\s*)curl\n\1-L\n\1-s\n', s, re.M))
+s = re.sub(r'^(\s*)curl\n\1-L\n\1-s\n', r'\1curl\n\1-f\n\1-L\n\1-s\n', s, flags=re.M)
+open(p, 'w').write(s)
+print("  [21] sedlex unicode download: added --fail to {} inline + {} block curl rule(s).".format(n1, n2))
+PYEOF
+  fi
+else
+  echo "  [21] sedlex unicode download: not vendored. Skipping."
+fi
+echo ""
+
+# [22] sedlex unicode.ml: stop regenerating it from a live download.
+#
+# duniverse/sedlex/src/syntax/dune has a `(mode promote)` rule that regenerates
+# unicode.ml by running gen_unicode.exe over Unicode tables fetched from
+# www.unicode.org at build time. The vendored tree already SHIPS the generated
+# unicode.ml, so that rule buys nothing here and puts a flaky third-party host on
+# the critical path of every clean build: on 2026-08-23 unicode.org returned
+# intermittent Cloudflare 522s, a different file failing on each attempt, so the
+# smoke build failed non-deterministically (and, before patch [21] added --fail,
+# silently baked an error page into the generated source).
+#
+# Drop the rule so dune treats the shipped unicode.ml as a plain source file.
+# Guarded on that file actually being present and generator-produced, so this can
+# never delete the rule and leave nothing behind. Patch [21] stays as a safety
+# net for anyone who puts the rule back.
+SEDLEX_SYNTAX_DUNE="duniverse/sedlex/src/syntax/dune"
+SEDLEX_UNICODE_ML="duniverse/sedlex/src/syntax/unicode.ml"
+if [ ! -f "$SEDLEX_SYNTAX_DUNE" ]; then
+  echo "  [22] sedlex unicode.ml rule: not vendored. Skipping."
+elif ! grep -q "targets unicode.ml" "$SEDLEX_SYNTAX_DUNE"; then
+  echo "  [22] sedlex unicode.ml rule: already removed. Skipping."
+elif [ ! -f "$SEDLEX_UNICODE_ML" ] || ! grep -q "automatically generated" "$SEDLEX_UNICODE_ML"; then
+  echo "  [22] sedlex unicode.ml rule: shipped unicode.ml missing/unrecognised — KEEPING the" >&2
+  echo "       generation rule, which means this build needs www.unicode.org reachable." >&2
+else
+  python3 - "$SEDLEX_SYNTAX_DUNE" <<'PYEOF'
+import sys
+p = sys.argv[1]
+s = open(p).read()
+old = """(rule
+ (targets unicode.ml)
+ (mode promote)
+ (deps
+  (:gen ../generator/gen_unicode.exe)
+  (glob_files ../generator/data/*.txt))
+ (action
+  (run %{gen} %{targets})))
+"""
+new = """; unicode.ml generation rule removed by macro-benches setup-monorepo.sh [22]:
+; the vendored tree ships the generated unicode.ml, and regenerating it required
+; downloading the Unicode tables from www.unicode.org on every clean build.
+"""
+assert old in s, "unicode.ml rule not in the expected shape - patch [22] needs updating"
+open(p, "w").write(s.replace(old, new, 1))
+print("  [22] sedlex unicode.ml rule: removed; using the shipped unicode.ml.")
+PYEOF
+fi
+echo ""
+
 # ---- Generate rocq config + dunestrap ----
 echo "[8/9] Generating rocq config and dunestrap files..."
 ROCQ_DIR="duniverse/rocq"
