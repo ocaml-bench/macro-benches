@@ -11,11 +11,12 @@ runtime-feature coverage matrix and gaps, the gotchas, and the backlog.
 
 - A **dune monorepo** of real-world OCaml programs used as macro-benchmarks (coq,
   frama-c, goblint, alt-ergo, menhir, cpdf, owl, jsoo, irmin, liquidsoap,
-  ocamlformat, decompress, eio, sedlex, yojson, zarith, pplacer, devkit, …). All
+  ocamlformat, decompress, eio, sedlex, yojson, zarith, pplacer, devkit, infer, …). All
   third-party deps are **vendored** under `duniverse/` (opam-monorepo), so every
-  runtime compiles byte-identical source. 22 tools (20 active; `merlin` and
+  runtime compiles byte-identical source. 23 tools (21 active; `merlin` and
   `lavyek` disabled — see their doc pages). ocamlc counts as one tool but spans
-  two benchmark dirs (ocamlc-self-compile + ocamlc-compile-uucp).
+  two benchmark dirs (ocamlc-self-compile + ocamlc-compile-uucp); `infer` is
+  vendored manually (not opam-monorepo) — see its doc page and the patch table.
 - **Input-size ladder + tags.** Each tool has `small`/`default`/`large` (a few
   also `huge`) rungs whose input reaches a different GC/runtime regime, not just a
   scaled-up copy. The selection lives in running-ng's `macro_base.yml` `tags:`
@@ -23,7 +24,7 @@ runtime-feature coverage matrix and gaps, the gotchas, and the backlog.
   run auto-applies `default_run`. **Legacy** = the pre-ladder anchors, extra
   per-tool workloads, and frozen issue reproducers (`liq_video_frames_pool` #14533,
   `goblint` #13733) — kept, run only with `RUNNING_TAG=legacy`. In THIS repo the
-  same split is in `benchmarks/manifest.yml`: all 92 programs listed (build-all),
+  same split is in `benchmarks/manifest.yml`: all 95 programs listed (build-all),
   the 20 small rungs flagged `ci_run: true` (what CI runs, via `ci-manifest.py
   list-run`). The `knob-a-rungs` branch name is historical — docs say "input-size
   ladder".
@@ -173,8 +174,8 @@ Three phases, all driven off `benchmarks/manifest.yml`:
      only looks at in-tree paths in `args`;
   5. one `docs/benchmarks/<tool>.md` per tool, both directions.
 
-  It prints the counts it compared (`23 benchmark directories = 21 with programs
-  + 2 disabled`, `92 programs`, `23 docs pages`) so the log shows the numbers,
+  It prints the counts it compared (`24 benchmark directories = 22 with programs
+  + 2 disabled`, `95 programs`, `24 docs pages`) so the log shows the numbers,
   then lists every problem it found rather than stopping at the first. (21 not 20
   because the compiler tool spans two directories: ocamlc-self-compile and
   ocamlc-compile-uucp.)
@@ -287,6 +288,20 @@ Consequences worth knowing:
   openblas/cblas; cpdf needs camlpdf; these come via `vendor/` + `scripts/vendor-*.sh`.
 - **Under ocaml-mmtk** (built via running-ng's `OCamlMMTk`): all 31 *build* (the
   runtime supplies `LIBRARY_PATH`+heap), but a few **crash at run** — see MMTk notes.
+- **infer's `extlib`/`camlzip` duplicate-hide window.** javalib/sawja link `extlib` +
+  `zip` from infer's per-runtime prefix, but the duniverse *also* ships them (devkit
+  depends on both) and dune rejects two libraries with the same public name. The clash
+  is only visible while the prefix is on `OCAMLPATH`, so `infer.build.sh` hides
+  `duniverse/{ocaml-extlib,camlzip}` for the duration of its dune build and restores
+  them via an EXIT trap. Consequence: **don't build infer and devkit concurrently in
+  the same tree** — the hide window would break a parallel devkit build. running-ng's
+  sequential `buildbms` is fine.
+- **infer's overlay links `ounit2`, not `oUnit`.** Infer's upstream-generated dune links
+  the legacy findlib alias `oUnit` (which a normal opam switch provides via the
+  transitional `ounit` package); the hermetic duniverse ships only the `ounit2` public
+  name, so `dune-overlays/infer/.../{clang,unit}/dune` + `src/dune` link `ounit2` (same
+  library). This is why infer built piecewise on a full macOS switch but not hermetically
+  until the overlay was fixed.
 
 ## Per-session workflow
 
@@ -350,8 +365,10 @@ it survives a re-vendor.
 ## MMTk (`ocaml-mmtk`) notes
 
 Built via running-ng's `OCamlMMTk` runtime type (OCaml 5.5 + the MMTk collector).
-All 31 programs build; 27 run cleanly under both native plans (Immix,
-StickyImmix). Known MMTk-only issues:
+Of the 31 non-infer programs all build and 27 run cleanly under both native plans
+(Immix, StickyImmix); `infer` has been validated on stock 5.4.0 + 5.5.0 but **not**
+yet under MMTk (its `--multicore` shared-heap parallelism is untested there). Known
+MMTk-only issues:
 
 - **Crashes (4 programs).** `alt_ergo_{fill,yyll,unsat_smt2}` SIGSEGV (the moving
   collector relocates a value a C stub holds a raw pointer to, via zarith→GMP; runs
@@ -455,12 +472,19 @@ StickyImmix). Known MMTk-only issues:
 | `frama_c_eva_sqlite_small` | 7 | 13 | weak/ephemeron hash-consing (457MB RSS, promo 0.6%) | ephemeron key-scan (#11733), CIL AST hash-cons, `Weak.Make` at scale |
 | `frama_c_eva_sqlite_default` | 16 | 11 | as small, richer domains (641MB RSS, live 77M) | #11733 at higher precision |
 | `frama_c_eva_sqlite_large` | 113 | 3 | max ephemeron churn (165k minor GC, 695MB RSS, 3.3s gc_time, 11.5ms tail pause) | #11733 ephemeron-clean throughput + GC latency (widening thrash, precision 3) |
+| `infer_small` | ~9† | TBD | multicore shared-heap (72 roots, allocation-heavy abstract interpretation) | input size = #roots analysed; multi-domain shared-heap GC, minor+promotion, hashconsed type env |
+| `infer_default` | ~16† | TBD | as small, more procedures (215 roots) | as small, larger analysis working set |
+| `infer_large` | ~44† | TBD | as small, most procedures (542 roots, ~20x = full corpus) | shared-heap multicore GC at scale; read by wall + (pending) olly GC counts |
 
 (`merlin_bench` and `lavyek_kv_*` omitted — disabled. frama-c input size = `-eva-precision` (2nd
 wrapper arg); slevel is inert; no >5min huge rung reachable via EVA knobs — see
 `docs/benchmarks/frama-c.md`. gc% FALLS with size (13→11→3%, mutator-bound at large) while
 tail pause GROWS (3.1→8.9→11.5ms) — small/default GC-throughput-sensitive, large
-GC-latency-sensitive. olly re-25|md-2, 5.5.0, 2026-07-24.)
+GC-latency-sensitive. olly re-25|md-2, 5.5.0, 2026-07-24. †`infer` walls are WARM
+`analyze --multicore` at `-j12` on a 32-core box, 5.5.0 (a cold first analysis is
+~2-2.5x); gc% not yet olly-profiled; wall is machine-, jobs- and roots-relative, and
+the shared per-runtime capture makes back-to-back rungs mildly order-dependent — see
+its doc page.)
 
 ## Runtime-feature coverage matrix
 
@@ -483,7 +507,7 @@ through a `RUNNING_TAG` selector.
 | **`Weak.Make` / weak hashsets** | `caml_ephe_*` | frama_c_eva_sqlite{,_small,_default,_large} (CIL AST + EVA state via `State_builder.Hashconsing_tbl_weak`, largest weak workload; the `-eva-precision` ladder scales it 457→695MB RSS / 11k→182k minor GC), alt_ergo_{fill,yyll,unsat_smt2} (`hconsing.ml:51`), goblint (CIL hash-consing) | — |
 | **`Marshal.{to,from}_*`** | `caml_output_value*` / `caml_input_value*` | ocamlc_self_compile (`.cmi` `cmi_format.ml:87`; `.cmo` `emitcode.ml:33`) | liquidsoap-lang (`cache.ml:75`, off by default), jsoo (`parse_bytecode.ml:462`, one-shot), coq (`nativevalues.ml`, native backend unused), merlin `persistent_env` (cold), alt-ergo (`satml.ml:2206`, commented out) |
 | **`Effect.perform` (OCaml 5)** | `caml_perform_*`, deep `try_with` | eio_fiber_stream (`suspend.ml:6`, `fiber.ml:11`, `cancel.ml`) | lavyek_kv_*d (disabled), merlin_bench cancellation (disabled) |
-| **`Domain.spawn` / `join`** | `caml_domain_*` | — (**gap**: only lavyek_kv_{2,4,8}d and merlin_bench, both disabled) | lavyek_kv_{2,4,8}d, merlin_bench when re-enabled |
+| **`Domain.spawn` / `join`** | `caml_domain_*` | infer (`--multicore`: single-process multi-domain shared-heap analysis across `INFER_JOBS` domains — the suite's first non-disabled multi-domain workload; doc-grounded, Infer's scheduler not yet source-audited) | lavyek_kv_{2,4,8}d, merlin_bench when re-enabled |
 | **`Atomic.*` (hot)** | `caml_atomic_*` | eio_fiber_stream (`sem_state.ml`, `lazy.ml`) | lavyek_kv_*d (disabled), merlin_bench (disabled); ocaml-re does Atomic only at regex compile time, so devkit_* see it only in init |
 | **kcas / lock-free MCAS** | n/a (library) | — (**verified gap**: lavyek imports `kcas`/`kcas_data` but never calls them; `REMOVED.md:22`) | — |
 | **`Sys.set_signal`** | `caml_install_signal_handler` | alt_ergo_unsat_smt2 (`--timelimit 15` arms SIGVTALRM, `signals_profiling.ml:32`) | alt_ergo_{fill,yyll} (handlers installed, never fire); coq SIGINT unused. No high-frequency signal delivery. |
@@ -535,6 +559,7 @@ through a `RUNNING_TAG` selector.
 | `ocamlc_self_compile` | hashtbl, marshal (`.cmi`+`.cmo` writeout), bigarray (emit buffer), minor-gc |
 | `ocamlc_compile_uucp{,_small,_default,_large}` | Compiler tool's size ladder = compiling N replicas of uucp (prefix-renamed Uucp→UucpK). uucp's COLLECTED heap → RSS flat ~87-115MB while major-GC scales (N=3/8/25 → major 376/771/1581, promo 0.14/0.40/1.36G w, 6/17/58s). gc% ~17% flat, pauses ~2-4ms. Major-GC-throughput ladder (vs self_compile's monotonic-heap memory-bound). build.sh stages a renamed ocamlc (`..._bin`) for olly attach (like self_compile) |
 | `jsoo{,_small,_default,_large}` | hashtbl, lazy, marshal(cold); input size = input bytecode size (rung arg → generated per-runtime .byte from real JSOO sources × R replicas) → whole-program-IR footprint ladder (RSS 0.5→7.8GB), constant ~33% gc% + 129ms max pause @ large |
+| `infer_{small,default,large}` | multi-domain shared-heap GC (`--multicore`, `INFER_JOBS` domains), minor-gc + major-promotion (allocation-heavy abstract interpretation), hashtbl (hashconsed type env), marshal (summary tables in/out of the SQLite capture DB); input-size ladder = roots-subset size (72/215/542 classes → warm ~9/16/44s at -j12), flat capture footprint; tags doc-grounded — hot-path source audit pending |
 
 ## Coverage gaps — verified
 
@@ -542,11 +567,15 @@ A regression in any of these areas would **not** be caught by the current suite.
 Each was checked by `grep -rn` against the actual vendored source.
 
 - **Multi-domain parallelism (`Domain.spawn`/`join`), real io_uring syscall traffic,
-  and per-domain CPU pinning** — gaps because the only benchmarks that exercised them
-  are disabled: `lavyek_kv_*` (private repo) covered all three, `merlin_bench` covered
-  the 2-domain case. `eio_fiber_stream` still exercises single-domain effects, fibers,
-  and Atomic, but nothing drives N>2 domains, io_uring, or affinity pinning. Re-enabling
-  lavyek or importing a Sandmark `parallel_*` benchmark would close these.
+  and per-domain CPU pinning** — narrowed by infer, but not closed. `infer --multicore`
+  now drives N>2 domains sharing one heap (its whole reason for existing here — the
+  shared-heap GC under a real allocation-heavy analysis is the signal), so multi-domain
+  parallelism is no longer a total gap. Still uncovered: real io_uring syscall traffic
+  and per-domain CPU pinning (only `lavyek_kv_*`, private/disabled, ever drove those),
+  and Domainslib work-stealing specifically (infer's scheduler is not yet source-audited
+  for whether it uses `Domainslib.Task` or a hand-rolled pool). `eio_fiber_stream` still
+  covers single-domain effects/fibers/Atomic. Re-enabling lavyek or importing a Sandmark
+  `parallel_*` benchmark would close the io_uring/pinning/work-stealing remainder.
 - **Ephemeron data-field semantics** — verified gap, narrowed. `runtime/weak.c` routes
   `caml_weak_*` through `caml_ephe_*` (a weak array is an ephemeron with no data field),
   so the ephemeron machinery (alloc, per-domain list, `caml_ephe_clean` key-scan) is
