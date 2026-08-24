@@ -24,21 +24,13 @@ You can use it two ways:
 ## The benchmarks
 
 23 tools (21 active; `merlin` and `lavyek` disabled — see below). Each active
-tool has an **input-size ladder** — `small` / `default` / `large` (a couple also
+tool has an **input-size ladder**: `small` / `default` / `large` (a couple also
 `huge`) rungs whose input is chosen so each reaches a different GC/runtime
 regime, not just a bigger copy of the one below. A bare run
 executes the `default` rung of every tool; other sizes are opt-in via a tag (see
-[Run sweeps](#run-sweeps)). Older single-point benchmarks — original anchors,
-extra per-tool workloads, and the frozen issue reproducers — are kept as
+[Run sweeps](#run-sweeps)). Older single-point benchmarks with original anchors,
+extra per-tool workloads, and the frozen issue reproducers are kept as
 **legacy** benches, run only with `RUNNING_TAG=legacy`.
-
-One row per active tool below, naming the `default` rung it runs — i.e. exactly
-what a bare sweep executes. The `default` rungs are sized to land in the same
-band as each other (~10-25s on the reference machine), so the table carries no
-timings: wall time is a property of the machine, not of the benchmark, and the
-measured numbers per rung — wall, RSS, gc%, pauses — live on each tool's page
-under [docs/benchmarks/](docs/benchmarks), together with the rest of its ladder
-and its legacy benches.
 
 | Benchmark | `default` program | What it runs | Category |
 |-----------|-------------------|--------------|----------|
@@ -63,11 +55,6 @@ and its legacy benches.
 | [goblint](docs/benchmarks/goblint.md) | `goblint_gen_default` | Goblint octagon (apron) analysis of a 165-variable bit-vector state machine (reproduces [#13733](https://github.com/ocaml/ocaml/issues/13733)) | Static analysis |
 | [js_of_ocaml](docs/benchmarks/js_of_ocaml.md) | `jsoo_default` | Compiles a 14 MB bytecode (80 replicas of the JSOO classics) to JavaScript | Compiler |
 | [infer](docs/benchmarks/infer.md) | `infer_default` | Infer's multicore (domains) Java analysis of 215 classes of a real bytecode corpus — guava, byte-buddy, lucene, bcprov | Static analysis |
-
-`ocamlc` counts as one tool but spans two benchmark directories: the ladder above
-is the uucp companion, and [ocamlc-self-compile](docs/benchmarks/ocamlc-self-compile.md)
-— the runtime's own `ocamlc` on a 400k-line generated file — is a legacy bench,
-kept because it holds a large *monotonic* heap where uucp's is actively collected.
 
 Two more tools ship in the tree but are currently disabled:
 [merlin](docs/benchmarks/merlin.md) (an upstream race in the domains typer) and
