@@ -43,6 +43,14 @@ operations on the reference PDF, each writing to `/dev/null`:
 
 ## Notes
 
+`PDFReference16.pdf_toobig` is malformed, and the ladder merges N copies of it, so
+every name/number tree key collides. CamlPDF's `pdftree.ml` logged one line per
+duplicate through `Pdfe.default` (`prerr_string` + `flush stderr`), which on the
+`_large` rung is ~13M flushed writes per invocation — ~830 MB of benchmark log per
+config, and stderr I/O inside the measured region. Vendored-source patch 23 removes
+the log call (the dedup behaviour is unchanged), so the ladder measures PDF work
+rather than logging.
+
 cpdf and CamlPDF are manually vendored under `vendor/cpdf-source` and
 `vendor/camlpdf` (upstream uses OCamlMakefile, not dune); the build uses
 hand-written dune overlays. The C stubs are compiled in via `foreign_stubs` in
