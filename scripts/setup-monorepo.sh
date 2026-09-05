@@ -863,6 +863,23 @@ fi
 echo ""
 
 # ---- Generate rocq config + dunestrap ----
+# [23] camlpdf pdftree.ml: drop the duplicate name/number tree key warning.
+#
+# cpdf_squeeze merges N copies of one PDF, so every name/number tree key
+# collides and camlpdf logs one line per duplicate through Pdfe.default
+# (prerr_string + flush stderr). On the _large rung (N=64) that is ~13M flushed
+# writes per invocation: ~830 MB of benchmark log per config, and stderr I/O
+# inside the measured region. The dedup behaviour is unchanged -- only the log
+# call goes; camlpdf's other Pdfe diagnostics still print.
+PDFTREE_ML="vendor/camlpdf/pdftree.ml"
+if grep -q 'Pdfe.log "Warning Duplicate name/number tree key' "$PDFTREE_ML" 2>/dev/null; then
+  sed -i '/Pdfe.log "Warning Duplicate name\/number tree key/d' "$PDFTREE_ML"
+  echo "  [23] camlpdf duplicate-key warning: removed."
+else
+  echo "  [23] camlpdf duplicate-key warning: already patched (or file missing)."
+fi
+echo ""
+
 echo "[8/9] Generating rocq config and dunestrap files..."
 ROCQ_DIR="duniverse/rocq"
 
