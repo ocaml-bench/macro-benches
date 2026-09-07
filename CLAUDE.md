@@ -613,7 +613,7 @@ Applied automatically by `scripts/setup-monorepo.sh`.
 | 5 | `duniverse/lwt/` | Replace with a pinned commit (`sources.yml`) | Fixes socketaddr.h for OCaml 5.6 |
 | 6 | `duniverse/devkit/lwt_engines.ml` | Add `engine_id` type + method | lwt 6.1.1 added virtual `id` method |
 | 7 | `vendor/libevent/libevent.ml` | Add `~persist`, `~signal` labels | OCaml 5.x strict label matching |
-| 8 | `duniverse/js_of_ocaml/.../dune` | Remove public_name | Vendored executable |
+| 8 | `duniverse/js_of_ocaml/.../dune` | Remove `public_name`/`package` from the executable stanza | Vendored executable. Match on **content, not line number**: upstream reordered these fields (`public_name` moved from line 2 to line 3) and the old line-anchored `sed` silently became a no-op that still logged success |
 | 9 | `duniverse/ocamlformat/.../dune` | Remove public_name | Vendored executable |
 | 10 | `duniverse/owl/.../exponpow.c` | Fix `std_gaussian_rvs` calls | Upstream C bug: function takes no args |
 | 11 | `duniverse/batteries-included/.../batGc.mli` | Add `live_stacks_words` field | OCaml 5.6 added field to `Gc.stat` |

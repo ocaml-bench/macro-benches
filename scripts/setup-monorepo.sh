@@ -491,11 +491,13 @@ fi
 # Only remove from the (executable ...) block, not from (install ...) stanzas.
 JSOO_DUNE="duniverse/js_of_ocaml/compiler/bin-js_of_ocaml/dune"
 if [ -f "$JSOO_DUNE" ] && grep -q '(public_name js_of_ocaml)' "$JSOO_DUNE" 2>/dev/null; then
-  # Remove only the public_name line (the package line in the executable
-  # stanza is on the same line pattern but also appears in install stanzas,
-  # so we use a targeted approach: remove the 2nd and 3rd lines of the file)
-  sed -i '2{/(public_name js_of_ocaml)/d}' "$JSOO_DUNE"
-  sed -i '2{/(package js_of_ocaml-compiler)/d}' "$JSOO_DUNE"
+  # The executable stanza is first in the file, so first-occurrence deletion
+  # hits it and leaves the (package js_of_ocaml-compiler) lines in the later
+  # (install ...) stanzas alone. Do NOT anchor to a line number: upstream
+  # reorders these fields (public_name moved from line 2 to line 3), which
+  # silently turned this patch into a no-op that still reported success.
+  sed -i '0,/^ (public_name js_of_ocaml)$/{/^ (public_name js_of_ocaml)$/d}' "$JSOO_DUNE"
+  sed -i '0,/^ (package js_of_ocaml-compiler)$/{/^ (package js_of_ocaml-compiler)$/d}' "$JSOO_DUNE"
   echo "  [8] jsoo public_name: removed from executable stanza."
 elif [ -f "$JSOO_DUNE" ]; then
   echo "  [8] jsoo public_name: already removed."
