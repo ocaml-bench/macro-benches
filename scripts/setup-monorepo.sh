@@ -369,6 +369,39 @@ else
 fi
 echo ""
 
+# ---- Vendor processor (CPU affinity) ----
+echo "[4b/9] Vendoring processor..."
+if [ -d vendor/processor ]; then
+  echo "  vendor/processor already exists. Skipping."
+else
+  # Per-thread CPU affinity, used by infer to place its analysis domains on
+  # distinct cores (and by lavyek when that is re-enabled).  A plain dune
+  # library with one C stub, so it drops straight into the workspace -- no
+  # per-runtime prefix like apron or javalib, which are not dune projects.
+  rm -rf vendor/processor
+  mkdir -p vendor/processor
+  _proc_url="$(src_field processor url)"
+  _proc_tgz="$(mktemp -d)/processor.tgz"
+  curl -fsSL "${_proc_url}" -o "${_proc_tgz}"
+  _proc_want="$(src_field processor md5)"
+  _proc_got="$(md5sum "${_proc_tgz}" | cut -d' ' -f1)"
+  if [ -n "${_proc_want}" ] && [ "${_proc_want}" != "${_proc_got}" ]; then
+    echo "ERROR: processor tarball md5 ${_proc_got}, expected ${_proc_want}" >&2
+    exit 1
+  fi
+  tar xzf "${_proc_tgz}" -C vendor/processor --strip-components=1
+  rm -f "${_proc_tgz}"
+  # Drop everything but the library.  bin/ declares an executable with
+  # `(public_name ocaml-processor-dump)`, and a vendored executable's public
+  # name in a shared workspace is exactly what patches 2, 8 and 9 exist to
+  # remove; not vendoring it is simpler than patching it.  Nothing here runs
+  # the tests either.
+  rm -rf vendor/processor/test vendor/processor/bench \
+         vendor/processor/bin vendor/processor/other
+  echo "  Fetched processor $(src_field processor version)."
+fi
+echo ""
+
 # ---- Vendor zarith ----
 echo "[5/9] Vendoring zarith..."
 if ls duniverse/[Zz]arith*/zarith.opam >/dev/null 2>&1; then

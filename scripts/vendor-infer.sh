@@ -175,5 +175,59 @@ else
   exit 1
 fi
 
+# ---- Place each analysis domain on its own CPU ----
+# DomainPool spawns `--jobs` domains and leaves placement to the kernel.  That
+# is fine on an ordinary machine, where the scheduler balances them across
+# whatever mask the process inherited.  It is not fine on a benchmark host that
+# isolates cores: `isolcpus=` removes those CPUs from load balancing, so every
+# domain lands on the one it was first placed on.  Measured on an 8-core Xeon,
+# infer analyze --multicore over roots_small, pinned to the six isolated cores:
+# 87.93s at 100% CPU before this, 26.31s at 330% after.
+#
+# So do what lavyek_bench.ml does and place each worker explicitly, one per CPU
+# of the mask running-ng handed us.  Deriving the CPUs from the inherited mask
+# rather than from the machine topology is what keeps the policy in running-ng
+# (which knows about isolation and interrupt affinity) and what makes this
+# correct on FreeBSD and on ARM: Affinity.get_ids/set_ids are direct C
+# externals over pthread_{get,set}affinity_np, whereas Processor.Topology has a
+# real implementation only on amd64.
+INFER_DOMAINPOOL="${INFER_DIR}/infer/src/base/DomainPool.ml"
+if grep -q 'MACRO_BENCHES_DOMAIN_PINNING' "${INFER_DOMAINPOOL}" 2>/dev/null; then
+  echo "  DomainPool domain pinning: already patched."
+elif grep -q '^let child ~f ~child_prologue ~child_epilogue ~command_queue ~message_queue worker_id =$' "${INFER_DOMAINPOOL}" 2>/dev/null; then
+  python3 - "${INFER_DOMAINPOOL}" <<'PATCH_EOF'
+import sys
+p = sys.argv[1]
+s = open(p).read()
+old = """let child ~f ~child_prologue ~child_epilogue ~command_queue ~message_queue worker_id =
+  Printexc.record_backtrace true ;"""
+new = """(* MACRO_BENCHES_DOMAIN_PINNING: see scripts/vendor-infer.sh.
+
+   Read once, here in the main domain, before any worker narrows its own mask:
+   Processor.Affinity.get_ids reports the CPUs of the CALLING thread, so a
+   worker asking after it had pinned itself would see just its own CPU. *)
+let macro_benches_pin_cpus = Array.of_list (Processor.Affinity.get_ids ())
+
+let macro_benches_pin_worker worker_id =
+  let n = Array.length macro_benches_pin_cpus in
+  (* Nothing to spread over with one CPU, and nothing to place with none (the
+     affinity calls are a no-op on macOS, which reports an empty list). *)
+  if n > 1 then
+    try Processor.Affinity.set_ids [macro_benches_pin_cpus.(Int.rem worker_id n)]
+    with exn -> L.internal_error "could not pin worker %d: %a@." worker_id Exn.pp exn
+
+
+let child ~f ~child_prologue ~child_epilogue ~command_queue ~message_queue worker_id =
+  macro_benches_pin_worker worker_id ;
+  Printexc.record_backtrace true ;"""
+assert s.count(old) == 1, "DomainPool.child not matched -- patch me"
+open(p, "w").write(s.replace(old, new))
+PATCH_EOF
+  echo "  Patched DomainPool (one analysis domain per CPU of the inherited mask)."
+else
+  echo "ERROR: DomainPool.child not found in its expected shape -- patch me." >&2
+  exit 1
+fi
+
 echo "Done.  Infer ${INFER_REF} vendored to vendor/infer/ (java-only, pure-dune)."
 echo "  Build the exe with: dune build vendor/infer/infer/src/infer.exe"

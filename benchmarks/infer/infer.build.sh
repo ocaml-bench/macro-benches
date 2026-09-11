@@ -130,7 +130,17 @@ set -euo pipefail
 # the host's disk), plus the write I/O inside the measured region. Measured on
 # the small rung, 3 interleaved pairs: console 7.8/4.0/8.3 MB -> 0, no wall-clock
 # difference, and report.json identical, so the analysis is unchanged.
-exec "${REAL_EXE}" analyze ${MC_FLAG} --no-progress-bar --jobs "\${INFER_JOBS:-${JOBS}}" \\
+# --jobs follows the CPUs we were actually given, not a number baked in at
+# build time.  nproc reports the size of the process's affinity mask, so under
+# running-ng's pinning this is exactly the benchmark's core count, and
+# DomainPool (patched in scripts/vendor-infer.sh) then places one domain per
+# CPU.  Asking for more domains than cores is measurably worse once placement
+# is static: on a 2-core mask, --jobs 8 took 54.91s at 156% CPU against 43.11s
+# at 192% for --jobs 2.  INFER_JOBS still overrides, and the build-time default
+# survives as the fallback where nproc is absent (coreutils, so not everywhere
+# outside Linux).
+exec "${REAL_EXE}" analyze ${MC_FLAG} --no-progress-bar \\
+  --jobs "\${INFER_JOBS:-\$(nproc 2>/dev/null || echo ${JOBS})}" \\
   --changed-files-index "${ROOTS}" -o "${CAPTURE}"
 WRAPPER
 chmod +x "${OUT}"
