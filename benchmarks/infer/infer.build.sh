@@ -122,7 +122,15 @@ mkdir -p "$(dirname "${OUT}")"
 cat > "${OUT}" <<WRAPPER
 #!/usr/bin/env bash
 set -euo pipefail
-exec "${REAL_EXE}" analyze ${MC_FLAG} --jobs "\${INFER_JOBS:-${JOBS}}" \\
+# --no-progress-bar: infer's progress bar style is "auto", which resolves to
+# "multiline" only on a tty. running-ng redirects to a log file, so it falls to
+# "plain", which prints "<class> starting" / "<class> DONE" per analysed class
+# through Logging.task_progress. On the large rung that is ~13M lines --
+# ~780 MB of benchmark log per invocation (a single sweep wrote 23 GB and filled
+# the host's disk), plus the write I/O inside the measured region. Measured on
+# the small rung, 3 interleaved pairs: console 7.8/4.0/8.3 MB -> 0, no wall-clock
+# difference, and report.json identical, so the analysis is unchanged.
+exec "${REAL_EXE}" analyze ${MC_FLAG} --no-progress-bar --jobs "\${INFER_JOBS:-${JOBS}}" \\
   --changed-files-index "${ROOTS}" -o "${CAPTURE}"
 WRAPPER
 chmod +x "${OUT}"

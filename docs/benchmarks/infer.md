@@ -56,6 +56,21 @@ parallel GC activity. That is the mode this benchmark drives by default. (Set `I
 for a fork/parmap wall-clock companion run.) Note that multicore is *slower* than fork here — the
 shared-heap GC overhead is exactly the runtime behaviour worth measuring.
 
+## Logging
+
+Infer's progress-bar style is `auto`, which picks `multiline` only on a tty. running-ng
+redirects to a log file, so it falls back to `plain`, and `Logging.task_progress` then prints
+`<class> starting` / `<class> DONE` around every analysed procedure. On the `_large` rung that
+is ~13M lines per invocation — ~780 MB of benchmark log — and `Logging.log` routes the same
+lines into the results-dir `logs` file when the bar is quiet, so the flag alone only moves the
+volume. One sweep wrote 23 GB of benchmark logs plus 31 GB of `logs` across four runtimes and
+filled the host's disk; the writes also land inside the measured region.
+
+Two changes together fix it: the wrapper passes `--no-progress-bar`, and `vendor-infer.sh`
+patches `task_progress` to skip both log calls when the bar is `Quiet` (other styles keep
+upstream behaviour). Measured on the small rung: console 7.2 MB -> 0, `logs` 9.3 MB -> 0, with
+`report.json` unchanged.
+
 ## The build
 
 `infer.build.sh` has three vendored pieces. **Infer itself** is vendored manually
