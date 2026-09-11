@@ -131,5 +131,49 @@ fi
 rm -rf "${INFER_DIR}/infer/src/base/documentation"
 cp -R "${INFER_DIR}/infer/documentation" "${INFER_DIR}/infer/src/base/documentation"
 
+# ---- Silence per-procedure task logging ----
+# Logging.task_progress logs "<x> starting" / "<x> DONE" around every analysed
+# procedure. Logging.log routes that to the console when the progress bar is
+# `Plain` (which `auto` picks whenever stdout is not a tty -- i.e. always under
+# running-ng) and to the results-dir `logs` file otherwise, so --no-progress-bar
+# alone just moves the volume rather than removing it. On the large rung that is
+# ~13M lines per invocation: ~780 MB of benchmark log AND a multi-GB `logs` file
+# inside the capture dir (one sweep accumulated 31 GB across four runtimes and
+# filled the host's disk), plus the write I/O inside the measured region.
+#
+# Skip both log calls when the bar is `Quiet` (what --no-progress-bar sets);
+# every other style keeps upstream behaviour, and `f ()` still runs either way.
+LOGGING_ML="${INFER_DIR}/infer/src/base/Logging.ml"
+if grep -q 'MACRO_BENCHES_QUIET_TASK_PROGRESS' "${LOGGING_ML}" 2>/dev/null; then
+  echo "  Logging.task_progress: already patched."
+elif grep -q '^let task_progress ~f pp x =$' "${LOGGING_ML}" 2>/dev/null; then
+  python3 - "${LOGGING_ML}" <<'PATCH_EOF'
+import sys
+p = sys.argv[1]
+s = open(p).read()
+old = """let task_progress ~f pp x =
+  log_task "%a starting@." pp x ;
+  let result = f () in
+  log_task "%a DONE@." pp x ;
+  result"""
+new = """(* MACRO_BENCHES_QUIET_TASK_PROGRESS: see scripts/vendor-infer.sh *)
+let task_progress ~f pp x =
+  match Config.progress_bar with
+  | `Quiet ->
+      f ()
+  | `Plain | `MultiLine ->
+      log_task "%a starting@." pp x ;
+      let result = f () in
+      log_task "%a DONE@." pp x ;
+      result"""
+assert s.count(old) == 1, "task_progress not matched -- patch me"
+open(p, "w").write(s.replace(old, new))
+PATCH_EOF
+  echo "  Patched Logging.task_progress (no per-procedure logging when quiet)."
+else
+  echo "ERROR: Logging.task_progress not found in its expected shape -- patch me." >&2
+  exit 1
+fi
+
 echo "Done.  Infer ${INFER_REF} vendored to vendor/infer/ (java-only, pure-dune)."
 echo "  Build the exe with: dune build vendor/infer/infer/src/infer.exe"

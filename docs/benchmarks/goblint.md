@@ -50,3 +50,22 @@ Kept for reference, not run by default (`RUNNING_TAG=legacy`):
 - Five vendored-source patches are needed to build on a modern toolchain (goblint.h
   for GCC 14+/C23, a `cpu` `config.h`, a `bare_encoding` install fix, a
   `json-data-encoding` re-alignment, and a first-class-module annotation for 5.5+).
+
+## The apron prefix
+
+goblint links apron, whose 14 shared objects (`libapron.so`, `libpolka*.so`, `liboct*.so`, ...)
+are built by `goblint.build.sh` step 1 into `vendor/.apron_prefix-<runtime>/lib`. **Nothing else
+creates that prefix** — `setup-monorepo.sh` does not vendor apron — so anything that wipes
+`vendor/` without rebuilding goblint leaves `goblint.exe`'s RUNPATH dangling. The only symptom is
+
+    goblint.exe: error while loading shared libraries: libpolkaMPQ.so
+
+and exit 127 on every invocation. That happened once for a whole sweep: running-ng skips the
+build when the output binary already exists, so the prefix was never recreated, and all 360
+invocations failed while being counted as completed cells. If you see exit 127 from goblint,
+delete `benchmarks/goblint/goblint*-<runtime>` and let it rebuild.
+
+The wrapper puts `${APRON_PREFIX}/lib` on `LD_LIBRARY_PATH` as a fallback for a relocated or
+RUNPATH-stripped binary. Note the `.so` live in `lib`, not `lib/apron` (which holds only
+`.a`/`.cma`/`.idl`), and the wrapper fails with a clear message if the prefix is missing.
+
