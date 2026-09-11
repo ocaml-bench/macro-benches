@@ -215,6 +215,12 @@ cppo:
   commit: "a3e90caf8fe416000f8aff8e1b1e7ee3b309d589"
   notes: "Build-time preprocessor for extlib. Built into the per-runtime prefix by scripts/vendor-javalib-sawja.sh so the chain needs no `opam install cppo`."
 
+processor:
+  version: "0.2"
+  url: "https://github.com/haesbaert/ocaml-processor/archive/refs/tags/0.2.tar.gz"
+  md5: "6ce02489ebfb40789fae78c2eb9a992e"
+  notes: "CPU topology + per-thread affinity (pthread_setaffinity_np on Linux and FreeBSD, a no-op on macOS). Vendored into vendor/processor by setup-monorepo.sh. Used by infer's domain pinning, and by lavyek_bench.ml when that is re-enabled. Only Affinity.get_ids/set_ids are used -- they are direct C externals, so they do not go through Topology, which has a real implementation only on amd64."
+
 infer:
   repo: "https://github.com/ngorogiannis/infer.git"
   branch: "inferbench-v1.1"
