@@ -44,7 +44,8 @@ infer debug --source-files -o <capture> | grep '\.class$' | sort \
   | awk 'NR % K == 1' > benchmarks/infer/roots_<rung>.idx
 ```
 
-and pick `K` per rung so its wall lands where you want. Parallelism is `INFER_JOBS` (default 12);
+and pick `K` per rung so its wall lands where you want. Parallelism is `INFER_JOBS` (default: as
+many domains as the affinity mask has CPUs, see Pinning);
 the build is oriented at machines with at least that many cores.
 
 ## Why multicore
@@ -55,6 +56,35 @@ uses domains in a single process with a shared heap, so olly/runtime_events sees
 parallel GC activity. That is the mode this benchmark drives by default. (Set `INFER_MULTICORE=0`
 for a fork/parmap wall-clock companion run.) Note that multicore is *slower* than fork here — the
 shared-heap GC overhead is exactly the runtime behaviour worth measuring.
+
+## Pinning
+
+`DomainPool` spawns `--jobs` domains and leaves placement to the kernel. That is fine where the
+scheduler balances them, and wrong on a host that isolates cores: `isolcpus=` takes those CPUs out
+of load balancing, so every domain stays on whichever one it was first placed on. Pinned to six
+isolated cores infer ran *slower* than on two shared ones -- 87.93s at 100% CPU against 51.05s at
+168% -- for being given three times the cores.
+
+So `vendor-infer.sh` patches `DomainPool.child` to place worker *i* on CPU *i mod n* of the
+**inherited** affinity mask, the way `lavyek_bench.ml` places its own domains. Deriving the CPUs
+from the mask rather than from `Processor.Topology` keeps the policy in running-ng, which is what
+knows about isolation and interrupt affinity, and is also what makes it correct off amd64:
+`Affinity.get_ids`/`set_ids` are direct C externals over `pthread_{get,set}affinity_np` (Linux and
+FreeBSD; a no-op on macOS), whereas `Topology` has a real implementation only on amd64.
+
+`--jobs` follows from the same place: `nproc` reports the mask size, so the wrapper asks for one
+domain per CPU it was actually given. Asking for more is measurably worse once placement is static.
+Measured on an 8-core Xeon booted `nosmt isolcpus=4,6,8,10,12,14 irqaffinity=0,2`, roots_default:
+
+| mask | jobs | wall | CPU |
+| --- | --- | --- | --- |
+| `0,2` (housekeeping, what an unpinned run gets) | 2 | 183.65s | 193% |
+| `4,6,8,10,12,14` (isolated) | 6 | 132.54s | 351% |
+
+The 193% matches what infer achieved in a real sweep before any of this, which is how the
+placement problem was found. 351% rather than ~600% is infer's own ceiling -- a single global
+`dbwriter_command_mutex` in `DBWriterDomain.ml` and the default `Restart` scheduler are the
+candidates -- and it is now measurable rather than hidden behind the placement.
 
 ## Logging
 
