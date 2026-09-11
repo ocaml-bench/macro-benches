@@ -121,8 +121,22 @@ mkdir -p "$(dirname "${OUT}")"
 cat > "${OUT}" << WRAPPER
 #!/usr/bin/env bash
 set -euo pipefail
+# apron's 14 shared objects (libapron.so, libpolka*.so, liboct*.so, ...) sit
+# directly in \${APRON_PREFIX}/lib; lib/apron holds only .a/.cma/.idl. goblint.exe
+# normally resolves them through its RUNPATH, baked in at link time, so this is
+# the fallback for a relocated or RUNPATH-stripped binary -- it has to name the
+# directory the .so actually live in or it silently contributes nothing.
 export CAML_LD_LIBRARY_PATH="${APRON_PREFIX}/lib/stublibs:${APRON_PREFIX}/lib/apron"
-export LD_LIBRARY_PATH="${APRON_PREFIX}/lib/apron\${LD_LIBRARY_PATH:+:\$LD_LIBRARY_PATH}"
+export LD_LIBRARY_PATH="${APRON_PREFIX}/lib:${APRON_PREFIX}/lib/apron\${LD_LIBRARY_PATH:+:\$LD_LIBRARY_PATH}"
+# Fail loudly if the prefix is gone. It is created by THIS script (step 1), not
+# by setup-monorepo.sh, so anything that wipes vendor/ without rebuilding goblint
+# leaves the RUNPATH dangling; without this check the only symptom is
+# "error while loading shared libraries" and exit 127 on every invocation.
+if [ ! -d "${APRON_PREFIX}/lib" ]; then
+  echo "ERROR: apron prefix missing at ${APRON_PREFIX}" >&2
+  echo "  rebuild it with: rm -f ${OUT} && <re-run the benchmark build>" >&2
+  exit 1
+fi
 exec "${REAL_EXE}" \\
   --conf "${BENCH_DIR}/svcomp.json" \\
   --sets ana.specification "${BENCH_DIR}/unreach-call.prp" \\
