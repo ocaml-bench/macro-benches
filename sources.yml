@@ -251,3 +251,13 @@ sawja:
   branch: "1.5.12"
   commit: "9b6da230669b11c009d97ed3851513a1d39af268"
   notes: "infer's static-analysis library (on javalib). Built per-runtime by scripts/vendor-javalib-sawja.sh."
+
+mpfr:
+  version: "4.2.1"
+  url: "https://ftp.gnu.org/gnu/mpfr/mpfr-4.2.1.tar.xz"
+  notes: >
+    apron's mlgmpidl needs mpfr.h + libmpfr.so at BUILD time. On a no-sudo box
+    the distro -dev package may be absent (only the runtime libmpfr.so.N is
+    present), so scripts/vendor-apron.sh builds MPFR from this tarball into a
+    shared, compiler-independent prefix (vendor/.mpfr-prefix) and points the
+    mlgmpidl/apron configure at it. Skipped when the system already has mpfr.h.
