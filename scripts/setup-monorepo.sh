@@ -811,6 +811,53 @@ else
 fi
 echo ""
 
+# Patch 24: goblint maingoblint.ml — -m32/-m64 are x86-only cpp flags.
+# In sv-comp mode goblint maps `exp.architecture` 64bit/32bit to `cpp -m64`/`-m32`.
+# Those are x86-only; on aarch64 (and other non-x86 hosts) cpp rejects `-m64` with
+# "unrecognized command-line option", so every goblint analysis dies in the
+# preprocessor. Guard the flag on the host actually being x86 (word size is native
+# elsewhere, so omitting it is correct). Idempotent: skip if the marker is present.
+GOBLINT_MAIN="duniverse/analyzer/src/maingoblint.ml"
+if [ -f "$GOBLINT_MAIN" ] && ! grep -q "host_is_x86" "$GOBLINT_MAIN" 2>/dev/null; then
+  python3 - <<'PY'
+p = "duniverse/analyzer/src/maingoblint.ml"
+s = open(p).read()
+old = """    let architecture_flag = match get_string "exp.architecture" with
+      | "32bit" -> "-m32"
+      | "64bit" -> "-m64"
+      | _ -> assert false
+    in
+    cppflags := architecture_flag :: !cppflags"""
+new = """    let architecture_flag = match get_string "exp.architecture" with
+      | "32bit" -> "-m32"
+      | "64bit" -> "-m64"
+      | _ -> assert false
+    in
+    (* -m32/-m64 are x86-only cpp flags; on non-x86 hosts (e.g. aarch64) cpp
+       rejects them and the word size is already native, so omit the flag. *)
+    let host_is_x86 =
+      try
+        let ic = Unix.open_process_in "uname -m" in
+        let m = try input_line ic with End_of_file -> "" in
+        ignore (Unix.close_process_in ic);
+        (match String.trim m with
+         | "x86_64" | "amd64" | "i386" | "i486" | "i586" | "i686" -> true
+         | _ -> false)
+      with _ -> true  (* detection failed: keep old x86 behaviour *)
+    in
+    if host_is_x86 then
+      cppflags := architecture_flag :: !cppflags"""
+assert old in s, "maingoblint.ml architecture_flag block not found -- patch me"
+open(p, "w").write(s.replace(old, new, 1))
+print("  [24] goblint maingoblint.ml: guarded -m32/-m64 on x86 hosts only.")
+PY
+elif [ -f "$GOBLINT_MAIN" ]; then
+  echo "  [24] goblint maingoblint.ml: already guarded. Skipping."
+else
+  echo "  [24] goblint maingoblint.ml: not vendored. Skipping."
+fi
+echo ""
+
 # [21] sedlex unicode data download: make curl fail loudly.
 #
 # duniverse/sedlex/src/generator/data/dune fetches the Unicode tables at build

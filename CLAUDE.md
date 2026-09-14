@@ -627,6 +627,7 @@ Applied automatically by `scripts/setup-monorepo.sh`.
 | 19 | `duniverse/rocq/dune-project` + `dune` | Drop `(using coq 0.8)` and the `dev`-profile `(coq (flags ...))` | dune 3.24 deleted the `coq` extension. It's a *parse* error, so it broke **every** build in the workspace, not just rocq's. Both declarations are dead here (rocq generates its theory rules via `tools/dune_rule_gen`; the only stanzas needing the extension are in `dune.disabled` files), so they're removed rather than ported to `(using rocq ...)` |
 | 20 | `duniverse/rocq/toplevel/dune` | Collapse the `(select memtrace_init.ml …)` to its `(-> memtrace_init.default.ml)` default clause | rocq-runtime has an *optional* memtrace integration (`(select)` + `depopts: memtrace`). dune auto-enables it the moment `memtrace` is present anywhere in the workspace — which it is once a benchmark vendors memtrace — so `rocq-runtime.toplevel` gains `requires memtrace` in its generated META. The rocq bootstrap's `gen_rules.exe` resolves that library through findlib on `$OCAMLPATH`, where the vendored memtrace is never installed, and dies with `findlib error: memtrace not found … required by rocq-runtime.toplevel`. Forcing the default (memtrace-free) clause keeps rocq's toplevel from ever linking/requiring memtrace, independent of any benchmark vendoring it |
 | 23 | `vendor/camlpdf/pdftree.ml` | Drop the duplicate name/number tree key warning | `cpdf_squeeze` merges N copies of one PDF, so every key collides; camlpdf logged ~13M flushed stderr lines per `_large` invocation (~830 MB of log, and stderr I/O inside the measured region). Dedup behaviour unchanged; other `Pdfe` diagnostics still print |
+| 24 | `duniverse/analyzer/src/maingoblint.ml` | Guard the `-m32`/`-m64` cpp flag on x86 hosts only | goblint's sv-comp preprocessing maps `exp.architecture` 64bit/32bit to `cpp -m64`/`-m32`, which are x86-only; on aarch64 `cpp` rejects `-m64` ("unrecognized command-line option") and every goblint analysis dies in the preprocessor. Guarded on the host actually being x86 (via `uname -m`) — x86 behaviour is unchanged, and the word size is already native on aarch64, so omitting the flag is correct |
 
 ## Known limitations
 
@@ -647,7 +648,12 @@ Applied automatically by `scripts/setup-monorepo.sh`.
   + gcc + ocamlfind + make), and `goblint.build.sh` exposes it via `OCAMLPATH`. Runtime
   stubs are found via `pre.custom_includes` since dune-site sites aren't populated in an
   uninstalled build. On trunk goblint builds from `fb4f451` onward (the late-May
-  `cfb30145` snapshot hit a since-fixed `Ctype.Unify` compiler bug).
+  `cfb30145` snapshot hit a since-fixed `Ctype.Unify` compiler bug). The apron chain needs
+  gmp+mpfr **dev** headers; on a no-sudo box that lacks `libmpfr-dev` (only the runtime
+  `libmpfr.so.N` present, e.g. this aarch64 box) `vendor-apron.sh` builds MPFR from pinned
+  source (`sources.yml` `mpfr`) into `vendor/.mpfr-prefix` and feeds `mlgmpidl` (via
+  `CPPFLAGS`) and `apron` (via `MPFR_PREFIX`, which apron wants instead of `-I`) — skipped
+  when the system already provides `mpfr.h` (Linux x86 apt, FreeBSD pkg, macOS brew).
 - **OxCaml**: only menhir, test_decompress, and zarith_pi work; others fail on
   locality-type annotation errors in vendored packages.
 - **Trunk (5.6) support**: depends on ppxlib and lwt git main (patches 4+5). When ppxlib

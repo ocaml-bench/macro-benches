@@ -26,6 +26,32 @@ for _pkg in bigarray-compat camlidl mlgmpidl apron; do
   clone_pinned "$_pkg" "$SRC/$_pkg"
 done
 
+# --- MPFR: mlgmpidl/apron need mpfr.h + libmpfr.so at BUILD time (see sources.yml).
+# On a no-sudo box the distro -dev package may be missing (only the runtime
+# libmpfr.so.N is present), so build MPFR from pinned source once into a shared,
+# compiler-independent prefix and point the mlgmpidl/apron configures at it. When
+# the system already provides mpfr.h this stays empty and system MPFR is used as
+# before. The -rpath makes the built stubs find our libmpfr even on a box with no
+# system libmpfr at all.
+MPFR_CPPFLAGS=""; MPFR_LDFLAGS=""
+if ! printf '#include <mpfr.h>\n' | "${CC:-cc}" -E - >/dev/null 2>&1; then
+  MPFR_PREFIX="${MPFR_PREFIX:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/vendor/.mpfr-prefix}"
+  if [ ! -f "$MPFR_PREFIX/include/mpfr.h" ]; then
+    echo "[mpfr] system mpfr.h absent; building MPFR $(src_field mpfr version) into $MPFR_PREFIX"
+    _mpfr_t="$(mktemp -d)"
+    curl -fsSL "$(src_field mpfr url)" -o "$_mpfr_t/mpfr.tar.xz"
+    tar xf "$_mpfr_t/mpfr.tar.xz" -C "$_mpfr_t"
+    _ncpu="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
+    ( cd "$_mpfr_t/mpfr-$(src_field mpfr version)"
+      ./configure --prefix="$MPFR_PREFIX" --disable-static --enable-shared >/dev/null 2>&1
+      make -j"$_ncpu" >/dev/null 2>&1 && make install >/dev/null 2>&1 )
+    rm -rf "$_mpfr_t"
+  fi
+  MPFR_CPPFLAGS="-I$MPFR_PREFIX/include"
+  MPFR_LDFLAGS="-L$MPFR_PREFIX/lib -Wl,-rpath,$MPFR_PREFIX/lib"
+  echo "[mpfr] using $MPFR_PREFIX"
+fi
+
 # --- per-runtime build into PREFIX, opam-free ---
 rm -rf "$PREFIX"; mkdir -p "$PREFIX/lib/caml" "$PREFIX/lib/stublibs" "$PREFIX/bin"
 # pristine source per runtime: drop any build artifacts from another compiler
@@ -55,13 +81,17 @@ echo "      $(ocamlfind query camlidl 2>&1)"
 
 echo "[3/4] mlgmpidl (configure/make; needs camlidl + caml/camlidlruntime.h)"
 ( cd "$SRC/mlgmpidl"
-  ./configure CPPFLAGS+=-I"$PREFIX/lib" >/dev/null 2>&1
+  ./configure CPPFLAGS+=" -I$PREFIX/lib $MPFR_CPPFLAGS" LDFLAGS+=" $MPFR_LDFLAGS" >/dev/null 2>&1
   make >/dev/null 2>&1 && make install >/dev/null 2>&1 )
 echo "      $(ocamlfind query gmp 2>&1)"
 
 echo "[4/4] apron (configure --prefix; finds camlidl via ocamlfind query)"
 ( cd "$SRC/apron"
-  CPPFLAGS="-I$PREFIX/lib" ./configure --prefix "$PREFIX" --no-ppl --no-strip >/dev/null 2>&1
+  # apron's configure does not honour CPPFLAGS for mpfr; it wants MPFR_PREFIX
+  # (searching /usr/local /opt/homebrew /usr $HOME otherwise). Pass ours when we
+  # built MPFR from source; leave it unset so apron finds system mpfr as before.
+  [ -n "${MPFR_PREFIX:-}" ] && export MPFR_PREFIX
+  CPPFLAGS="-I$PREFIX/lib $MPFR_CPPFLAGS" LDFLAGS="$MPFR_LDFLAGS" ./configure --prefix "$PREFIX" --no-ppl --no-strip >/dev/null 2>&1
   # Serial make: apron's recursive Makefile under-declares the dependency of the
   # OCaml bindings on the C domain libraries, so a parallel build (-j) races and
   # intermittently dies with exit 2 — reliably enough to fail CI now and then while
