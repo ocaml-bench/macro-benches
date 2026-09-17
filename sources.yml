@@ -94,9 +94,9 @@ ppx_blob:
 ppxlib:
   repo: "https://github.com/ocaml-ppx/ppxlib.git"
   branch: "main"
-  commit: "df9d10b5163b35d646b75dc412237280e43273d0"
-  date: "2026-06-01"
-  notes: "Replaces the lockfile's ppxlib; adds Ast_506 for OCaml 5.6 trunk. Drop once a release supports 5.6."
+  commit: "2d82f915397811d60ca860f03c11b580b8d683b8"
+  date: "2026-09-16"
+  notes: "Replaces the lockfile's ppxlib; adds Ast_506 for OCaml 5.6 trunk. Drop once a release supports 5.6. Bumped from df9d10b (2026-06-01) when trunk grew Pexp_hole and Pmod_hole, which the old pin's Ast_506 lacked, failing every ppxlib-dependent benchmark."
 
 lwt:
   repo: "https://github.com/ocsigen/lwt.git"
