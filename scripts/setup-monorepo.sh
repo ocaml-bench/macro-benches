@@ -257,7 +257,7 @@ echo ""
 echo "[3/9] Patching duniverse/dune_/dune-project (lang dune 3.2x → 3.21)..."
 if grep -qE 'lang dune 3\.2[0-9]' duniverse/dune_/dune-project 2>/dev/null && \
    ! grep -q 'lang dune 3.21' duniverse/dune_/dune-project 2>/dev/null; then
-  sed -i -E 's/lang dune 3\.2[0-9]+/lang dune 3.21/' duniverse/dune_/dune-project
+  sed_i -E 's/lang dune 3\.2[0-9]+/lang dune 3.21/' duniverse/dune_/dune-project
   rm -rf duniverse/dune_/test
   echo "  Patched ($(head -1 duniverse/dune_/dune-project))."
 else
@@ -284,7 +284,7 @@ echo "[3b/9] Patching duniverse/rocq for dune >= 3.24 (dropping dead coq extensi
 _rocq_patched=0
 if grep -qE '^\(using coq [0-9.]+\)' duniverse/rocq/dune-project 2>/dev/null; then
   # Also drop the comment that exists only to explain the declaration.
-  sed -i -E '/^; We need this for when we use the dune\.disabled files instead of our rule_gen$/d; /^\(using coq [0-9.]+\)$/d' \
+  sed_i -E '/^; We need this for when we use the dune\.disabled files instead of our rule_gen$/d; /^\(using coq [0-9.]+\)$/d' \
     duniverse/rocq/dune-project
   _rocq_patched=1
 fi
@@ -384,7 +384,7 @@ else
   _proc_tgz="$(mktemp -d)/processor.tgz"
   curl -fsSL "${_proc_url}" -o "${_proc_tgz}"
   _proc_want="$(src_field processor md5)"
-  _proc_got="$(md5sum "${_proc_tgz}" | cut -d' ' -f1)"
+  _proc_got="$(checksum "${_proc_tgz}")"
   if [ -n "${_proc_want}" ] && [ "${_proc_want}" != "${_proc_got}" ]; then
     echo "ERROR: processor tarball md5 ${_proc_got}, expected ${_proc_want}" >&2
     exit 1
@@ -453,7 +453,7 @@ echo "[7/9] Applying vendored source patches..."
 # Patch 1: alt-ergo ppx_blob paths (workspace-root-relative)
 THEORIES_ML="duniverse/alt-ergo/src/lib/util/theories.ml"
 if grep -q '\[%blob "src/preludes/' "$THEORIES_ML" 2>/dev/null; then
-  sed -i 's|\[%blob "src/preludes/|\[%blob "duniverse/alt-ergo/src/preludes/|g' "$THEORIES_ML"
+  sed_i 's|\[%blob "src/preludes/|\[%blob "duniverse/alt-ergo/src/preludes/|g' "$THEORIES_ML"
   echo "  [1] alt-ergo ppx_blob paths: patched."
 else
   echo "  [1] alt-ergo ppx_blob paths: already patched."
@@ -501,8 +501,10 @@ if grep -q 'method virtual id' duniverse/lwt/src/unix/lwt_engine.mli 2>/dev/null
   if grep -q 'Engine_id__libevent' "$DEVKIT_LWT" 2>/dev/null; then
     echo "  [6] devkit lwt 6.x compat: already patched."
   else
-    sed -i '/libevent-based engine for lwt/a type Lwt_engine.engine_id += Engine_id__libevent' "$DEVKIT_LWT"
-    sed -i '/inherit Lwt_engine.abstract/a\  method id = Engine_id__libevent' "$DEVKIT_LWT"
+    insert_after "$DEVKIT_LWT" 'libevent-based engine for lwt' \
+      'type Lwt_engine.engine_id += Engine_id__libevent'
+    insert_after "$DEVKIT_LWT" 'inherit Lwt_engine.abstract' \
+      '  method id = Engine_id__libevent'
     echo "  [6] devkit lwt 6.x compat: patched."
   fi
 else
@@ -514,9 +516,9 @@ LIBEVENT_ML="vendor/libevent/libevent.ml"
 if grep -q '~persist' "$LIBEVENT_ML" 2>/dev/null; then
   echo "  [7] libevent labels: already patched."
 else
-  sed -i 's/^let set base event fd etype persist/let set base event fd etype ~persist/' "$LIBEVENT_ML"
-  sed -i 's/^let set_timer base event persist/let set_timer base event ~persist/' "$LIBEVENT_ML"
-  sed -i 's/^let set_signal base event signal persist/let set_signal base event ~signal ~persist/' "$LIBEVENT_ML"
+  sed_i 's/^let set base event fd etype persist/let set base event fd etype ~persist/' "$LIBEVENT_ML"
+  sed_i 's/^let set_timer base event persist/let set_timer base event ~persist/' "$LIBEVENT_ML"
+  sed_i 's/^let set_signal base event signal persist/let set_signal base event ~signal ~persist/' "$LIBEVENT_ML"
   echo "  [7] libevent labels: patched."
 fi
 
@@ -529,8 +531,8 @@ if [ -f "$JSOO_DUNE" ] && grep -q '(public_name js_of_ocaml)' "$JSOO_DUNE" 2>/de
   # (install ...) stanzas alone. Do NOT anchor to a line number: upstream
   # reorders these fields (public_name moved from line 2 to line 3), which
   # silently turned this patch into a no-op that still reported success.
-  sed -i '0,/^ (public_name js_of_ocaml)$/{/^ (public_name js_of_ocaml)$/d}' "$JSOO_DUNE"
-  sed -i '0,/^ (package js_of_ocaml-compiler)$/{/^ (package js_of_ocaml-compiler)$/d}' "$JSOO_DUNE"
+  delete_first_match "$JSOO_DUNE" '^ [(]public_name js_of_ocaml[)]$'
+  delete_first_match "$JSOO_DUNE" '^ [(]package js_of_ocaml-compiler[)]$'
   echo "  [8] jsoo public_name: removed from executable stanza."
 elif [ -f "$JSOO_DUNE" ]; then
   echo "  [8] jsoo public_name: already removed."
@@ -543,8 +545,8 @@ OCFMT_DUNE="duniverse/ocamlformat/bin/ocamlformat/dune"
 if [ -f "$OCFMT_DUNE" ] && grep -q '(public_name ocamlformat)' "$OCFMT_DUNE" 2>/dev/null; then
   # Remove only the first occurrence of public_name and the package line
   # immediately after it (lines 14-15 in the executable stanza).
-  sed -i '0,/(public_name ocamlformat)/{/(public_name ocamlformat)/d}' "$OCFMT_DUNE"
-  sed -i '0,/^ (package ocamlformat)$/{/^ (package ocamlformat)$/d}' "$OCFMT_DUNE"
+  delete_first_match "$OCFMT_DUNE" '[(]public_name ocamlformat[)]'
+  delete_first_match "$OCFMT_DUNE" '^ [(]package ocamlformat[)]$'
   echo "  [9] ocamlformat public_name: removed."
 elif [ -f "$OCFMT_DUNE" ]; then
   echo "  [9] ocamlformat public_name: already removed."
@@ -555,8 +557,8 @@ fi
 # Patch 10: owl C bug — std_gaussian_rvs called with arguments but takes none
 OWL_EXPONPOW="duniverse/owl/src/owl/stats/owl_stats_dist_exponpow.c"
 if [ -f "$OWL_EXPONPOW" ] && grep -q 'std_gaussian_rvs (a' "$OWL_EXPONPOW" 2>/dev/null; then
-  sed -i 's/std_gaussian_rvs (a \/ sqrt (2.0))/gaussian_rvs (0, a \/ sqrt (2.0))/' "$OWL_EXPONPOW"
-  sed -i 's/std_gaussian_rvs (B)/gaussian_rvs (0, B)/' "$OWL_EXPONPOW"
+  sed_i 's/std_gaussian_rvs (a \/ sqrt (2.0))/gaussian_rvs (0, a \/ sqrt (2.0))/' "$OWL_EXPONPOW"
+  sed_i 's/std_gaussian_rvs (B)/gaussian_rvs (0, B)/' "$OWL_EXPONPOW"
   echo "  [10] owl std_gaussian_rvs: patched (upstream C bug)."
 elif [ -f "$OWL_EXPONPOW" ]; then
   echo "  [10] owl std_gaussian_rvs: already patched."
@@ -571,13 +573,13 @@ fi
 BATGC_MLI="duniverse/batteries-included/src/batGc.mli"
 if [ -f "$BATGC_MLI" ]; then
   if grep -q '##V>=5\.6## live_stacks_words' "$BATGC_MLI"; then
-    sed -i -E '/live_stacks_words|Total space allocated outside of the OCaml heap|@since 5\.[56]\.0 \*\)/ s/##V>=5\.6##/##V>=5.5##/' "$BATGC_MLI"
+    sed_i -E '/live_stacks_words|Total space allocated outside of the OCaml heap|@since 5\.[56]\.0 \*\)/ s/##V>=5\.6##/##V>=5.5##/' "$BATGC_MLI"
     echo "  [11] batteries Gc.stat: relaxed live_stacks_words gate to ##V>=5.5##."
   elif ! grep -q 'live_stacks_words' "$BATGC_MLI"; then
-    sed -i '/##V>=4.12## forced_major_collections: int;/{
-      N;N;N
-      a##V>=5.5## live_stacks_words: int;\n##V>=5.5## (** Total space allocated outside of the OCaml heap for stack fragments.\n##V>=5.5##     @since 5.5.0 *)
-    }' "$BATGC_MLI"
+    insert_after_offset "$BATGC_MLI" '##V>=4.12## forced_major_collections: int;' 3 \
+      '##V>=5.5## live_stacks_words: int;' \
+      '##V>=5.5## (** Total space allocated outside of the OCaml heap for stack fragments.' \
+      '##V>=5.5##     @since 5.5.0 *)'
     echo "  [11] batteries Gc.stat: added live_stacks_words (##V>=5.5##)."
   else
     echo "  [11] batteries Gc.stat: already patched."
@@ -589,7 +591,9 @@ fi
 # Patch 12: mcl caml_mcl.c — add #include <stdint.h> for OCaml 5.6 trunk headers
 MCL_CAML="vendor/pplacer/mcl/caml/caml_mcl.c"
 if [ -f "$MCL_CAML" ] && ! grep -q 'stdint.h' "$MCL_CAML" 2>/dev/null; then
-  sed -i '1a #include <stdint.h>' "$MCL_CAML"
+  # insert_at_line, not sed_i: `1a text` is GNU one-line append syntax, and
+  # sed_i makes `-i` portable but passes the SCRIPT through verbatim.
+  insert_at_line "$MCL_CAML" 1 '#include <stdint.h>'
   echo "  [12] mcl caml_mcl.c: added #include <stdint.h>."
 elif [ -f "$MCL_CAML" ]; then
   echo "  [12] mcl caml_mcl.c: already patched."
@@ -655,7 +659,7 @@ fi
 # upstream comment deliberately avoids).
 GOBLINT_H="duniverse/analyzer/lib/goblint/runtime/include/goblint.h"
 if [ -f "$GOBLINT_H" ] && grep -q '__goblint_assume_join(/\* pthread_t' "$GOBLINT_H" 2>/dev/null; then
-  sed -i 's|void __goblint_assume_join(/\* pthread_t thread \*/);.*|void __goblint_assume_join(unsigned long thread); // pthread_t is unsigned long on Linux; avoids pthread.h vs kernel headers|' "$GOBLINT_H"
+  sed_i 's|void __goblint_assume_join(/\* pthread_t thread \*/);.*|void __goblint_assume_join(unsigned long thread); // pthread_t is unsigned long on Linux; avoids pthread.h vs kernel headers|' "$GOBLINT_H"
   echo "  [14] goblint.h: patched __goblint_assume_join signature (GCC 14+/C23)."
 elif [ -f "$GOBLINT_H" ]; then
   echo "  [14] goblint.h: already patched."
@@ -801,7 +805,7 @@ GOBLINT_CTRL="duniverse/analyzer/src/framework/control.ml"
 # after the sed there is no unannotated call left to match.
 if [ -f "$GOBLINT_CTRL" ] && grep -qF "analyze_loop (module CFG) file fs change_info" "$GOBLINT_CTRL" 2>/dev/null; then
   _n=$(grep -cF "analyze_loop (module CFG) file fs change_info" "$GOBLINT_CTRL")
-  sed -i 's/analyze_loop (module CFG) file fs change_info/analyze_loop (module CFG : CfgBidirSkip) file fs change_info/g' "$GOBLINT_CTRL"
+  sed_i 's/analyze_loop (module CFG) file fs change_info/analyze_loop (module CFG : CfgBidirSkip) file fs change_info/g' "$GOBLINT_CTRL"
   echo "  [18] goblint control.ml: annotated ${_n} (module CFG : CfgBidirSkip) call site(s) (OCaml >= 5.5)."
   unset _n
 elif [ -f "$GOBLINT_CTRL" ]; then
@@ -895,6 +899,329 @@ else
 fi
 echo ""
 
+# Patch 25: extunix gettid -- teach the probe FreeBSD's spelling.
+# devkit's log.ml and files.ml call `U.gettid ()` where `U = ExtUnix.Specific`
+# (prelude.ml). ExtUnix.Specific exposes only what the platform actually has,
+# so on FreeBSD the whole devkit build dies at compile time with
+#   Error: Unbound value U.gettid
+# and with it benchmarks/ahrefs-devkit, the only consumer.
+#
+# This is NOT a missing system library and NOT devkit's bug. extunix already
+# implements gettid four ways in src/unistd.c (Win32 GetCurrentThreadId, macOS
+# pthread_threadid_np, older macOS SYS_thread_selfid, Linux SYS_gettid); its
+# discover.ml probes them as an ordered ANY[...] and FreeBSD matches none,
+# purely on spelling. FreeBSD calls it pthread_getthreadid_np(), declared in
+# <pthread_np.h>, where macOS calls it pthread_threadid_np().
+#
+# So add a fifth alternative, shaped exactly like the macOS one. `I` and
+# `DEFINE` are both documented in discover.ml as "promoted to config", so the
+# include and the define land in the generated config.h that unistd.c already
+# includes. On Linux nothing changes: the probe is ordered, the pthread_np.h
+# alternative fails there, and the SYS_gettid branch still wins.
+EXTUNIX_DISCOVER="duniverse/extunix/discover/discover.ml"
+EXTUNIX_UNISTD="duniverse/extunix/src/unistd.c"
+if [ -f "$EXTUNIX_DISCOVER" ] && [ -f "$EXTUNIX_UNISTD" ]; then
+  if grep -q "EXTUNIX_USE_PTHREAD_GETTHREADID_NP" "$EXTUNIX_DISCOVER" 2>/dev/null; then
+    echo "  [25] extunix gettid: already patched."
+  else
+    python3 - "$EXTUNIX_DISCOVER" "$EXTUNIX_UNISTD" <<'PYEOF'
+import sys
+
+disc, unistd = sys.argv[1], sys.argv[2]
+
+s = open(disc).read()
+old = '      [ DEFINE "EXTUNIX_USE_THREAD_SELFID"; I "sys/syscall.h"; S "syscall"; V "SYS_thread_selfid"];\n'
+new = old + ('      [ DEFINE "EXTUNIX_USE_PTHREAD_GETTHREADID_NP"; I "pthread_np.h";'
+             ' S "pthread_getthreadid_np" ];\n')
+if old not in s:
+    sys.exit("  [25] extunix gettid: discover.ml GETTID probe not in the expected shape")
+open(disc, "w").write(s.replace(old, new, 1))
+
+c = open(unistd).read()
+old_c = """#elif defined(EXTUNIX_USE_THREAD_SELFID)
+  pid_t tid = 0;
+  tid = syscall(SYS_thread_selfid);
+"""
+new_c = old_c + """#elif defined(EXTUNIX_USE_PTHREAD_GETTHREADID_NP)
+  int tid = pthread_getthreadid_np();
+"""
+if old_c not in c:
+    sys.exit("  [25] extunix gettid: unistd.c gettid body not in the expected shape")
+open(unistd, "w").write(c.replace(old_c, new_c, 1))
+print("  [25] extunix gettid: added the FreeBSD pthread_getthreadid_np branch.")
+PYEOF
+  fi
+else
+  echo "  [25] extunix gettid: not vendored. Skipping."
+fi
+echo ""
+
+# Patch 26: owl OpenMP link flags on FreeBSD.
+# owl's stubs compile but fail to LINK there:
+#   ld: error: undefined symbol: __kmpc_fork_call
+#   ld: error: undefined symbol: __kmpc_for_static_init_8
+# Those __kmpc_* symbols are emitted by the compiler for `#pragma omp`, so
+# something is passing -fopenmp at compile time while nothing adds the OpenMP
+# runtime at link time. libomp.so is present in the FreeBSD base system, so it
+# is purely a missing flag.
+#
+# Two holes, and this closes both:
+#
+#  (a) get_openmp_config matches "linux"/"linux_elf" -> -lgomp, "macosx" ->
+#      -lomp, "mingw64" -> -lgomp, and everything else falls to `_ -> [], []`.
+#      FreeBSD lands there and gets no flags at all. Its cc is clang, so the
+#      right pair is the macOS one without -Xpreprocessor: -fopenmp / -lomp.
+#      This only fires when OWL_ENABLE_OPENMP=1, which is NOT the default
+#      (bgetenv returns 0 when the variable is unset).
+#
+#  (b) which is why (a) alone is probably not what bit rosemary. openblas_conf
+#      comes from `pkg-config openblas`, and FreeBSD's openblas is built with
+#      OpenMP threading, so its .pc can put -fopenmp into cflags even when
+#      owl's own OpenMP support is switched off. Then cflags has -fopenmp and
+#      libs has no runtime, which is exactly the observed symptom. So also add
+#      -lomp whenever the assembled cflags ask for OpenMP and the assembled
+#      libs carry no runtime yet.
+#
+# Both are confined to FreeBSD, so Linux keeps -fopenmp/-lgomp and macOS keeps
+# -Xpreprocessor. UNVERIFIED on hardware: the (b) diagnosis is inferred from
+# the link error plus the flag assembly, not observed, so if owl still fails
+# after this, dump the assembled cflags/libs rather than guessing again.
+OWL_CONFIGURE="duniverse/owl/src/owl/config/configure.ml"
+if [ -f "$OWL_CONFIGURE" ]; then
+  if grep -q 'freebsd' "$OWL_CONFIGURE" 2>/dev/null; then
+    echo "  [26] owl OpenMP: already patched."
+  else
+    python3 - "$OWL_CONFIGURE" <<'PYEOF'
+import sys
+
+p = sys.argv[1]
+s = open(p).read()
+
+# (a) the missing match arm
+old = '      | "macosx"    -> [ "-Xpreprocessor"; "-fopenmp" ], [ "-lomp" ]\n'
+new = old + (
+    '      (* FreeBSD cc is clang, but unlike macOS it needs no -Xpreprocessor. *)\n'
+    '      | "freebsd"   -> [ "-fopenmp" ], [ "-lomp" ]\n'
+)
+if old not in s:
+    sys.exit("  [26] owl OpenMP: get_openmp_config not in the expected shape")
+s = s.replace(old, new, 1)
+
+# (b) the runtime that pkg-config's -fopenmp never brings with it
+old2 = (
+    '      if not @@ C.c_test c test_linking ~c_flags:cflags ~link_flags:libs\n'
+    '      then (\n'
+    '        Printf.printf\n'
+)
+new2 = (
+    '      (* FreeBSD: -fopenmp can arrive via pkg-config (openblas is built\n'
+    '         with OpenMP there) while owl own OpenMP support is off, leaving\n'
+    '         the __kmpc_* symbols undefined at link. Add the runtime when the\n'
+    '         flags ask for OpenMP and nothing has supplied it. No-op\n'
+    '         elsewhere. *)\n'
+    '      let libs =\n'
+    '        if get_os_type c = "freebsd"\n'
+    '           && List.exists (fun f -> f = "-fopenmp") cflags\n'
+    '           && not (List.exists (fun l -> l = "-lomp" || l = "-lgomp") libs)\n'
+    '        then libs @ [ "-lomp" ]\n'
+    '        else libs\n'
+    '      in\n'
+) + old2
+if s.count(old2) != 1:
+    sys.exit("  [26] owl OpenMP: the flag assembly is not in the expected shape")
+s = s.replace(old2, new2, 1)
+
+open(p, "w").write(s)
+print("  [26] owl OpenMP: added the FreeBSD -fopenmp/-lomp handling.")
+PYEOF
+  fi
+else
+  echo "  [26] owl OpenMP: not vendored. Skipping."
+fi
+echo ""
+
+# Patch 27: gsl-ocaml discover -- stop assuming gsl headers are in /usr/include.
+# pplacer dies in a dune rule with
+#   Fatal error: exception Sys_error("/usr/include/gsl/gsl_cdf.h: No such
+#   file or directory")
+# because src/config/discover.ml hardcodes
+#   let default_gsl_include = [ "/usr/include" ]
+# and on FreeBSD gsl is under LOCALBASE (/usr/local/include).
+#
+# Why the default is even reached is NOT established. The first explanation
+# recorded here, that pkgconf strips -I/usr/local/include as a system include
+# path, was measured on FreeBSD and is FALSE:
+#
+#   $ pkg-config --cflags gsl
+#   -I/usr/local/include
+#
+# pkgconf does emit the flag. So something else makes discover fall through to
+# the default: `C.Pkg_config.get c` returning None because pkg-config is not on
+# PATH in dune's build environment, or the gsl query failing because its .pc
+# lives in /usr/local/libdata/pkgconfig and PKG_CONFIG_PATH does not cover it
+# there. Both are guesses; do not treat either as settled.
+#
+# The fix below holds either way, because it does not consult pkg-config at
+# all: it probes the filesystem. That is why this is worth keeping despite the
+# cause being unknown. But if the probe ever needs changing, the reasoning
+# underneath it is not a reliable guide, so establish the real cause first.
+#
+# This is the one member of the /usr/local class that a compiler search path
+# cannot fix: the literal is read by OCaml and used to open a file, never
+# passed to the compiler, so C_INCLUDE_PATH is irrelevant to it.
+#
+# Probe instead of assume. /usr/include stays ahead of /usr/local/include, so
+# a Linux box resolves exactly as before; LOCALBASE, when set, is tried first
+# so a non-default pkg prefix works.
+GSL_DISCOVER="duniverse/gsl-ocaml/src/config/discover.ml"
+if [ -f "$GSL_DISCOVER" ]; then
+  if grep -q 'gsl_cdf.h' "$GSL_DISCOVER" 2>/dev/null; then
+    echo "  [27] gsl-ocaml include search: already patched."
+  else
+    python3 - "$GSL_DISCOVER" <<'PYEOF'
+import sys
+
+p = sys.argv[1]
+s = open(p).read()
+old = '        let default_gsl_include = [ "/usr/include" ] in\n'
+new = (
+    '        (* Probe, do not assume. On FreeBSD gsl is under LOCALBASE, and\n'
+    '           pkgconf strips -I/usr/local/include from --cflags because that\n'
+    '           path is in its system include list, so the -I search below\n'
+    '           finds nothing and this default is what is used. /usr/include\n'
+    '           stays first, so Linux resolves exactly as before. *)\n'
+    '        let default_gsl_include =\n'
+    '          let candidates =\n'
+    '            (match Sys.getenv_opt "LOCALBASE" with\n'
+    '             | Some pfx -> [ Filename.concat pfx "include" ]\n'
+    '             | None -> [])\n'
+    '            @ [ "/usr/include"; "/usr/local/include"; "/opt/homebrew/include" ]\n'
+    '          in\n'
+    '          match\n'
+    '            List.find_opt\n'
+    '              (fun d -> Sys.file_exists (Filename.concat d "gsl/gsl_cdf.h"))\n'
+    '              candidates\n'
+    '          with\n'
+    '          | Some d -> [ d ]\n'
+    '          | None -> [ "/usr/include" ]\n'
+    '        in\n'
+)
+if s.count(old) != 1:
+    sys.exit("  [27] gsl-ocaml include search: not in the expected shape")
+open(p, "w").write(s.replace(old, new, 1))
+print("  [27] gsl-ocaml include search: now probes for gsl/gsl_cdf.h.")
+PYEOF
+  fi
+else
+  echo "  [27] gsl-ocaml include search: not vendored. Skipping."
+fi
+echo ""
+
+# Patch 28: goblint parallel -- pin the domainslib `select` to one answer.
+# goblint fails to build wherever domainslib happens to be installed in the
+# runtime switch:
+#   Error: Conflict between the following libraries:
+#   - "domain-local-await" in .../duniverse/domain-local-await/src
+#   - "domain-local-await" in ~/.opam/<switch>/lib/domain-local-await
+#     -> required by library "domainslib" ... -> "goblint.parallel"
+#
+# The chain: domain-local-await is a HARD dep of goblint, so opam-monorepo
+# vendors it. domainslib is a DEPOPT, so it is not vendored, and
+# src/util/parallel/dune picks an implementation with
+#   (select gobMutex.ml from (domainslib -> ...) ( -> ...))
+# When the switch happens to carry domainslib, that select resolves to the
+# domainslib branch, which drags in the SWITCH's domain-local-await alongside
+# the vendored one, and dune refuses the ambiguity.
+#
+# Whether the switch carries domainslib is not a property of this repo at all:
+# running-ng's install_deps_*.sh install it for the MICRO suite's multicore/
+# benchmarks. So a machine that ran micro before macro builds a different
+# goblint from one that did not.
+#
+# That makes this a measurement bug, not only a build failure. Left alone,
+# goblint silently switches threadpool implementation depending on what else
+# has been run on the box, and the numbers stop being comparable. Every
+# goblint figure we have was produced with the no-domainslib variants, because
+# no switch we used had domainslib until rosemary ran micro first.
+#
+# So pin it to the no-domainslib branch: deterministic everywhere, and it
+# matches the established Linux behaviour rather than changing it. Dropping
+# the domainslib alternative leaves a select with only a default, which is
+# valid dune.
+GOBLINT_PARALLEL="duniverse/analyzer/src/util/parallel/dune"
+if [ -f "$GOBLINT_PARALLEL" ]; then
+  if ! grep -q 'domainslib ->' "$GOBLINT_PARALLEL" 2>/dev/null; then
+    echo "  [28] goblint parallel select: already patched."
+  else
+    python3 - "$GOBLINT_PARALLEL" <<'PYEOF'
+import re
+import sys
+
+p = sys.argv[1]
+s = open(p).read()
+# Drop every `(domainslib -> <file>)` alternative, leaving each select's
+# default. Whitespace differs between the two blocks in this file, so match
+# the line rather than an exact string.
+new, n = re.subn(r'^[ \t]*\(domainslib -> [^\n]*\)\n', '', s, flags=re.M)
+if n != 2:
+    sys.exit("  [28] goblint parallel select: expected 2 domainslib "
+             "alternatives, found %d" % n)
+if 'no-domainslib' not in new:
+    sys.exit("  [28] goblint parallel select: no-domainslib default missing")
+open(p, "w").write(new)
+print("  [28] goblint parallel select: pinned to the no-domainslib variants.")
+PYEOF
+  fi
+else
+  echo "  [28] goblint parallel select: not vendored. Skipping."
+fi
+echo ""
+
+# Patch 29: CIL's real-GCC search -- FreeBSD spells versioned GCC without a
+# hyphen. goblint dies at configure time with
+#   Fatal error: exception Failure("couldn't find real gcc")
+# because duniverse/cil/bin/realGccConfigure.ml only ever tries "gcc" and the
+# hyphenated "gcc-7" .. "gcc-16". FreeBSD's pkg installs gcc14, gcc13 and so
+# on, with no hyphen, so every candidate misses and CIL concludes there is no
+# real GCC on a machine that has one.
+#
+# It has to be real GCC: CIL's own is_bad_gcc_version rejects anything whose
+# --version mentions clang/apple/darwin, which is correct (goblint needs gcc
+# semantics, and `cc` on FreeBSD is clang). The FreeBSD gcc14 package passes
+# that check, so the only thing missing is the spelling.
+#
+# Unhyphenated names go AFTER plain "gcc", so where a plain gcc exists (every
+# Linux box) the chosen compiler does not change; the extra candidates simply
+# do not exist there. Newest first, matching the existing list's order.
+CIL_GCC="duniverse/cil/bin/realGccConfigure.ml"
+if [ -f "$CIL_GCC" ]; then
+  if grep -q '"gcc14"' "$CIL_GCC" 2>/dev/null; then
+    echo "  [29] cil real-gcc search: already patched."
+  else
+    python3 - "$CIL_GCC" <<'PYEOF'
+import sys
+
+p = sys.argv[1]
+s = open(p).read()
+old = 'let gccs = [\n  "gcc";\n'
+new = (
+    'let gccs = [\n'
+    '  "gcc";\n'
+    '  (* FreeBSD pkg installs versioned GCC unhyphenated: gcc14, not gcc-14.\n'
+    '     After plain "gcc", so nothing changes where that exists. *)\n'
+    '  "gcc16"; "gcc15"; "gcc14"; "gcc13"; "gcc12"; "gcc11";\n'
+)
+if s.count(old) != 1:
+    sys.exit("  [29] cil real-gcc search: gccs list not in the expected shape")
+open(p, "w").write(s.replace(old, new, 1))
+print("  [29] cil real-gcc search: added the unhyphenated FreeBSD names.")
+PYEOF
+  fi
+else
+  echo "  [29] cil real-gcc search: not vendored. Skipping."
+fi
+echo ""
+
 # [22] sedlex unicode.ml: stop regenerating it from a live download.
 #
 # duniverse/sedlex/src/syntax/dune has a `(mode promote)` rule that regenerates
@@ -955,7 +1282,7 @@ echo ""
 # call goes; camlpdf's other Pdfe diagnostics still print.
 PDFTREE_ML="vendor/camlpdf/pdftree.ml"
 if grep -q 'Pdfe.log "Warning Duplicate name/number tree key' "$PDFTREE_ML" 2>/dev/null; then
-  sed -i '/Pdfe.log "Warning Duplicate name\/number tree key/d' "$PDFTREE_ML"
+  sed_i '/Pdfe.log "Warning Duplicate name\/number tree key/d' "$PDFTREE_ML"
   echo "  [23] camlpdf duplicate-key warning: removed."
 else
   echo "  [23] camlpdf duplicate-key warning: already patched (or file missing)."

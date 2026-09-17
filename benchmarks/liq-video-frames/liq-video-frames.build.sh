@@ -4,6 +4,15 @@
 # Per-frame: three Bigarrays sized as mm/Image.YUV420.create for 720p.
 set -euo pipefail
 
+# running-ng invokes this script DIRECTLY at run time, so it does NOT inherit
+# the environment setup-monorepo.sh builds up. Source the portability library
+# for its LOCALBASE exports: on FreeBSD, pkg puts headers in
+# /usr/local/include, which the base clang does not search, so a vendored C
+# stub that includes one fails with "'event.h' file not found" even though the
+# package is installed. FreeBSD-gated and idempotent, so this is a no-op on
+# Linux. scripts/tests/test-build-scripts-portable.sh enforces this line.
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/scripts/lib-portable.sh"
+
 BENCH_DIR="${RUNNING_OCAML_BENCH_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 OUT="${RUNNING_OCAML_OUTPUT:-${BENCH_DIR}/liq_video_frames-${RUNNING_OCAML_RUNTIME_NAME:-runtime}}"
 MONOREPO_DIR="$(cd "${BENCH_DIR}/../.." && pwd)"

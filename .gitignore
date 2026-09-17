@@ -57,3 +57,15 @@ results/**/notebooks/__pycache__/
 # goblint run artifacts (witness output + preprocessing cache)
 witness.yml
 .goblint/
+
+# menhir benchmark OUTPUTS, not inputs. menhir_sysver runs
+#   menhir -v --table benchmarks/menhir/sysver.mly
+# and menhir writes its generated parser and -v reports NEXT TO the grammar, so
+# every benchmark run rewrote these and left the tree dirty (~113MB of them,
+# with sysver.ml alone at 57MB). Nothing reads them: the only reference to
+# `sysver` anywhere outside results/ is the benchmark's own args, which pass
+# the .mly. The grammar is the input and stays tracked.
+benchmarks/menhir/sysver.ml
+benchmarks/menhir/sysver.mli
+benchmarks/menhir/sysver.automaton
+benchmarks/menhir/sysver.conflicts

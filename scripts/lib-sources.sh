@@ -13,6 +13,11 @@
 # Bumping a pin is now a one-line edit to sources.yml: it shows up in review, and
 # CI rebuilds and re-runs everything against it. That is the whole point.
 
+# Shell helpers that behave the same on GNU and BSD userland (sed_i, checksum,
+# ncpu and friends). Sourced here so every vendor-*.sh gets them, since they all
+# source this file; setup-monorepo.sh does too.
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-portable.sh"
+
 _SOURCES_YML="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/sources.yml"
 
 # src_field <top-level key> <field> — print one field from sources.yml.

@@ -26,7 +26,7 @@ echo "Downloading menhir ${VERSION}..."
 curl -fSL "${URL}" -o "${TMPDIR}/menhir.tar.gz"
 
 # Verify checksum.
-ACTUAL_MD5="$(md5sum "${TMPDIR}/menhir.tar.gz" | cut -d' ' -f1)"
+ACTUAL_MD5="$(checksum "${TMPDIR}/menhir.tar.gz")"
 if [ "${ACTUAL_MD5}" != "${MD5}" ]; then
   echo "MD5 mismatch: expected ${MD5}, got ${ACTUAL_MD5}" >&2
   exit 1

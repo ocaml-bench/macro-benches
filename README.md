@@ -66,14 +66,74 @@ explain the details and what coverage they would add back.
 ### Prerequisites
 
 ```bash
-sudo apt install build-essential autoconf automake m4 pkg-config \
+sudo apt install build-essential autoconf automake m4 pkg-config zip \
                  libgmp-dev libmpfr-dev libevent-dev libcurl4-openssl-dev \
                  libpcre3-dev zlib1g-dev libopenblas-dev liblapacke-dev \
                  libgsl-dev libsqlite3-dev libyaml-dev
 ```
 
+On FreeBSD, as root:
+
+```sh
+pkg install autoconf automake libtool m4 pkgconf gmake zip \
+            gmp mpfr openblas lapacke gsl sqlite3 libyaml perl5 \
+            curl libev libevent pcre
+```
+
+`make setup` puts `/usr/local/include` and `/usr/local/lib` on the C
+toolchain's search path for you (`scripts/lib-portable.sh`). You need this
+because FreeBSD's base clang searches **neither**: its default list is only
+`/usr/lib/clang/<v>/include` and `/usr/include`, so a vendored C stub that
+includes a pkg-installed header fails with `fatal error: 'gsl/gsl_vector.h'
+file not found` even though the package is installed. Set `LOCALBASE` if your
+packages are somewhere other than `/usr/local`. Building a benchmark by hand,
+outside `make setup`, may need the same:
+
+```sh
+export C_INCLUDE_PATH=/usr/local/include LIBRARY_PATH=/usr/local/lib
+```
+
+Two differences from the apt list, both deliberate:
+
+* **No zlib, and no C toolchain.** FreeBSD ships both in the base system, so
+  there is nothing to install. `gmake` is listed separately because a few
+  vendored `configure` scripts generate GNU-only makefiles.
+* **No PCRE2.** Neither list needs it. `conf-libpcre2-8` used to sit in
+  `macro-bench-devkit.opam.template`, but nothing in the tree has ever used
+  PCRE2: devkit depends on the `pcre` OCaml library (PCRE **1**, via
+  `conf-libpcre`), there is no `Pcre2.` anywhere under `duniverse/`, and the
+  apt list only ever installed `libpcre3-dev`. On CI the requirement was
+  satisfied by accident, because `libgio-2.0-dev` and `libselinux1-dev` drag
+  `libpcre2-dev` in. It has been dropped from the template and the lock.
+
+Five suites need a source patch on FreeBSD, all applied by `make setup`:
+**devkit** (patch 25, below), **owl** (patch 26: OpenMP link flags, since
+`-fopenmp` arrives from `pkg-config openblas` while nothing adds `-lomp`;
+confirmed on FreeBSD, where `pkg-config --cflags openblas` returns
+`-I/usr/local/include -fopenmp` and `--libs` returns no OpenMP runtime),
+**pplacer** (patch 27: `gsl-ocaml`'s discover hardcodes `/usr/include` as its
+fallback, and on FreeBSD that fallback is what gets used, so it now probes for
+the headers instead), and **goblint** (patch 28, plus its apron chain needing
+GNU make because camlidl's Makefile uses GNU conditionals that bmake rejects as
+a syntax error, so `scripts/vendor-apron.sh` calls `gmake` where available).
+
+On devkit specifically: it calls `U.gettid ()`, where `U = ExtUnix.Specific`, and
+`ExtUnix.Specific` exposes only what the platform actually has. extunix already
+implements `gettid` four ways, but its `discover.ml` probe matches none of them
+on FreeBSD purely on spelling: FreeBSD calls it `pthread_getthreadid_np()` in
+`<pthread_np.h>` where macOS calls it `pthread_threadid_np()`. Without the
+patch `duniverse/devkit` fails to compile with `Unbound value U.gettid`, taking
+`benchmarks/ahrefs-devkit` with it. Patch 25 adds the missing probe
+alternative; Linux is unaffected, since `pthread_np.h` does not exist there and
+the probe still falls through to `SYS_gettid`.
+
 This is the same list CI installs, so it is the one that is actually exercised on
-a clean machine. Notably `liblapacke-dev` is separate from `libopenblas-dev` —
+a clean machine. `zip` is a plain command-line tool rather than a library, needed by
+`scripts/vendor-infer-corpus.sh`; without it infer's corpus step fails with
+`zip: command not found`. It was missing from this list until a FreeBSD run
+hit it, so a minimal Linux image can hit it too.
+
+Notably `liblapacke-dev` is separate from `libopenblas-dev` —
 owl links `-llapacke`, and without it the build fails at link time with
 `/usr/bin/ld: cannot find -llapacke`.
 

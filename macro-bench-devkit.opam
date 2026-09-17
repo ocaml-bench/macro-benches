@@ -25,7 +25,6 @@ x-opam-monorepo-opam-provided: [
   "conf-libevent"
   "conf-libev"
   "conf-libpcre"
-  "conf-libpcre2-8"
   "conf-gmp"
   "conf-pkg-config"
   "conf-zlib"

@@ -32,7 +32,9 @@ clone_pinned mcl "${PPLACER_DIR}/mcl"
 # already present, so a re-run of an unchanged pin costs nothing.
 if [ ! -f "${PPLACER_DIR}/mcl/src/mcl/libmcl.a" ]; then
   echo "Building mcl C libraries..."
-  (cd "${PPLACER_DIR}/mcl" && ./configure --quiet && make -j"$(nproc)" --quiet)
+  # `-s`, not `--quiet`: the POSIX spelling, accepted by both bmake and gmake
+  # (GNU treats it as --silent).  BSD make rejects the long option outright.
+  (cd "${PPLACER_DIR}/mcl" && ./configure --quiet && make -j"$(ncpu)" -s)
 else
   echo "  mcl C libraries already built. Skipping."
 fi
@@ -54,7 +56,7 @@ done
 echo "Installing like_bench input-size ladder driver overlay..."
 cp "${MONOREPO_DIR}/dune-overlays/pplacer/like_bench.ml" "${PPLACER_DIR}/like_bench.ml"
 if ! grep -q 'like_bench' "${PPLACER_DIR}/dune"; then
-  sed -i \
+  sed_i \
     -e 's/(names pplacer guppy rppr tests)/(names pplacer guppy rppr tests like_bench)/' \
     -e 's/(public_names pplacer guppy rppr -)/(public_names pplacer guppy rppr - -)/' \
     "${PPLACER_DIR}/dune"

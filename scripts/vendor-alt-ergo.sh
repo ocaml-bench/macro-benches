@@ -80,7 +80,7 @@ download_and_extract() {
   curl -fSL "${url}" -o "${tmpdir}/archive.tar.gz"
 
   local actual_md5
-  actual_md5="$(md5sum "${tmpdir}/archive.tar.gz" | cut -d' ' -f1)"
+  actual_md5="$(checksum "${tmpdir}/archive.tar.gz")"
   if [ "${actual_md5}" != "${md5}" ]; then
     echo "MD5 mismatch for ${name}: expected ${md5}, got ${actual_md5}" >&2
     exit 1

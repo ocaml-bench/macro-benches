@@ -2675,7 +2675,6 @@ x-opam-monorepo-opam-provided: [
   "conf-libev"
   "conf-libevent"
   "conf-libpcre"
-  "conf-libpcre2-8"
   "conf-libyaml"
   "conf-mpfr"
   "conf-openblas"
