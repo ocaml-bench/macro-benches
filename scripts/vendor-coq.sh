@@ -49,7 +49,7 @@ download_and_extract() {
   fi
 
   echo "Extracting ${name}..."
-  tar xzf "${tmpdir}/archive.tar.gz" -C "${tmpdir}"
+  tar --no-same-owner -xzf "${tmpdir}/archive.tar.gz" -C "${tmpdir}"
 
   local extracted
   extracted="$(find "${tmpdir}" -mindepth 1 -maxdepth 1 -type d ! -name '.*' | head -1)"

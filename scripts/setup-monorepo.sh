@@ -204,7 +204,14 @@ else
   _cmdliner_url="$(src_field cmdliner-dune url)"
   _cmdliner_tbz="$(mktemp -d)/cmdliner.tbz"
   curl -fsSL "$_cmdliner_url" -o "$_cmdliner_tbz"
-  tar xf "$_cmdliner_tbz" -C duniverse/cmdliner --strip-components=1
+  # --no-same-owner: as root, both GNU tar and bsdtar try to restore the
+  # archive's uid/gid, which fails with EPERM wherever root cannot chown, such
+  # as an NFS export with root squashed (the FreeBSD CI mounts the workspace
+  # that way). Ownership of a vendored source tree is never wanted, and a
+  # non-root extraction already behaves like this, so the flag only makes the
+  # result independent of who runs it. Both tars accept the long form; `-o`
+  # means different things to each, so do not use it.
+  tar --no-same-owner -xf "$_cmdliner_tbz" -C duniverse/cmdliner --strip-components=1
   rm -f "$_cmdliner_tbz"
   echo "  Fetched cmdliner $(src_field cmdliner-dune version) (dune-universe overlay)."
 fi
@@ -389,7 +396,7 @@ else
     echo "ERROR: processor tarball md5 ${_proc_got}, expected ${_proc_want}" >&2
     exit 1
   fi
-  tar xzf "${_proc_tgz}" -C vendor/processor --strip-components=1
+  tar --no-same-owner -xzf "${_proc_tgz}" -C vendor/processor --strip-components=1
   rm -f "${_proc_tgz}"
   # Drop everything but the library.  bin/ declares an executable with
   # `(public_name ocaml-processor-dump)`, and a vendored executable's public
@@ -1219,6 +1226,93 @@ PYEOF
   fi
 else
   echo "  [29] cil real-gcc search: not vendored. Skipping."
+fi
+echo ""
+
+# Patch 30: goblint's preprocessor search -- the same unhyphenated-name problem
+# as patch 29, one layer up. goblint dies at RUN time on FreeBSD with
+#   Fatal error: exception Failure("No good preprocessor (cpp) found")
+#
+# src/util/preprocessor.ml tries plain `cpp` first and rejects it when its
+# --version mentions clang/apple/darwin. On FreeBSD /usr/bin/cpp IS clang, so
+# that rejection is correct: goblint needs gcc's preprocessor semantics. It then
+# falls back to `compgen -c cpp-`, which only finds HYPHENATED names like
+# Debian's cpp-14. FreeBSD's gcc package installs cpp14, with no hyphen, so the
+# fallback matches nothing and the analysis aborts.
+#
+# Also search the unhyphenated prefix. "cpp-" is kept first so Linux picks
+# exactly what it picked before; the unhyphenated list is only consulted when
+# the hyphenated one yields nothing good, and every candidate still goes through
+# the same is_good check, so a binary that merely starts with "cpp" cannot be
+# selected unless it really is a working non-clang preprocessor.
+#
+# Requires a real GCC to be installed: see README's FreeBSD prerequisites.
+GOBLINT_CPP="duniverse/analyzer/src/util/preprocessor.ml"
+if [ -f "$GOBLINT_CPP" ]; then
+  if grep -q 'compgen "cpp"' "$GOBLINT_CPP" 2>/dev/null; then
+    echo "  [30] goblint preprocessor search: already patched."
+  else
+    python3 - "$GOBLINT_CPP" <<'PYEOF'
+import sys
+
+p = sys.argv[1]
+s = open(p).read()
+old = '      compgen "cpp-" (* only run compgen if default was bad *)\n'
+new = ('      (* FreeBSD names it cpp14, not cpp-14, so the hyphenated prefix\n'
+       '         finds nothing there. Hyphenated first: Linux is unchanged. *)\n'
+       '      (compgen "cpp-" @ compgen "cpp") (* only run compgen if default was bad *)\n')
+if s.count(old) != 1:
+    sys.exit("  [30] goblint preprocessor search: not in the expected shape")
+open(p, "w").write(s.replace(old, new, 1))
+print("  [30] goblint preprocessor search: added the unhyphenated cpp prefix.")
+PYEOF
+  fi
+else
+  echo "  [30] goblint preprocessor search: not vendored. Skipping."
+fi
+echo ""
+
+# Patch 31: zarith's version rule -- a SIGPIPE landmine under `pipefail`.
+# duniverse/Zarith/dune generates zarith_version.ml with
+#   (bash "grep \"version\" META | head -1")
+# and dune runs every (bash ...) action as `bash -e -u -o pipefail -c`. META has
+# TWO lines matching "version" (the package's own 1.14 and the zarith_top
+# subpackage's 1.13), so `head -1` exits after the first one while grep still has
+# the second to write. grep then takes SIGPIPE, pipefail promotes its 141 to the
+# pipeline's status, and the rule fails with
+#   Command exited with code 141.
+# taking the whole rocq bootstrap (step [8/9]) with it.
+#
+# Whether it fires is a buffering race, which is why it is intermittent and why
+# it showed up on FreeBSD rather than here. GNU grep block-buffers when stdout is
+# a pipe, so both lines usually land in one write() that completes before head
+# exits; FreeBSD's grep is line-buffered, so the second write happens after head
+# is gone and the race is lost far more often. Nothing about this repo makes it
+# more or less likely: it is latent on every platform.
+#
+# `grep -m1` stops after the first match, so there is no second write and no pipe
+# at all. Output is byte-identical (the first matching line), -m is in both GNU
+# and BSD grep, and Linux behaviour does not change.
+ZARITH_DUNE="duniverse/Zarith/dune"
+if [ -f "$ZARITH_DUNE" ]; then
+  if grep -q 'grep -m1' "$ZARITH_DUNE" 2>/dev/null; then
+    echo "  [31] zarith version rule: already patched."
+  else
+    python3 - "$ZARITH_DUNE" <<'PYEOF'
+import sys
+
+p = sys.argv[1]
+s = open(p).read()
+old = '(bash "grep \\"version\\" META | head -1")'
+new = '(bash "grep -m1 \\"version\\" META")'
+if s.count(old) != 1:
+    sys.exit("  [31] zarith version rule: not in the expected shape")
+open(p, "w").write(s.replace(old, new, 1))
+print("  [31] zarith version rule: dropped the head -1 pipe (SIGPIPE under pipefail).")
+PYEOF
+  fi
+else
+  echo "  [31] zarith version rule: not vendored. Skipping."
 fi
 echo ""
 

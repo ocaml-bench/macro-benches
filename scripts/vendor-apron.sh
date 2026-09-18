@@ -83,7 +83,7 @@ if ! printf '#include <mpfr.h>\n' | "${CC:-cc}" -E - >/dev/null 2>&1; then
     echo "[mpfr] system mpfr.h absent; building MPFR $(src_field mpfr version) into $MPFR_PREFIX"
     _mpfr_t="$(mktemp -d)"
     curl -fsSL "$(src_field mpfr url)" -o "$_mpfr_t/mpfr.tar.xz"
-    tar xf "$_mpfr_t/mpfr.tar.xz" -C "$_mpfr_t"
+    tar --no-same-owner -xf "$_mpfr_t/mpfr.tar.xz" -C "$_mpfr_t"
     # One spelling for this, in lib-portable.sh, so there is a single
     # place to fix if a platform needs a third fallback.
     _ncpu="$(ncpu)"

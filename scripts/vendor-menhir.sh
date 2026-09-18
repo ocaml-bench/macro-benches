@@ -33,7 +33,7 @@ if [ "${ACTUAL_MD5}" != "${MD5}" ]; then
 fi
 
 echo "Extracting..."
-tar xzf "${TMPDIR}/menhir.tar.gz" -C "${TMPDIR}"
+tar --no-same-owner -xzf "${TMPDIR}/menhir.tar.gz" -C "${TMPDIR}"
 
 # The tarball extracts to a directory like menhir-20260209-<hash>/ or archive-<hash>/.
 EXTRACTED="$(find "${TMPDIR}" -mindepth 1 -maxdepth 1 -type d ! -name '.*' | head -1)"

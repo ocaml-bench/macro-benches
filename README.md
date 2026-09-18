@@ -1,16 +1,15 @@
 # macro-benches
 
-A suite of real-world OCaml programs used as macro-benchmarks, for comparing
-one OCaml runtime against another on workloads that look like the things people
-actually run: compilers, provers, static analysers, a video pipeline, a
-key-value store, and so on.
+A suite of real-world OCaml programs used as macro-benchmarks, for comparing one
+OCaml runtime against another on workloads that look like the things people
+actually run: compilers, provers, static analysers, a video pipeline, a key-value
+store, and so on.
 
 Every dependency is vendored into the repo with
 [opam-monorepo](https://github.com/tarides/opam-monorepo), so every runtime
 compiles byte-identical source. The only thing that changes between runs is the
-compiler, which is the whole point: if a number moves, it is the runtime that
-moved it, not a different version of some library that happened to get pulled
-in.
+compiler: if a number moves, the runtime moved it, not a different version of
+some library that happened to get pulled in.
 
 You can use it two ways:
 
@@ -18,19 +17,19 @@ You can use it two ways:
   any opam switch and run the binary yourself.
 - **Orchestrated.** Point an orchestrator such as
   [running-ng](https://github.com/udesou/running-ng) at the repo and let it
-  manage per-runtime switches and drive cross-runtime, frame-pointer, flambda,
-  or GC-parameter sweeps.
+  manage per-runtime switches and drive cross-runtime, frame-pointer, flambda or
+  GC-parameter sweeps.
 
 ## The benchmarks
 
-23 tools (21 active; `merlin` and `lavyek` disabled — see below). Each active
-tool has an **input-size ladder**: `small` / `default` / `large` (a couple also
-`huge`) rungs whose input is chosen so each reaches a different GC/runtime
-regime, not just a bigger copy of the one below. A bare run
-executes the `default` rung of every tool; other sizes are opt-in via a tag (see
-[Run sweeps](#run-sweeps)). Older single-point benchmarks with original anchors,
-extra per-tool workloads, and the frozen issue reproducers are kept as
-**legacy** benches, run only with `RUNNING_TAG=legacy`.
+23 tools, 21 active (`merlin` and `lavyek` are disabled, see below). Each active
+tool has an **input-size ladder**: `small` / `default` / `large` rungs (a couple
+also `huge`) whose input is chosen so each reaches a different GC/runtime regime,
+not just a bigger copy of the one below. A bare run executes the `default` rung
+of every tool; other sizes are opt-in via a tag (see [Run sweeps](#run-sweeps)).
+Older single-point benchmarks with their original anchors, extra per-tool
+workloads, and the frozen issue reproducers are kept as **legacy** benches, run
+only with `RUNNING_TAG=legacy`.
 
 | Benchmark | `default` program | What it runs | Category |
 |-----------|-------------------|--------------|----------|
@@ -54,91 +53,55 @@ extra per-tool workloads, and the frozen issue reproducers are kept as
 | [frama-c](docs/benchmarks/frama-c.md) | `frama_c_eva_sqlite_default` | Frama-C EVA value analysis of the SQLite amalgamation at `-eva-precision 2` (reproduces [#11733](https://github.com/ocaml/ocaml/issues/11733)) | Static analysis |
 | [goblint](docs/benchmarks/goblint.md) | `goblint_gen_default` | Goblint octagon (apron) analysis of a 165-variable bit-vector state machine (reproduces [#13733](https://github.com/ocaml/ocaml/issues/13733)) | Static analysis |
 | [js_of_ocaml](docs/benchmarks/js_of_ocaml.md) | `jsoo_default` | Compiles a 14 MB bytecode (80 replicas of the JSOO classics) to JavaScript | Compiler |
-| [infer](docs/benchmarks/infer.md) | `infer_default` | Infer's multicore (domains) Java analysis of 215 classes of a real bytecode corpus — guava, byte-buddy, lucene, bcprov | Static analysis |
+| [infer](docs/benchmarks/infer.md) | `infer_default` | Infer's multicore (domains) Java analysis of 215 classes of a real bytecode corpus: guava, byte-buddy, lucene, bcprov | Static analysis |
 
 Two more tools ship in the tree but are currently disabled:
 [merlin](docs/benchmarks/merlin.md) (an upstream race in the domains typer) and
 [lavyek](docs/benchmarks/lavyek.md) (it lives in a private repo). Their pages
 explain the details and what coverage they would add back.
 
+`ocamlc-self-compile` is a 22nd benchmark directory belonging to the same
+compiler tool as `ocamlc-compile-uucp`; its programs are legacy-only.
+
 ## Quick start
 
 ### Prerequisites
 
+opam 2.3+ and a switch with `dune` and `ocamlfind` (one is created for you if
+needed), plus the system libraries below.
+
+Debian/Ubuntu:
+
 ```bash
-sudo apt install build-essential autoconf automake m4 pkg-config zip \
+sudo apt install build-essential autoconf automake m4 pkg-config zip python3-yaml \
                  libgmp-dev libmpfr-dev libevent-dev libcurl4-openssl-dev \
                  libpcre3-dev zlib1g-dev libopenblas-dev liblapacke-dev \
                  libgsl-dev libsqlite3-dev libyaml-dev
 ```
 
-On FreeBSD, as root:
+FreeBSD (as root):
 
 ```sh
-pkg install autoconf automake libtool m4 pkgconf gmake zip \
+pkg install bash git python3 autoconf automake libtool m4 pkgconf gmake gcc zip \
             gmp mpfr openblas lapacke gsl sqlite3 libyaml perl5 \
-            curl libev libevent pcre
+            curl libev libevent pcre py311-pyyaml
 ```
 
-`make setup` puts `/usr/local/include` and `/usr/local/lib` on the C
-toolchain's search path for you (`scripts/lib-portable.sh`). You need this
-because FreeBSD's base clang searches **neither**: its default list is only
-`/usr/lib/clang/<v>/include` and `/usr/include`, so a vendored C stub that
-includes a pkg-installed header fails with `fatal error: 'gsl/gsl_vector.h'
-file not found` even though the package is installed. Set `LOCALBASE` if your
-packages are somewhere other than `/usr/local`. Building a benchmark by hand,
-outside `make setup`, may need the same:
+Notes on the FreeBSD list: `gmake` and `gcc` are both load-bearing (a few
+vendored makefiles are GNU-only, and goblint needs a real GCC preprocessor);
+zlib is in the base system; the PyYAML package name is versioned after your
+`python3` and was renamed in 2024, so check `python3 -c 'import yaml'` rather
+than trusting a spelling. `make setup` puts `/usr/local/include` and
+`/usr/local/lib` on the C toolchain's search path; building a benchmark by hand
+outside `make setup` may need the same:
 
 ```sh
 export C_INCLUDE_PATH=/usr/local/include LIBRARY_PATH=/usr/local/lib
 ```
 
-Two differences from the apt list, both deliberate:
-
-* **No zlib, and no C toolchain.** FreeBSD ships both in the base system, so
-  there is nothing to install. `gmake` is listed separately because a few
-  vendored `configure` scripts generate GNU-only makefiles.
-* **No PCRE2.** Neither list needs it. `conf-libpcre2-8` used to sit in
-  `macro-bench-devkit.opam.template`, but nothing in the tree has ever used
-  PCRE2: devkit depends on the `pcre` OCaml library (PCRE **1**, via
-  `conf-libpcre`), there is no `Pcre2.` anywhere under `duniverse/`, and the
-  apt list only ever installed `libpcre3-dev`. On CI the requirement was
-  satisfied by accident, because `libgio-2.0-dev` and `libselinux1-dev` drag
-  `libpcre2-dev` in. It has been dropped from the template and the lock.
-
-Five suites need a source patch on FreeBSD, all applied by `make setup`:
-**devkit** (patch 25, below), **owl** (patch 26: OpenMP link flags, since
-`-fopenmp` arrives from `pkg-config openblas` while nothing adds `-lomp`;
-confirmed on FreeBSD, where `pkg-config --cflags openblas` returns
-`-I/usr/local/include -fopenmp` and `--libs` returns no OpenMP runtime),
-**pplacer** (patch 27: `gsl-ocaml`'s discover hardcodes `/usr/include` as its
-fallback, and on FreeBSD that fallback is what gets used, so it now probes for
-the headers instead), and **goblint** (patch 28, plus its apron chain needing
-GNU make because camlidl's Makefile uses GNU conditionals that bmake rejects as
-a syntax error, so `scripts/vendor-apron.sh` calls `gmake` where available).
-
-On devkit specifically: it calls `U.gettid ()`, where `U = ExtUnix.Specific`, and
-`ExtUnix.Specific` exposes only what the platform actually has. extunix already
-implements `gettid` four ways, but its `discover.ml` probe matches none of them
-on FreeBSD purely on spelling: FreeBSD calls it `pthread_getthreadid_np()` in
-`<pthread_np.h>` where macOS calls it `pthread_threadid_np()`. Without the
-patch `duniverse/devkit` fails to compile with `Unbound value U.gettid`, taking
-`benchmarks/ahrefs-devkit` with it. Patch 25 adds the missing probe
-alternative; Linux is unaffected, since `pthread_np.h` does not exist there and
-the probe still falls through to `SYS_gettid`.
-
-This is the same list CI installs, so it is the one that is actually exercised on
-a clean machine. `zip` is a plain command-line tool rather than a library, needed by
-`scripts/vendor-infer-corpus.sh`; without it infer's corpus step fails with
-`zip: command not found`. It was missing from this list until a FreeBSD run
-hit it, so a minimal Linux image can hit it too.
-
-Notably `liblapacke-dev` is separate from `libopenblas-dev` —
-owl links `-llapacke`, and without it the build fails at link time with
-`/usr/bin/ld: cannot find -llapacke`.
-
-You also need opam 2.3+ and a switch with `dune` and `ocamlfind` (one is created
-for you if needed).
+Set `LOCALBASE` if your packages are somewhere other than `/usr/local`. Several
+suites need a source patch on FreeBSD; `make setup` applies them all. The
+per-package reasoning, and the patch table, are in [CLAUDE.md](CLAUDE.md).
 
 ### Setup
 
@@ -152,27 +115,9 @@ non-dune dependencies (pplacer, apron, rocq), and test-builds every binary. The
 first run takes around ten minutes; later runs skip the steps that are already
 done. It is idempotent, so you can rerun it any time without `make clean`.
 
-#### dune compatibility
-
-Verified with dune **3.22.1** and **3.24.0**.
-
-dune 3.24 deleted the `coq` language extension ("The Coq Build Language has been
-replaced by the Rocq Build Language"), and vendored rocq still declared
-`(using coq 0.8)`. Because that is a *parse* error, it broke every build in the
-workspace, not just rocq's — `dune build benchmarks/decompress/...` failed with
-`Error: Extension coq was deleted in the 3.24 version of the dune language`.
-
-Setup step 3b removes that declaration and the matching `(coq (flags ...))`
-field from rocq's `dev` profile. Both are dead configuration here: no active
-`dune` file under `duniverse/rocq` contains a `coq.theory` / `coq.pp` /
-`coq.extraction` stanza, because rocq compiles its theories through its own
-`tools/dune_rule_gen` (which emits plain `(rule (action (run rocq c ...)))`),
-and the only files that would need the extension are two `dune.disabled` ones
-that dune never reads. So the fix removes the declarations rather than porting
-rocq to `(using rocq ...)`.
-
-If you already have a populated `duniverse/`, rerun `make setup` to pick this
-up — the step is skipped once applied.
+Verified with dune **3.22.1** and **3.24.0**. If you already have a populated
+`duniverse/` and are moving to dune 3.24+, rerun `make setup`: one of the patches
+is what keeps the workspace parseable there.
 
 ### Run one benchmark by hand
 
@@ -187,12 +132,12 @@ bash benchmarks/eio/eio.build.sh
 The build script assumes the compiler you want to measure is already on `PATH`
 and writes its binary to `$RUNNING_OCAML_OUTPUT` (defaulting to
 `<tool>-<runtime>` in the benchmark's own directory). See
-[§Build-script contract](#build-script-contract).
+[Build-script contract](#build-script-contract).
 
-Arguments matter — most benchmarks take an input file, an input size, or a rung
+Arguments matter: most benchmarks take an input file, an input size, or a rung
 selector, so running a binary bare is a different benchmark from what the sweep
-runs. Ask the manifest, which prints
-*name, tool, script, timeout, expected exit, args*:
+runs. Ask the manifest, which prints *name, tool, script, timeout, expected exit,
+args*:
 
 ```bash
 python3 scripts/ci-manifest.py list | grep -E '^(eio_conc_small|jsoo_small)\b'
@@ -207,7 +152,7 @@ dune build -- benchmarks/eio/eio_bench.exe
 
 ### Run sweeps
 
-For cross-runtime, frame-pointer, flambda, or GC-parameter sweeps you want an
+For cross-runtime, frame-pointer, flambda or GC-parameter sweeps you want an
 orchestrator to manage the per-runtime switches. Point running-ng at the repo
 (`export RUNNING_MACRO_BENCH_DIR=~/macro-benches`) and drive the sweeps from
 there; see its docs for the available configs.
@@ -216,22 +161,14 @@ Which rungs run is selected by `RUNNING_TAG`:
 
 | `RUNNING_TAG` | runs |
 |---|---|
-| *(unset)* | the `default` rung of every tool — the standard suite |
+| *(unset)* | the `default` rung of every tool, the standard suite |
 | `small_run` / `large_run` / `huge_run` | that size across every tool |
 | `legacy` | the pre-ladder anchors, extra workloads, and frozen repros |
 | `all_benches` | everything at once |
 
-### Clean
-
-```bash
-make clean          # remove build artifacts, keep vendored sources
-make clean-all      # remove everything generated (duniverse/, vendor/, _rocq_prefix/, _build*)
-make setup          # repopulate from the lock file
-```
-
 ### Build and run everything locally
 
-The same two phases CI runs, driven off
+The same three phases CI runs, driven off
 [`benchmarks/manifest.yml`](benchmarks/manifest.yml) (the program list):
 
 ```bash
@@ -241,13 +178,21 @@ bash scripts/ci-run-all.sh                       # run the small rung of each to
 ONLY="jsoo_small goblint_gen_small" bash scripts/ci-run-all.sh  # or just a few
 ```
 
-CI builds everything (catching build breaks) but only *runs* the small rung of
-each tool — flagged `ci_run: true` in the manifest — since the large rungs don't
-fit a hosted runner.
+CI builds all 95 programs (catching build breaks) but only *runs* the 20 small
+rungs flagged `ci_run: true` in the manifest, since the large rungs do not fit a
+hosted runner. There is a FreeBSD workflow alongside the Linux one.
 
 When you add a benchmark, add it to the manifest in the same commit as its build
-script — `check` fails if the two disagree, including when a new program is added
-to a tool that already has a build script. See [CLAUDE.md](CLAUDE.md) §CI.
+script: `check` fails if the two disagree, including when a new program is added
+to a tool that already has a build script. See [CLAUDE.md](CLAUDE.md).
+
+### Clean
+
+```bash
+make clean          # remove build artifacts, keep vendored sources
+make clean-all      # remove everything generated (duniverse/, vendor/, _rocq_prefix/, _build*)
+make setup          # repopulate from the lock file
+```
 
 ## How it works
 
@@ -255,15 +200,16 @@ to a tool that already has a build script. See [CLAUDE.md](CLAUDE.md) §CI.
    `macro-benches.opam.locked`, which is committed.
 2. `opam monorepo pull` downloads all of them into `duniverse/`. No solver, no
    `opam install`.
-3. `setup-monorepo.sh` applies a handful of source patches for newer compilers
-   and known upstream bugs. One of them keeps the workspace parseable by
-   dune >= 3.24, which deleted the `coq` language extension that vendored rocq
-   still declared — see "dune compatibility" below.
-4. The few packages that aren't opam/dune (pplacer, apron, rocq) are vendored
+3. `setup-monorepo.sh` applies a set of source patches for newer compilers,
+   known upstream bugs, and platform differences.
+4. The few packages that are not opam/dune (pplacer, apron, rocq) are vendored
    and built by their own scripts.
 5. `dune build` compiles everything from local source with whichever compiler is
-   on PATH, into a per-runtime `_build-<runtime>/` directory so different
-   runtimes don't clobber each other.
+   on `PATH`, into a per-runtime `_build-<runtime>/` directory so different
+   runtimes do not clobber each other.
+
+Third-party versions all come from `sources.yml`, pinned to commits. Bumping one
+is a one-line edit followed by `make setup`.
 
 ## Build-script contract
 
@@ -276,17 +222,20 @@ already activated, so its compiler and `dune` are on `PATH`. It reads:
 | `RUNNING_OCAML_OUTPUT` | where to write the binary (absolute) | `<bench dir>/<tool>-<runtime>` |
 | `RUNNING_OCAML_RUNTIME_NAME` | runtime tag, e.g. `ocaml-5.5.0` | `runtime` |
 | `RUNNING_OCAML_SWITCH` | the active opam switch | unset |
-| `RUNNING_OCAML_SWITCH_PREFIX` | that switch's prefix path | resolved from `RUNNING_OCAML_SWITCH`, else the `ocamlc` on `PATH` |
+| `RUNNING_OCAML_SWITCH_PREFIX` | that switch's prefix path (optional; honoured if an orchestrator sets it) | resolved from `RUNNING_OCAML_SWITCH`, else the `ocamlc` on `PATH` |
 
 A script derives the monorepo root from its bench dir, builds into a per-runtime
-`_build-<runtime>/`, and copies the result out. 
+`_build-<runtime>/`, and copies the result out. `RUNNING_OCAML_OUTPUT` also
+*selects the program* where one script backs several; see [CLAUDE.md](CLAUDE.md).
 
 ## Layout
 
 ```text
 benchmarks/<tool>/   build script + input data (and driver .ml for custom benches)
+benchmarks/manifest.yml     the program list                (committed)
 docs/benchmarks/     one page per benchmark: what it runs and how to read it
 scripts/             setup-monorepo.sh and the vendor-*.sh helpers
+sources.yml          pinned versions of every third-party source
 dune-overlays/       hand-written dune files for non-dune packages
 duniverse/           vendored dependency sources          (generated, gitignored)
 vendor/              manually vendored non-dune packages   (generated, gitignored)
@@ -297,7 +246,7 @@ macro-benches.opam.locked   the lock file                 (committed)
 
 - [docs/benchmarks/](docs/benchmarks) has a page per benchmark.
 - [CLAUDE.md](CLAUDE.md) has the operational detail beyond the build-script
-  contract above:
-  the in-process iteration and ring-size mechanics, the vendored-source patch
-  table, the runtime-feature coverage matrix and known gaps, the backlog, and
-  the gotchas worth knowing before you touch the build.
+  contract above: the CI phases, the in-process iteration and ring-size
+  mechanics, the vendored-source patch table, the platform notes, the
+  runtime-feature coverage matrix and known gaps, the backlog, and the gotchas
+  worth knowing before you touch the build.

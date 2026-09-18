@@ -1,0 +1,368 @@
+name: CI (FreeBSD)
+
+# The FreeBSD half of the gate in ci.yml, which builds every benchmark and runs
+# each once. The port was validated by hand (95/95 on FreeBSD 15.1); nothing
+# checked it automatically until this.
+#
+# Why a VM inside a Linux runner: GitHub has no FreeBSD runners, and Cirrus CI,
+# which had native ones, shut down on 2026-06-01. Nested virtualisation is what
+# the projects migrating off Cirrus are using.
+#
+# THE STEPS DELIBERATELY MIRROR ci.yml, name for name and in the same order, so
+# the two can be read side by side and the differences are the ones that are
+# actually forced by the platform:
+#
+#   ci.yml                              here
+#   ----------------------------------  ----------------------------------
+#   -                                   Report host virtualisation support
+#   -                                   Free disk space on the host
+#   -                                   Boot the FreeBSD VM
+#   Install system dependencies         Install system dependencies   (pkg, not apt)
+#   ocaml/setup-ocaml@v3                Set up the OCaml switch       (by hand)
+#   Portability helpers and ...         Portability helpers and ...   (14 checks, not 24)
+#   Validate the manifest ...           Validate the manifest ...
+#   Install dune                        Install dune
+#   Cache vendored sources              -                             (see below)
+#   Set up the monorepo ...             Set up the monorepo ...
+#   Build every benchmark               Build every benchmark
+#   Run every benchmark once            Run every benchmark once
+#   Disk and cache usage                Disk and cache usage
+#   Upload logs                         Upload logs
+#
+# Splitting the VM work into named steps rather than one opaque script is also
+# what makes this measurable: GitHub reports a duration per step, so "where does
+# the time go" is answered by the run page instead of by grepping timestamps.
+#
+# MEASURED, then promoted. The first green run took 26.9 minutes on stable and
+# 31.2 on trunk, against ~35 for the Linux gate, with no cache at all:
+#
+#   free host disk      1.7m      set up the monorepo      1.9m
+#   boot the VM         0.8m      build every benchmark   16.2m
+#   install deps        0.3m      run every benchmark      2.6m
+#   copy to local disk  0.3m      ---------------------------------
+#   set up the switch   2.6m      total                   26.9m
+#   install dune        0.6m
+#
+# 95 of 95 programs build and 19 of the 20 CI runs pass, on both 5.5.0 and
+# trunk. The one that did not was goblint, which found a real portability bug
+# (patch 30, the unhyphenated cpp name) rather than a problem with this job.
+#
+# NO CACHE, and this is a deliberate decision rather than unfinished work.
+# ci.yml caches duniverse/, vendor/ and _rocq_prefix/ because there they sit on
+# local disk next to the runner. Here the build runs inside the VM and
+# actions/cache runs on the host, so everything cacheable has to cross the NFS
+# mount twice per run:
+#
+#   cacheable:  set up the switch 2.6m + set up the monorepo 1.9m = 4.5m (17%)
+#   cost:       duniverse 0.44G + vendor 0.36G + _rocq_prefix 0.43G
+#               + the opam root with a from-source compiler ~1.5G = ~2.7 GB,
+#               restored AND saved every run
+#
+# The checkout copy, which is far smaller, already takes 0.3-1.1m across that
+# mount. Moving 2.7 GB twice to avoid 4.5 minutes of work is at best a wash and
+# more likely a loss, on top of being another failure mode in a job that has
+# had enough of them. Revisit only if the build phase itself becomes cacheable,
+# since at 16 minutes it is the part that actually dominates.
+
+# Same triggers as ci.yml now that this gates. The push run matters for the
+# same reason it does there: required checks are not `strict`, so two PRs can
+# each be green against an older master and still break it together, and without
+# a post-merge run nothing notices until the next PR.
+#
+# The cron is staggered an hour after ci.yml's so the two are not fetching every
+# pinned source at the same moment. Its purpose differs slightly here: on Linux
+# it exists to bypass the cache, while every run here is already cold, so what
+# it adds is a weekly check that the pins are still FETCHABLE even in a week
+# with no pull requests.
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 5 * * 1"
+
+concurrency:
+  group: ci-freebsd-${{ github.ref }}
+  # Same rule as ci.yml, and for the same reason: superseding a PR run is what
+  # you want, but cancelling a master run would leave the merge that triggered
+  # it unverified. Written conditionally now so it is already correct when the
+  # push trigger is added.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build-and-run:
+    name: "freebsd build + run once (${{ matrix.label }})"
+    runs-on: ubuntu-latest
+    # Just under GitHub's 6 hour hard cap, so a job that is merely slow reports
+    # a duration instead of being killed with nothing to show.
+    timeout-minutes: 350
+    # Per-leg, as in ci.yml: stable gates, trunk reports. trunk tracks a moving
+    # compiler and pinned ppxlib git main, so it goes red for reasons that have
+    # nothing to do with a change here; it did exactly that when trunk grew
+    # Pexp_hole.
+    continue-on-error: ${{ matrix.required == false }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Same two legs as ci.yml, and the label is version-free for the same
+          # reason: a required check is matched by NAME, so putting 5.5.0 in it
+          # would orphan the requirement the moment the compiler is bumped.
+          - label: "stable"
+            ocaml: "5.5.0"
+            required: true
+            # Released dune >= 3.24 breaks the vendored rocq build.
+            dune: "3.22.1"
+          - label: "trunk"
+            ocaml: "ocaml-variants.5.6.0+trunk"
+            required: false
+            # Released dune cannot bootstrap against 5.6 trunk; use git main.
+            dune: "dev"
+
+    env:
+      # Picks the build dir (_build-ci) and the output binary suffix, as on Linux.
+      RUNNING_OCAML_RUNTIME_NAME: ci
+      # Outside the workspace on purpose: see the note on caching above.
+      OPAMROOT: /opamroot
+      OPAMYES: "1"
+      # opam on FreeBSD defaults to the base system's /usr/bin/fetch, which
+      # fails on GitHub's release redirects:
+      #
+      #   fetch: https://github.com/dune-universe/camlzip/releases/download/
+      #   v1.11%2Bdune/camlzip-1.11.dune.tbz: Authentication error
+      #
+      # opam understands "curl" as a value here and supplies the right
+      # invocation itself, so this is not a hand-rolled command that can drift
+      # from what opam expects. curl is installed with the other dependencies.
+      #
+      # Whether fetch is failing on the redirect to the signed asset URL or on
+      # rate limiting from GitHub Actions addresses is not established; curl is
+      # the robust choice either way, and is what the Linux job effectively uses
+      # through setup-ocaml.
+      OPAMFETCH: curl
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ci.yml resolves this to fold the SHA into its cache keys AND to record
+      # what was tested. Only the second reason applies here (no cache yet), but
+      # it is the one that matters for a moving compiler: a trunk run that does
+      # not say which trunk is a result nobody can act on.
+      - name: Resolve compiler identity
+        run: |
+          if [ "${{ matrix.label }}" = "trunk" ]; then
+            sha="$(curl -fsSL https://api.github.com/repos/ocaml/ocaml/commits/trunk \
+                   | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"][:12])')"
+            echo "### Compiler: ocaml/ocaml trunk @ \`${sha}\`" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### Compiler: OCaml ${{ matrix.ocaml }}" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # /dev/kvm was present when this was written, which is what makes a full
+      # build plausible here at all. Kept as a check rather than an assumption:
+      # if GitHub ever stops granting it, the job should not silently become ten
+      # times slower with no explanation in the log.
+      - name: Report host virtualisation support
+        run: |
+          {
+            if [ -e /dev/kvm ]; then
+              echo "- \`/dev/kvm\` **present**: the VM is hardware-accelerated."
+            else
+              echo "- \`/dev/kvm\` **absent**: the VM is software-emulated, expect a large slowdown."
+            fi
+            echo "- host cpus: $(nproc), memory: $(free -g | awk '/^Mem:/{print $2}')G"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # The vendored tree plus a from-source compiler needs more room than a
+      # stock runner leaves free once its preinstalled toolchains are counted.
+      - name: Free disk space on the host
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /usr/local/share/boost "$AGENT_TOOLSDIRECTORY" || true
+          df -h /
+
+      # `sync: nfs` rather than the default rsync, because the VM persists and
+      # every step below runs inside it. With rsync the action copies the whole
+      # workspace in and back out around EACH step, which for a tree carrying
+      # duniverse/, vendor/ and _build-ci/ would cost more than the build. nfs
+      # makes it a live mount, so there is nothing to copy.
+      - name: Boot the FreeBSD VM
+        uses: vmactions/freebsd-vm@4469451fe39bee80be4066836c5170362e9349f3  # v1.5.7
+        with:
+          # The release the port was validated on.
+          release: "15.1"
+          usesh: true
+          mem: 12288
+          sync: nfs
+          envs: "RUNNING_OCAML_RUNTIME_NAME OPAMROOT OPAMYES OPAMFETCH"
+          run: |
+            freebsd-version
+            sysctl -n hw.ncpu hw.physmem
+
+      # pkg, not apt. The list is README's, which is shorter than the Linux one
+      # on purpose: zlib and the C toolchain are in the base system, and nothing
+      # in the tree uses PCRE2. gmake is NOT optional, because camlidl's and
+      # camlzip's Makefiles use GNU conditionals that bmake rejects as a syntax
+      # error. opam is packaged as ocaml-opam.
+      - name: Install system dependencies
+        shell: freebsd {0}
+        run: |
+          pkg install -y \
+            bash git gmake gcc autoconf automake libtool m4 pkgconf zip \
+            gmp mpfr openblas lapacke gsl sqlite3 libyaml perl5 \
+            curl libev libevent pcre \
+            ocaml-opam python3
+          # PyYAML, for scripts/ci-manifest.py. Two things make the package name
+          # hard to state up front, so it is derived and then VERIFIED rather
+          # than asserted:
+          #
+          #   - FreeBSD names Python packages pyXY-<name>, and only builds them
+          #     for the default Python, so the XY has to come from the python3
+          #     that was actually installed rather than being hardcoded;
+          #   - the port was renamed devel/py-yaml -> devel/py-pyyaml in 2024,
+          #     so the base name differs by FreeBSD release.
+          #
+          # Hence try both spellings and let the import decide. A bare
+          # `pkg install` of the wrong name fails this step with a message about
+          # packages, which says nothing about what the build actually needs.
+          pyv="$(python3 -c 'import sys; print("%d%d" % sys.version_info[:2])')"
+          pkg install -y "py${pyv}-pyyaml" || pkg install -y "py${pyv}-yaml" || true
+          python3 -c 'import yaml' || {
+            echo "PyYAML is missing: no py${pyv}-pyyaml or py${pyv}-yaml package." >&2
+            echo "scripts/ci-manifest.py needs it. Check the current name at" >&2
+            echo "  https://www.freshports.org/devel/py-pyyaml/" >&2
+            exit 1
+          }
+
+          # The workspace is NFS-mounted from the host, where it belongs to the
+          # `runner` user, while everything here runs as root. git refuses to
+          # touch a repository owned by somebody else ("detected dubious
+          # ownership"), which stops the vendoring dead at the first pinned
+          # clone it tries to inspect. actions/checkout does exactly this on the
+          # host for the same reason; the VM is a second user and needs it too.
+          #
+          # Not a portability problem: it is an artefact of running as a
+          # different uid across a mount, and would happen identically on Linux
+          # in a container with the workspace bind-mounted.
+          git config --global --add safe.directory '*'
+
+
+      # Everything from here runs on VM-LOCAL DISK, not on the mounted
+      # workspace, and every step below starts by cd'ing into it.
+      #
+      # The mount is an NFS export owned by the host's `runner` while the VM
+      # runs as root, and that mismatch broke three separate things before this
+      # step existed: git refused the tree ("detected dubious ownership"), tar
+      # could not restore ownership (EPERM under root squash), and mv could not
+      # copy BSD file flags ("chflags: Operation not supported"). Each was fixed
+      # individually, and each time the next one appeared one stage later.
+      #
+      # None of those are portability bugs. They are what running as a different
+      # uid across a network filesystem does, and Linux in a container with a
+      # bind-mounted workspace behaves the same way. Copying once and building
+      # locally removes the whole class rather than the next symptom, and it
+      # also keeps dune's build directory off NFS, where its locking and
+      # many-small-files behaviour is its own risk.
+      #
+      # Only ci-logs/ needs to come back, and the upload step brings it.
+      - name: Copy the workspace to VM-local disk
+        shell: freebsd {0}
+        run: |
+          mkdir -p /work
+          cp -R "$GITHUB_WORKSPACE"/. /work/
+          cd /work && git rev-parse --short HEAD && df -h /work
+
+      # ci.yml's ocaml/setup-ocaml@v3 is a GitHub Action and does not run inside
+      # the VM, so the switch is created by hand. --disable-sandboxing because
+      # opam's sandbox is bwrap-based and Linux-only.
+      - name: Set up the OCaml switch
+        shell: freebsd {0}
+        run: |
+          cd /work
+          opam init --bare --disable-sandboxing --no-setup
+          opam switch create ci "${{ matrix.ocaml }}"
+          opam exec --switch=ci -- ocamlc -version
+
+      # Cheapest first, as on Linux. Note this reports 14 checks where ci.yml
+      # reports 24: the GNU comparisons are skipped here, which is exactly why
+      # the suites run on BOTH platforms rather than either alone.
+      - name: Portability helpers and build-script wiring
+        shell: freebsd {0}
+        run: |
+          cd /work
+          bash scripts/tests/test-lib-portable.sh
+          bash scripts/tests/test-build-scripts-portable.sh
+          for f in scripts/*.sh benchmarks/*/*.build.sh; do bash -n "$f"; done
+
+      - name: Validate the manifest against the tree
+        shell: freebsd {0}
+        run: cd /work && python3 scripts/ci-manifest.py check
+
+      - name: Install dune (${{ matrix.dune }})
+        shell: freebsd {0}
+        run: |
+          cd /work
+          eval "$(opam env --switch=ci --set-switch)"
+          if [ "${{ matrix.dune }}" = "dev" ]; then
+            opam pin add --yes dune --dev-repo
+          else
+            opam pin add --yes --no-action dune "${{ matrix.dune }}"
+            opam install --yes "dune.${{ matrix.dune }}"
+          fi
+          dune --version
+
+      - name: Set up the monorepo (vendor sources, patch, bootstrap rocq)
+        shell: freebsd {0}
+        run: |
+          cd /work
+          eval "$(opam env --switch=ci --set-switch)"
+          # As on Linux: the switch just created is both the tools switch and
+          # the runtime under test, and SKIP_TEST_BUILD avoids compiling the
+          # duniverse a second time into the default _build/.
+          TOOLS_SWITCH="$(opam switch show)" SKIP_TEST_BUILD=1 \
+            bash scripts/setup-monorepo.sh
+
+      - name: Build every benchmark
+        shell: freebsd {0}
+        run: |
+          cd /work
+          eval "$(opam env --switch=ci --set-switch)"
+          bash scripts/ci-build-all.sh
+
+      - name: Run every benchmark once
+        shell: freebsd {0}
+        run: |
+          cd /work
+          eval "$(opam env --switch=ci --set-switch)"
+          bash scripts/ci-run-all.sh
+
+      # The artifact upload runs on the host and can only see the workspace, so
+      # the one thing worth keeping has to come back off the local disk.
+      - name: Collect logs from the VM
+        if: always()
+        continue-on-error: true
+        shell: freebsd {0}
+        run: |
+          [ -d /work/ci-logs ] || exit 0
+          cp -R /work/ci-logs "$GITHUB_WORKSPACE"/
+
+      - name: Disk and cache usage
+        if: always()
+        # Uses the VM shell, which does not exist if the boot step failed. That
+        # is not a reason to add a second failure to a job that already has one.
+        continue-on-error: true
+        shell: freebsd {0}
+        run: |
+          df -h
+          cd /work 2>/dev/null && du -sh duniverse vendor _rocq_prefix _build-ci 2>/dev/null || true
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-freebsd-logs-${{ matrix.label }}
+          path: ci-logs/
+          retention-days: 14
+          if-no-files-found: ignore
