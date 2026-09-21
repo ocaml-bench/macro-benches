@@ -1,14 +1,10 @@
 #!/usr/bin/env bash
-# alt-ergo.build.sh — build alt-ergo from the macro-benches monorepo.
+# alt-ergo.build.sh: build alt-ergo and generate its inputs.
 set -euo pipefail
 
-# running-ng invokes this script DIRECTLY at run time, so it does NOT inherit
-# the environment setup-monorepo.sh builds up. Source the portability library
-# for its LOCALBASE exports: on FreeBSD, pkg puts headers in
-# /usr/local/include, which the base clang does not search, so a vendored C
-# stub that includes one fails with "'event.h' file not found" even though the
-# package is installed. FreeBSD-gated and idempotent, so this is a no-op on
-# Linux. scripts/tests/test-build-scripts-portable.sh enforces this line.
+# running-ng runs this script directly, without setup-monorepo.sh's environment;
+# lib-portable.sh supplies the FreeBSD LOCALBASE exports (else a vendored C stub
+# fails with "'event.h' file not found"). scripts/tests/test-build-scripts-portable.sh enforces this.
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/scripts/lib-portable.sh"
 
 BENCH_DIR="${RUNNING_OCAML_BENCH_DIR:-$(cd "$(dirname "$0")" && pwd)}"
@@ -19,17 +15,9 @@ BUILD_DIR="${MONOREPO_DIR}/_build-${RUNTIME_TAG//[^a-zA-Z0-9._-]/_}"
 
 echo "Building alt-ergo (monorepo) for runtime: ${RUNTIME_TAG}"
 
-# ----------------------------------------------------------------------
-# alt_ergo_fill input scaling — done BEFORE dune build so it always
-# runs independently of compiler/build status.
-#
-# fill.why has a single goal `fill_assert_39`. Replicate the goal
-# block N times with renamed identifiers so alt-ergo solves each
-# independently — work scales linearly. Runs ~0.14s/goal on this
-# machine, so N=100 ≈ 14 s wall.
-#
-# Output is gitignored. Regenerated only when fill.why changes.
-# ----------------------------------------------------------------------
+# alt_ergo_fill input: replicate fill.why's single goal 100 times under new names
+# (~0.14s/goal). Done before the dune build so it runs regardless of compiler
+# status. Gitignored; regenerated when fill.why changes.
 FILL_SRC="${BENCH_DIR}/fill.why"
 FILL_X100="${BENCH_DIR}/fill_x100.why"
 if [[ -f "$FILL_SRC" ]] && { [[ ! -f "$FILL_X100" ]] || [[ "$FILL_SRC" -nt "$FILL_X100" ]]; }; then
@@ -52,19 +40,9 @@ PY
   echo "fill_x100.why generated: $(wc -l < "$FILL_X100") lines, $(grep -c '^goal ' "$FILL_X100") goals."
 fi
 
-# ----------------------------------------------------------------------
-# input-size congruence-chain ladder (alt_ergo_chain_{small,default,large}).
-#
-# fill_x100 above is a fixed-input repetition (100 independent copies of one goal:
-# peak working set constant, wall linear). The chain rungs scale the input: a
-# SINGLE goal whose working set grows with N. The goal asserts a chain
-# a(0)=0 and a(i)=a(i-1)+1 for i in 1..N and proves a(N)=N, so alt-ergo
-# builds an N-term congruence/arithmetic structure in one solve. This is
-# the same array-cell reasoning fill.why exercises (Frama-C/WP VCs),
-# parameterised. Solving is super-linear (~N^2.2 in both wall and live
-# heap): N=4000 ~4s/0.6GB, 7000 ~13s/1.9GB, 10500 ~32s/5.0GB on 5.5.0.
-# Outputs are gitignored; generated once (deterministic in N).
-# ----------------------------------------------------------------------
+# Chain ladder: one goal asserting a(0)=0, a(i)=a(i-1)+1 and proving a(N)=N, so
+# the working set grows with N (super-linear, ~N^2.2: 4000 ~4s/0.6GB, 7000
+# ~13s/1.9GB, 10500 ~32s/5GB on 5.5.0). Deterministic in N; gitignored.
 gen_chain () {  # $1 = output file, $2 = N
   python3 - "$2" "$1" <<'PY'
 import sys

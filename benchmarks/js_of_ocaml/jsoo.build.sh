@@ -1,36 +1,14 @@
 #!/usr/bin/env bash
-# jsoo.build.sh — build js_of_ocaml + emit a wrapper that compiles the
-# runtime's ocamlc.byte to JavaScript.
-#
-# Workload: the OCaml bytecode compiler `ocamlc.byte` shipped in the
-# runtime-under-test's switch (~3.5 MB of bytecode, runtime-specific
-# by construction). jsoo translates it to JS — exercising bytecode
-# parsing, the SSA / IR pipeline, optimisation passes, and JS output.
-# Wall time ~8-10s per invocation across our matrix.
-#
-# Why ocamlc.byte and not a smaller workload:
-#   - Real-world (the OCaml stdlib's compiler frontend).
-#   - Naturally per-runtime: each switch ships its own bytecode-magic-
-#     matched ocamlc.byte. No need to hand-build a workload.
-#   - Big enough to land in the macrobench 5-60s envelope without an
-#     in-process iteration loop.
-#
-# Vendor requirements:
-#   - duniverse/js_of_ocaml on the `ocaml-5.6` branch (not the 6.2.0
-#     release): supports OCaml 4.13 ≤ x < 5.7, covering our 5.4.1 /
-#     5.5-beta / trunk targets.
-#   - duniverse/cmdliner on tag v2.1.0 (not 1.3): jsoo's command-line
-#     parser uses Cmdliner.Arg.Completion which is 2.0+.
-#   See scripts/setup-monorepo.sh for how the branches are pinned.
+# jsoo.build.sh: build js_of_ocaml and emit a wrapper that compiles bytecode to
+# JS. Default input is the runtime's own ocamlc.byte (per-runtime, magic-matched
+# by construction); wrapper argv.1 small/default/large selects a generated ladder
+# input. Vendor pins (scripts/setup-monorepo.sh): js_of_ocaml on the `ocaml-5.6`
+# branch (OCaml 4.13 <= x < 5.7), cmdliner v2.1.0 (Cmdliner.Arg.Completion).
 set -euo pipefail
 
-# running-ng invokes this script DIRECTLY at run time, so it does NOT inherit
-# the environment setup-monorepo.sh builds up. Source the portability library
-# for its LOCALBASE exports: on FreeBSD, pkg puts headers in
-# /usr/local/include, which the base clang does not search, so a vendored C
-# stub that includes one fails with "'event.h' file not found" even though the
-# package is installed. FreeBSD-gated and idempotent, so this is a no-op on
-# Linux. scripts/tests/test-build-scripts-portable.sh enforces this line.
+# running-ng runs this script directly, without setup-monorepo.sh's environment;
+# lib-portable.sh supplies the FreeBSD LOCALBASE exports (else a vendored C stub
+# fails with "'event.h' file not found"). scripts/tests/test-build-scripts-portable.sh enforces this.
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/scripts/lib-portable.sh"
 
 BENCH_DIR="${RUNNING_OCAML_BENCH_DIR:-$(cd "$(dirname "$0")" && pwd)}"
@@ -49,11 +27,6 @@ dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
   duniverse/js_of_ocaml/compiler/bin-js_of_ocaml/js_of_ocaml.exe
 
 REAL_EXE="${BUILD_DIR}/default/duniverse/js_of_ocaml/compiler/bin-js_of_ocaml/js_of_ocaml.exe"
-# The workload is the runtime's own ocamlc.byte. Resolve the runtime's switch
-# prefix from the orchestrator API when set (RUNNING_OCAML_SWITCH_PREFIX, a prefix;
-# or RUNNING_OCAML_SWITCH, an opam switch name we resolve with `opam var prefix`),
-# else derive it from the ocamlc on PATH — the same compiler this script's dune
-# build uses. Works standalone with just a compiler on PATH; no orchestrator needed.
 if [[ -n "${RUNNING_OCAML_SWITCH_PREFIX:-}" ]]; then
   RUNTIME_PREFIX="${RUNNING_OCAML_SWITCH_PREFIX}"
 elif [[ -n "${RUNNING_OCAML_SWITCH:-}" ]] && _p="$(opam var prefix --switch="${RUNNING_OCAML_SWITCH}" 2>/dev/null)" && [[ -n "${_p}" ]]; then
@@ -74,12 +47,8 @@ if [[ ! -f "${WORKLOAD}" ]]; then
 fi
 echo "  workload: ${WORKLOAD} ($(wc -c <"${WORKLOAD}") bytes)"
 
-# The opam-installed findlib.conf uses *relative* paths (`destdir="."`,
-# `path="./ocaml:."`) which findlib resolves against CWD, not against
-# the conf file's directory. Running jsoo from a CWD other than
-# $RUNTIME_LIB therefore fails with `No_such_package(stdlib)`. Writing
-# a sibling conf with absolute paths lets us point OCAMLFIND_CONF at
-# something that's CWD-independent.
+# The opam findlib.conf uses relative paths (destdir=".") resolved against CWD,
+# so jsoo run elsewhere fails with No_such_package(stdlib); write an absolute one.
 FINDLIB_CONF_ABS="${BENCH_DIR}/findlib-${RUNTIME_TAG}.conf"
 {
   echo "destdir=\"${RUNTIME_LIB}\""
@@ -91,20 +60,11 @@ FINDLIB_CONF_ABS="${BENCH_DIR}/findlib-${RUNTIME_TAG}.conf"
 } > "${FINDLIB_CONF_ABS}"
 echo "  findlib conf:  ${FINDLIB_CONF_ABS}"
 
-# --- input-size ladder workloads -------------------------------------------------
-# The input-size axis for jsoo is the SIZE of the input bytecode.  jsoo is a whole-program
-# compiler (it holds the entire program IR in memory), so RSS/live-heap grow
-# with the input — a genuine footprint ladder, unlike the per-module compiler
-# benches.  But jsoo's cost is driven by program STRUCTURE, not raw bytes: a
-# synthetic file of thousands of tiny top-level closures is pathological (a
-# 1 MB such file took 88 s).  So we build the rung inputs from REAL code: the
-# 20 JSOO classic benchmark sources (boyer/nucleic/fft/...) wrapped in unique
-# modules and replicated R times (the same generator ocamlc_self_compile uses),
-# then compiled to a bytecode executable with THIS runtime's ocamlc so the
-# magic matches (exactly as the legacy ocamlc.byte workload is per-runtime).
-# Sizes (5.5.0 / Ryzen 9950X): small 30 reps ~5 MB ~5s / 0.5GB, default 80 reps
-# ~13 MB ~16s / 1.7GB, large 200 reps ~34 MB ~50s / 7.8GB.  (huge deferred.)
-# The .ml is runtime-independent; the .byte is per-runtime.  Both gitignored.
+# Ladder inputs: jsoo is a whole-program compiler, so live heap scales with the
+# input, but cost tracks program structure (a synthetic 1 MB file of tiny
+# closures took 88s), so the rungs replicate real JSOO benchmark sources and
+# compile them with this runtime's ocamlc so the magic matches. 5.5.0: 30 reps
+# ~5s/0.5GB, 80 ~16s/1.7GB, 200 ~50s/7.8GB. Both .ml and .byte are gitignored.
 JSOO_SRC="${MONOREPO_DIR}/duniverse/js_of_ocaml/benchmarks/sources/ml"
 RT_OCAMLC="${RUNTIME_PREFIX}/bin/ocamlc.opt"
 [[ -x "${RT_OCAMLC}" ]] || RT_OCAMLC="${RUNTIME_PREFIX}/bin/ocamlc"
@@ -135,11 +95,6 @@ PY
   fi
 done
 
-# Wrapper: each invocation compiles to a scratch dir which the trap
-# cleans up — no source-tree pollution. OCAMLPATH + OCAMLFIND_CONF
-# point at the runtime's libraries via absolute paths.  The first arg
-# selects the workload: small/default/large -> the generated ladder
-# bytecode; anything else (incl. empty) -> the legacy ocamlc.byte.
 mkdir -p "$(dirname "${OUT}")"
 cat > "${OUT}" << WRAPPER
 #!/usr/bin/env bash

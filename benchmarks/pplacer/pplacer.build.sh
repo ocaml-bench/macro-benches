@@ -1,17 +1,11 @@
 #!/usr/bin/env bash
-# pplacer.build.sh — build pplacer test suite from vendored source.
-#
-# pplacer is vendored manually in vendor/pplacer/ (not via opam-monorepo).
-# Its mcl dependency requires pre-built C libraries in vendor/pplacer/mcl/.
+# pplacer.build.sh: build pplacer's test suite or likelihood driver from
+# vendor/pplacer (manually vendored; mcl needs the pre-built C libs in vendor/pplacer/mcl/).
 set -euo pipefail
 
-# running-ng invokes this script DIRECTLY at run time, so it does NOT inherit
-# the environment setup-monorepo.sh builds up. Source the portability library
-# for its LOCALBASE exports: on FreeBSD, pkg puts headers in
-# /usr/local/include, which the base clang does not search, so a vendored C
-# stub that includes one fails with "'event.h' file not found" even though the
-# package is installed. FreeBSD-gated and idempotent, so this is a no-op on
-# Linux. scripts/tests/test-build-scripts-portable.sh enforces this line.
+# running-ng runs this script directly, without setup-monorepo.sh's environment;
+# lib-portable.sh supplies the FreeBSD LOCALBASE exports (else a vendored C stub
+# fails with "'event.h' file not found"). scripts/tests/test-build-scripts-portable.sh enforces this.
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/scripts/lib-portable.sh"
 
 BENCH_DIR="${RUNNING_OCAML_BENCH_DIR:-$(cd "$(dirname "$0")" && pwd)}"
@@ -28,19 +22,10 @@ export OCAMLPATH=""
 PPLACER_SRC="${MONOREPO_DIR}/vendor/pplacer"
 mkdir -p "$(dirname "${OUT}")"
 
-# Two benchmark families share this build script, selected by output name:
-#
-#  * pplacer_like_* — the input-size likelihood ladder (like_bench.exe). input size =
-#    n_sites (alignment length): the generalized likelihood vectors (Glv,
-#    GSL-backed OFF-HEAP Bigarrays) are sized by n_sites, so a bigger alignment
-#    grows the off-heap working set. like_bench scales it by replicating the
-#    reference alignment's columns (PPLACER_LIKE_MULT, passed as argv.1) and does
-#    a fixed 40-point ML pendant-branch scan per edge (real placement compute) so
-#    wall reaches owl-like bands (~5/15/50s at 0.2/0.65/2.2GB) instead of the
-#    ~1.7 s/GB of a single Felsenstein pass. This is the pplacer likelihood hot
-#    path lifted from tests/pplacer/test_like.ml (minus its exact-value assert).
-#  * pplacer_testsuite (default) — the frozen OUnit test suite, looped argv.1
-#    times in-process (PPLACER_TEST_LOOP): a repetition confidence bench, unchanged.
+# Output name selects the family: pplacer_like_* builds like_bench.exe (the
+# n_sites ladder; argv.1 = column-replication factor PPLACER_LIKE_MULT, see
+# dune-overlays/pplacer/like_bench.ml), anything else the OUnit suite looped
+# argv.1 times in-process (PPLACER_TEST_LOOP).
 case "$(basename "${OUT}")" in
   *pplacer_like_*)
     dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
@@ -62,9 +47,7 @@ WRAPPER
       --profile release \
       vendor/pplacer/tests.exe
     TESTS_EXE="${BUILD_DIR}/default/vendor/pplacer/tests.exe"
-    # Wrapper runs the suite from the correct directory (tests reference
-    # ./tests/data/ relative paths). argv.1 = in-process loop count via
-    # PPLACER_TEST_LOOP, keeping the benchmark one observable OCaml process.
+    # Tests reference ./tests/data/ relative paths, hence the cd.
     cat > "${OUT}" << WRAPPER
 #!/usr/bin/env bash
 set -euo pipefail

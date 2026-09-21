@@ -1,19 +1,12 @@
 #!/usr/bin/env bash
-# ahrefs-devkit.build.sh — build ahrefs-devkit benchmarks from the monorepo.
-#
-# devkit and its C-binding deps (libevent, ocurl) are vendored:
-#   - devkit itself in duniverse/ (via opam-monorepo)
-#   - libevent + ocurl in vendor/ (with hand-written dune overlays)
-# System deps: libevent-dev, libcurl4-openssl-dev
+# ahrefs-devkit.build.sh: build the ahrefs-devkit benchmarks. devkit is in
+# duniverse/; its C-binding deps libevent + ocurl are in vendor/ with dune
+# overlays. System deps: libevent-dev, libcurl4-openssl-dev.
 set -euo pipefail
 
-# running-ng invokes this script DIRECTLY at run time, so it does NOT inherit
-# the environment setup-monorepo.sh builds up. Source the portability library
-# for its LOCALBASE exports: on FreeBSD, pkg puts headers in
-# /usr/local/include, which the base clang does not search, so a vendored C
-# stub that includes one fails with "'event.h' file not found" even though the
-# package is installed. FreeBSD-gated and idempotent, so this is a no-op on
-# Linux. scripts/tests/test-build-scripts-portable.sh enforces this line.
+# running-ng runs this script directly, without setup-monorepo.sh's environment;
+# lib-portable.sh supplies the FreeBSD LOCALBASE exports (else a vendored C stub
+# fails with "'event.h' file not found"). scripts/tests/test-build-scripts-portable.sh enforces this.
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/scripts/lib-portable.sh"
 
 BENCH_DIR="${RUNNING_OCAML_BENCH_DIR:-$(cd "$(dirname "$0")" && pwd)}"
@@ -25,12 +18,9 @@ BUILD_DIR="${MONOREPO_DIR}/_build-${RUNTIME_TAG//[^a-zA-Z0-9._-]/_}"
 OUT_BASE="$(basename "${OUT}")"
 BM_NAME="${OUT_BASE%-${RUNTIME_TAG}}"
 
-# The htmlstream input-size ladder (devkit_htmlstream_{small,default,large})
-# reuses the htmlStream_bench binary; the content-scale factor is a runtime arg
-# (argv.1, default 1 = the frozen benchmark), so the rungs differ from
-# devkit_htmlstream only in their macro_base args. They share its dune target,
-# hence the multi-name arm below (the manifest ci-check reads these arms and
-# requires them to match the manifest's devkit programs exactly).
+# The htmlstream rungs reuse htmlStream_bench (scale factor is argv.1), hence the
+# shared arm. The manifest ci-check parses these arms and requires them to match
+# the manifest's devkit programs exactly.
 case "${BM_NAME}" in
   devkit_htmlstream|devkit_htmlstream_small|devkit_htmlstream_default|devkit_htmlstream_large)
                      EXE="htmlStream_bench" ;;
@@ -56,13 +46,8 @@ REAL_EXE="${BUILD_DIR}/default/benchmarks/ahrefs-devkit/${EXE}.exe"
 
 mkdir -p "$(dirname "${OUT}")"
 
-# For sub-second benchmarks, an in-process iteration loop scales wall time
-# inside a single OCaml process (so olly observes the full run). The .ml
-# entry points read Sys.argv.(1) as the loop count; the wrapper just exec's
-# the binary with the arg passed through. See ~/macro-benches/README.md
-# §"Iteration counts" for the pattern.
-#
-# devkit_htmlstream is large enough on its own and uses the binary directly.
+# stre/gzip/network read Sys.argv.(1) as an in-process loop count; htmlstream is
+# long enough to run bare.
 case "${BM_NAME}" in
   devkit_stre|devkit_gzip|devkit_network)
     cat > "${OUT}" << WRAPPER

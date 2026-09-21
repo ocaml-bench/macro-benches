@@ -1,31 +1,18 @@
-# manifest.yml — the programs this tree can build and run.
+# manifest.yml: the programs this tree can build and run. Several build scripts
+# derive their dune target from the output filename, so the program list is
+# needed to build everything; scripts/ci-build-all.sh and ci-run-all.sh read it.
 #
-# Why this file exists: a build script alone is not enough to build a benchmark.
-# Several scripts derive their dune target from the *output filename* (e.g.
-# ahrefs-devkit.build.sh switches on devkit_stre / devkit_gzip / …), so
-# "run every benchmarks/*/*.build.sh" does not work — you need the program list.
-# Until now that list lived only in running-ng's macro_base.yml, which meant this
-# repo could not check itself. scripts/ci-build-all.sh and scripts/ci-run-all.sh
-# read this file, and CI runs both on every push to master.
+# `args` are copied verbatim from running-ng's macro_base.yml so the two can be
+# diffed. Programs run from a scratch directory, so relative outputs in args land
+# there. ${RUNNING_MACRO_BENCH_DIR} expands to the root of this repo.
 #
-# `args` are copied VERBATIM from running-ng's `macro_base.yml` so the two can be
-# diffed mechanically. Programs are run from a scratch working directory, so
-# relative outputs in the args (menhir's `--base sql-parser`, goblint's
-# `witness.yml`) land there instead of in the source tree.
+# Adding a benchmark: add its entry here in the same commit as its build script
+# and add the program to running-ng's macro_base.yml. CI fails on a program with
+# no build script or a build script with no program.
 #
-# ${RUNNING_MACRO_BENCH_DIR} expands to the root of this repo.
-#
-# Adding a benchmark: add its entry here in the same commit as its build script,
-# and add the matching program to running-ng's macro_base.yml. CI fails if a
-# program listed here has no build script, or if a build script has no program.
-#
-#
-#
-# Input-size ladder: every rung (*_small/_default/_large[/_huge]) is listed so
-# ci-build-all.sh builds them all (catching build breaks). CI *runs* only the
-# rungs flagged `ci_run: true` (the small rung of each tool) — the big rungs
-# don't fit a hosted runner (sedlex's large peaks ~27 GB RSS). The pre-ladder
-# and frozen-reproducer benchmarks are listed too (built, not run in CI).
+# Every ladder rung (*_small/_default/_large[/_huge]) is listed so CI builds it;
+# CI runs only those flagged `ci_run: true` (the small rungs; the big ones don't
+# fit a hosted runner). Frozen benchmarks are built, not run.
 
 default_timeout: 600
 
@@ -426,11 +413,8 @@ programs:
     tool: pplacer
     build_script: pplacer.build.sh
     args: "85"
-  # Input-size ladder = roots-subset size (roots_<rung>.idx), baked into the output
-  # name by infer.build.sh; the wrapper execs `infer analyze --multicore` on that
-  # subset of the shared captured corpus. No in-tree args (corpus + roots generated
-  # at build time). Not ci_run: the build (corpus fetch + javalib/sawja + infer.exe
-  # + 261MB capture) is heavy and network-dependent — CI builds it but doesn't run it.
+  # infer: the rung (roots subset) is baked into the output name by infer.build.sh.
+  # Not ci_run: the build (corpus fetch, javalib/sawja, capture) is heavy and network-dependent.
   infer_small:
     tool: infer
     build_script: infer.build.sh

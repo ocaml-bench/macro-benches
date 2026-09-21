@@ -23,7 +23,6 @@ module Gw = struct
 
   let gw_cost (a_dmat : matrix) (b_dmat : matrix)
       (coupling : matrix) (c_A : float) (c_B : float) =
-    (* let frobenius x y = Mat.sum' (Mat.mul x y) in *)
     let a_dmat' = (genarray_of_array2 a_dmat) in
     let b_dmat' =(genarray_of_array2 b_dmat) in
     let coupling' = (genarray_of_array2 coupling) in
@@ -73,11 +72,8 @@ module Mat = Owl_dense_matrix_d
 
 let num_sample_pts = 100
 
-(* input size = matrix dimension.  Each of the num_sample_pts sample points is a
-   dim x dim Float64 matrix, so the off-heap live set is num_sample_pts * dim^2
-   * 8 bytes and the per-pair Gromov-Wasserstein compute is ~O(dim^3); raising
-   dim grows RSS (quadratically) and off-heap custom-block major-GC pressure.
-   Set via OWL_MATRIX_DIM (default 100, the legacy value). *)
+(* OWL_MATRIX_DIM (default 100) is the input size: off-heap live set is
+   num_sample_pts * dim^2 * 8 bytes, Gromov-Wasserstein compute ~O(dim^3). *)
 let dim = try int_of_string (Sys.getenv "OWL_MATRIX_DIM") with _ -> 100
 let () = Random.init 0
 let rand () =
@@ -91,10 +87,8 @@ let rand () =
 
 let icdms = Array.init num_sample_pts (fun _ -> rand ())
 
-(* The probability distribution over one space has one weight per point, so its
-   length is the space size (dim), matching the dim x dim distance matrices.
-   (The legacy code used num_sample_pts here, which only worked because dim ==
-   num_sample_pts == 100; decoupled so dim is an independent input size.) *)
+(* One weight per point, so length dim (the legacy code used num_sample_pts,
+   which only worked because both were 100). *)
 let u = Gw.uniform_dist dim
 
 let gw_by_index gw_dmat i j () =
@@ -105,11 +99,7 @@ let n = Array.length icdms
 
 let gw_dmat = Mat.zeros n n
 
-(* In-process iteration loop: Sys.argv.(1) controls how many full passes
-   over the matrix-pair grid the benchmark performs, all in one OCaml
-   process so olly observes the whole run.  Default 1 keeps the binary
-   useful as a standalone executable.  See macro-benches README
-   §"Iteration counts" for the pattern. *)
+(* Sys.argv.(1) = full passes over the matrix-pair grid, in one process so olly sees the whole run. *)
 let loop =
   if Array.length Sys.argv > 1
   then try int_of_string Sys.argv.(1) with _ -> 1

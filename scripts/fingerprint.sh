@@ -1,16 +1,10 @@
 #!/usr/bin/env bash
-# GC/RSS fingerprint probe for macro-benches input-size ladders.
-#
-# Runs a benchmark binary under GC-stats + RSS capture with no instrumentation,
-# and emits one CSV row. Sweep across input sizes to see whether a bigger input
-# changes the *shape* (growing live set / major cycles / RSS) or just scales up.
+# GC/RSS fingerprint probe: runs a benchmark binary under OCAMLRUNPARAM=v=0x400
+# and /usr/bin/time -v, emits one CSV row. Sweep input sizes to see whether the
+# GC shape changes or just scales.
 #
 # Usage:   scripts/fingerprint.sh <label> <exe> [args...]
 # Header:  scripts/fingerprint.sh --header
-#
-# Fields: label,wall_s,user_s,sys_s,max_rss_kb,minor_colls,major_colls,
-#         forced_major,minor_words,promoted_words,major_words,allocated_words,
-#         top_heap_words,heap_words,promo_frac
 set -uo pipefail
 
 if [[ "${1:-}" == "--header" ]]; then
@@ -24,11 +18,10 @@ exe="${1:?exe required}"; shift
 tmp="$(mktemp)"
 trap 'rm -f "$tmp"' EXIT
 
-# stdout (benchmark output) discarded; stderr (GC stats + time -v) captured.
 /usr/bin/time -v env OCAMLRUNPARAM="v=0x400" "$exe" "$@" >/dev/null 2>"$tmp"
 
 get() { grep -iE "$1" "$tmp" | head -1 | grep -oE '[0-9]+(\.[0-9]+)?' | tail -1; }
-# wall "h:mm:ss or m:ss" -> seconds
+# time -v prints wall clock as h:mm:ss or m:ss
 wall_raw="$(grep -i 'wall clock' "$tmp" | grep -oE '[0-9:.]+' | tail -1)"
 wall_s="$(awk -F: '{if(NF==3)print $1*3600+$2*60+$3; else if(NF==2)print $1*60+$2; else print $1}' <<<"$wall_raw")"
 

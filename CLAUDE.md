@@ -47,8 +47,18 @@ matrix and gaps, the gotchas, and the backlog.
   binary so running-ng rebuilds it.
 - **Don't commit `_build-*/`, `_rocq_prefix/`, big inputs, or vendored-source churn**
   casually. `duniverse/` is generated (opam-monorepo); regenerate via `scripts/`.
-- Keep documentation consistent with every commit: `README.md`, the relevant
-  `docs/benchmarks/<name>.md`, and this file.
+- Keep this file consistent with every commit. For `README.md` and
+  `docs/benchmarks/<name>.md`, follow the docs rule below.
+- **Human-facing docs are written by a human.** `README.md` and every other
+  `.md` file except this one are maintained by hand. When a change calls for a
+  docs update, do not edit the prose. Put an invisible HTML comment next to the
+  passage that needs to change, saying what changed and what the text should
+  now say: `<!-- TODO(docs): ... -->` (it does not render). When a PR is being
+  prepared, list every such comment so they can be resolved by hand before
+  merge: `grep -rn 'TODO(docs)' --include='*.md' .`
+- **Comments only where the code is not self-explanatory.** Never add a comment
+  that restates the code. Where one is needed, keep it short and explain the
+  intent or the non-obvious constraint at a high level, for a human reader.
 
 ## Where things live (read first)
 

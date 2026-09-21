@@ -1,16 +1,11 @@
 #!/usr/bin/env bash
-# liq-video-frames.build.sh — synthetic GC-pacer benchmark modelling the
-# liquidsoap video-frame allocation pattern (ocaml/ocaml#13123, #14533).
-# Per-frame: three Bigarrays sized as mm/Image.YUV420.create for 720p.
+# liq-video-frames.build.sh: synthetic GC-pacer benchmark modelling liquidsoap's
+# video-frame allocation pattern (ocaml/ocaml#13123, #14533).
 set -euo pipefail
 
-# running-ng invokes this script DIRECTLY at run time, so it does NOT inherit
-# the environment setup-monorepo.sh builds up. Source the portability library
-# for its LOCALBASE exports: on FreeBSD, pkg puts headers in
-# /usr/local/include, which the base clang does not search, so a vendored C
-# stub that includes one fails with "'event.h' file not found" even though the
-# package is installed. FreeBSD-gated and idempotent, so this is a no-op on
-# Linux. scripts/tests/test-build-scripts-portable.sh enforces this line.
+# running-ng runs this script directly, without setup-monorepo.sh's environment;
+# lib-portable.sh supplies the FreeBSD LOCALBASE exports (else a vendored C stub
+# fails with "'event.h' file not found"). scripts/tests/test-build-scripts-portable.sh enforces this.
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/scripts/lib-portable.sh"
 
 BENCH_DIR="${RUNNING_OCAML_BENCH_DIR:-$(cd "$(dirname "$0")" && pwd)}"
@@ -30,13 +25,9 @@ dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
 
 REAL_EXE="${BUILD_DIR}/default/benchmarks/liq-video-frames/liq_video_frames.exe"
 
-# The wrappers forward all args to the exe: argv.1 = frame count (repetition),
-# argv.2/argv.3 = frame WIDTH/HEIGHT (input size — a bigger frame scales the
-# per-frame off-heap Bigarray, so the custom-block pacer forces more major
-# cycles; the frozen repro leaves W/H unset = 1280x720). An output whose name
-# contains "pool" gets the AVFrame-style refcounted-pool wrapper (LIQ_POOL=1,
-# LIQ_TOUCH=full — toots' ocaml#14533 free-lunch path); otherwise the base
-# mm-style fresh-malloc wrapper.
+# Args pass through: argv.1 = frame count, argv.2/3 = width/height (input size;
+# unset = 1280x720). An output name containing "pool" gets the refcounted-pool
+# variant (LIQ_POOL=1, LIQ_TOUCH=full: the ocaml#14533 free-lunch path).
 emit_wrapper () {  # $1 = output path
   if [[ "$1" == *pool* ]]; then
     cat > "$1" << WRAPPER
@@ -59,8 +50,7 @@ WRAPPER
 mkdir -p "$(dirname "${OUT}")"
 emit_wrapper "${OUT}"
 
-# Back-compat: always emit the canonical liq_video_frames_pool-<runtime> too,
-# so a base-name build still leaves the pool variant in place.
+# Always emit the canonical pool wrapper too, so a base-name build leaves it in place.
 POOL_OUT="${BENCH_DIR}/liq_video_frames_pool-${RUNTIME_TAG}"
 [ "${OUT}" = "${POOL_OUT}" ] || emit_wrapper "${POOL_OUT}"
 

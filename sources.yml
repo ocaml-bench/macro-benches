@@ -1,24 +1,12 @@
-# Pinned source versions for vendored packages.
-#
-# This file is the single source of truth: the vendor scripts and
-# setup-monorepo.sh read it through scripts/lib-sources.sh (`src_field`,
-# `clone_pinned`) rather than carrying their own copies of a version. Change a
-# version or a commit here, re-run `make setup`, and that is the whole bump.
-#
-# Everything here is pinned by construction — tarballs by version + md5, git
-# sources by commit. Nothing tracks a branch HEAD. Six git sources used to
-# (ppxlib, lwt, merlin, js_of_ocaml, pplacer, mcl), which meant a cold setup
-# vendored whatever upstream had that morning; by the time they were pinned two
-# had already drifted away from the validated tree and one branch had been
-# deleted upstream, breaking a cold setup outright.
-
-# --- menhir (parser generator) ---
+# Pinned source versions for vendored packages: the single source of truth,
+# read by the vendor scripts and setup-monorepo.sh through
+# scripts/lib-sources.sh. Tarballs are pinned by version + md5, git sources by
+# commit; nothing tracks a branch HEAD. Bump here and re-run `make setup`.
 menhir:
   version: "20260209"
   url: "https://gitlab.inria.fr/fpottier/menhir/-/archive/20260209/archive.tar.gz"
   md5: "e993231085db95ab011ffe0cd606d9dd"
 
-# --- cpdf + camlpdf (PDF command-line tool) ---
 camlpdf:
   version: "2.8.1"
   url: "https://github.com/johnwhitington/camlpdf/archive/refs/tags/v2.8.1.tar.gz"
@@ -31,7 +19,6 @@ cpdf-source:
   md5: "45ba51aae6b5d3ea6cb421037f8f73bb"
   notes: "PDF command-line tool.  Uses OCamlMakefile; dune overlay in dune-overlays/cpdf-source/."
 
-# --- rocq / coq (proof assistant) ---
 zarith:
   version: "1.14"
   url: "https://github.com/ocaml/Zarith/archive/refs/tags/release-1.14.tar.gz"
@@ -44,7 +31,6 @@ rocq:
   md5: "e6c2f84353384300a47b2e90d6824229"
   notes: "Proof assistant (formerly Coq).  Uses dune natively.  Needs dunestrap + findlib library."
 
-# --- alt-ergo (SMT solver) ---
 alt-ergo:
   version: "2.6.2"
   url: "https://github.com/OCamlPro/alt-ergo/archive/refs/tags/v2.6.2.tar.gz"
@@ -81,16 +67,8 @@ ppx_blob:
   md5: "8dc76254a66ed47aaab6e612ce5e913c"
   notes: "PPX for embedding files as strings.  Uses dune.  Alt-ergo dep."
 
-# =============================================================================
-# Git sources, pinned by commit
-# =============================================================================
-# Cloned by clone_pinned() (scripts/lib-sources.sh), which fetches the commit
-# directly and keeps .git so `git -C <dir> rev-parse HEAD` tells you what you
-# have. `branch` is where the commit came from — provenance only; it is not used
-# to fetch, so a branch that moves or disappears upstream cannot change what a
-# cold setup vendors.
-
-# --- replacements for lockfile packages (see CLAUDE.md patches 4 + 5) ---
+# Git sources: cloned by clone_pinned() (scripts/lib-sources.sh) at `commit`.
+# `branch` is provenance only, never used to fetch.
 ppxlib:
   repo: "https://github.com/ocaml-ppx/ppxlib.git"
   branch: "main"
@@ -105,7 +83,6 @@ lwt:
   date: "2026-04-20"
   notes: "Replaces the lockfile's lwt; fixes socketaddr.h for OCaml 5.6. Drop once a release supports 5.6."
 
-# --- vendored tools not in the lockfile ---
 js_of_ocaml:
   repo: "https://github.com/ocsigen/js_of_ocaml.git"
   branch: "master"
@@ -140,11 +117,8 @@ mcl:
   date: "2025-12-01"
   notes: "pplacer's git submodule (SSH URL upstream, so cloned over HTTPS separately). Built in place by configure/make. Patched by setup-monorepo.sh (patch 12)."
 
-# --- apron chain for goblint (non-dune: configure/make + camlidl) ---
-# Built per-runtime into a self-contained prefix by scripts/vendor-apron.sh.
-# The `branch` field here names the release tag the commit was resolved from.
-# Pinning the commit rather than the tag means a re-pointed tag upstream cannot
-# change what we build.
+# apron chain for goblint, built per-runtime by scripts/vendor-apron.sh.
+# `branch` here is the release tag the commit was resolved from.
 bigarray-compat:
   repo: "https://github.com/mirage/bigarray-compat.git"
   branch: "v1.1.0"
@@ -165,9 +139,6 @@ apron:
   branch: "v0.9.15"
   commit: "b3172bd51e4bb0135716a300cab424a56970d96f"
 
-# =============================================================================
-# Other pinned downloads
-# =============================================================================
 frama-c:
   version: "32.1"
   repo: "https://git.frama-c.com/pub/frama-c.git"
@@ -196,19 +167,8 @@ cmdliner-dune:
     ships no dune files, so this is the dune-universe overlay build. Replaces the
     lockfile's cmdliner in duniverse/.
 
-# --- alt-ergo deps not yet vendored ---
-# ppx_deriving v6.0.3 — https://github.com/ocaml-ppx/ppx_deriving — needs ppxlib ecosystem
-# camlzip      rel113  — https://github.com/xavierleroy/camlzip     — Makefile, needs dune overlay + zlib
-# fmt          v0.9.0  — https://github.com/dbuenzli/fmt            — topkg, needs dune overlay
-# logs         v0.7.0  — https://github.com/dbuenzli/logs           — topkg, needs dune overlay
-
-# --- infer benchmark: manually vendored, java-only pure-dune build ---
-# Infer itself (autoconf/make upstream generates dune files, so it can't join the
-# opam-monorepo lock — vendored via scripts/vendor-infer.sh with a pre-generated
-# java-only dune overlay) plus its non-dune analysis-lib chain (cppo, extlib,
-# camlzip, javalib, sawja) built per-runtime by scripts/vendor-javalib-sawja.sh.
-# Commits are the resolved targets of the tags these scripts previously cloned by
-# name.
+# alt-ergo deps not yet vendored: ppx_deriving, camlzip, fmt, logs (see
+# scripts/vendor-alt-ergo.sh).
 cppo:
   repo: "https://github.com/ocaml-community/cppo.git"
   branch: "v1.8.0"

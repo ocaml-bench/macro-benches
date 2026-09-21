@@ -1,14 +1,9 @@
 name: CI
 
-# Pull requests into master are the gate: "this change keeps master buildable and
-# runnable", checked before the merge. Pushes to master verify the result *after*
-# it — required checks are not `strict`, so two PRs can each be green against an
-# older master and still break it together, and nothing else would notice until
-# the next PR or the Monday cron. The post-merge run is cheap: same cache key as
-# the PR run that just passed, so it restores a warm cache. It also refreshes the
-# cache in master's scope, which is the only scope every PR can restore from.
-#
-# Nothing runs on other branch pushes, so work-in-progress doesn't burn runners.
+# PRs into master gate the merge; pushes to master verify the result after it
+# (required checks are not `strict`, so two green PRs can still break master
+# together) and refresh the cache in master's scope, which every PR can restore
+# from. Nothing runs on other branch pushes.
 on:
   pull_request:
     branches: [master]
@@ -16,18 +11,14 @@ on:
     branches: [master]
   workflow_dispatch:
   schedule:
-    # Weekly cold run: no cache, so every vendored source is re-fetched from
-    # scratch. Everything is commit-pinned (see sources.yml), so this is not
-    # looking for drift — it checks that a cold setup still *works*: that every
-    # pinned commit and tarball is still fetchable and the rocq bootstrap runs
-    # from nothing, rather than that being hidden by the cache all week.
+    # Weekly cold run without cache: checks that every pinned commit and tarball
+    # is still fetchable and the rocq bootstrap runs from nothing.
     - cron: "0 4 * * 1"
 
 concurrency:
   group: ci-${{ github.ref }}
-  # Superseding a PR run is what you want — only the latest push matters. Cancelling
-  # a *master* run is not: two merges landing close together would leave the first
-  # one unverified, which is the gap this post-merge run exists to close.
+  # Cancel superseded PR runs only: a cancelled master run would leave a merge
+  # unverified.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -35,17 +26,15 @@ jobs:
     name: build + run once (${{ matrix.label }})
     runs-on: ubuntu-latest
     timeout-minutes: 240
-    # The trunk leg is informational: it tracks a moving compiler and depends on
-    # ppxlib/lwt git main (patch 4+5 in CLAUDE.md), so it can go red for reasons
-    # that have nothing to do with a change here. It reports; it does not gate.
+    # The trunk leg tracks a moving compiler and ppxlib/lwt git main, so it can
+    # go red for unrelated reasons; it reports, it does not gate.
     continue-on-error: ${{ matrix.required == false }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          # `label` becomes the check name that branch protection requires, so
-          # keep it free of version numbers — bumping the compiler below must not
-          # silently orphan the required check.
+          # `label` is the check name branch protection requires; keep version
+          # numbers out of it.
           - label: "stable"
             ocaml: "5.5.0"
             required: true
@@ -64,10 +53,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # For the trunk leg, resolve the tip commit BEFORE creating the switch and
-      # fold it into every cache key. Without this, a restored opam-root cache
-      # would hand us a stale trunk switch and the run would silently not be
-      # testing the tip at all.
+      # Resolve the trunk tip before creating the switch and fold it into every
+      # cache key, or a restored opam-root cache would hand back a stale switch.
       - name: Resolve compiler identity
         id: compiler
         run: |
@@ -95,32 +82,21 @@ jobs:
           ocaml-compiler: ${{ matrix.ocaml }}
           cache-prefix: ${{ steps.compiler.outputs.id }}
 
-      # Cheaper still, and this is the ONLY place the GNU half of these can run.
-      # Each helper in lib-portable.sh is asserted to produce byte-identical
-      # output to the GNU command it replaces, which requires GNU userland: on
-      # FreeBSD those comparisons are skipped and the suite reports 14 checks
-      # where this reports 24. So the FreeBSD job cannot cover for this one.
-      #
-      # test-build-scripts-portable.sh is here for the opposite reason: the
-      # LOCALBASE export it guards is gated off on Linux, so a build script that
-      # stops sourcing lib-portable.sh is invisible here at runtime and only
-      # breaks on FreeBSD. The check is static, so it catches it anyway.
+      # The only place the GNU half of test-lib-portable.sh can run (FreeBSD
+      # skips those comparisons). test-build-scripts-portable.sh is static, so it
+      # catches a missing lib-portable.sh source that only breaks on FreeBSD.
       - name: Portability helpers and build-script wiring
         run: |
           bash scripts/tests/test-lib-portable.sh
           bash scripts/tests/test-build-scripts-portable.sh
 
-      # Checks the FreeBSD workflow's package names against FreeBSD's published
-      # index, from here, over HTTP. A wrong name is otherwise only discoverable
-      # by running the FreeBSD job, one name per round trip: `opam` (it is
-      # `ocaml-opam`) and `py312-yaml` (it is `py312-pyyaml`) each cost one.
-      # Advisory about the network: it skips, rather than fails, if the index
-      # cannot be fetched.
+      # Checks the FreeBSD workflow's package names against FreeBSD's index over
+      # HTTP; skips rather than fails if the index cannot be fetched.
       - name: FreeBSD package names resolve
         run: python3 scripts/tests/check-freebsd-packages.py
 
-      # Cheap and first: fails in seconds on a benchmark that was added without a
-      # manifest entry (or vice versa), rather than 40 minutes into a build.
+      # Fails in seconds on a benchmark added without a manifest entry, rather
+      # than 40 minutes into a build.
       - name: Validate the manifest against the tree
         run: python3 scripts/ci-manifest.py check
 
@@ -135,11 +111,9 @@ jobs:
           fi
           dune --version
 
-      # duniverse/, vendor/ and _rocq_prefix/ are the output of the setup phase
-      # (opam-monorepo pull, the vendor-*.sh scripts, the 18 source patches and
-      # the rocq bootstrap). They only change when the lock file, sources.yml or
-      # the scripts change — but vendor/ also holds the per-runtime apron prefix,
-      # so the compiler identity is part of the key too.
+      # duniverse/, vendor/ and _rocq_prefix/ are the setup phase's output;
+      # vendor/ also holds the per-runtime apron prefix, so the compiler identity
+      # is part of the key.
       - name: Cache vendored sources
         if: github.event_name != 'schedule'
         uses: actions/cache@v4

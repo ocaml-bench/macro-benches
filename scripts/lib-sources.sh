@@ -1,30 +1,15 @@
 #!/usr/bin/env bash
-# lib-sources.sh — read pinned versions from sources.yml and clone git sources at
-# their pinned commit. Source this file; don't execute it.
-#
-# Why: six vendored git sources (ppxlib, lwt, merlin, js_of_ocaml, pplacer, mcl)
-# used to be cloned at a *branch HEAD*, so a cold `make setup` picked up whatever
-# upstream happened to have that day — silently changing the vendored sources, the
-# benchmark binaries built from them, and therefore the measurements. Two of them
-# had already drifted from the validated tree by the time this was written (ppxlib
-# by 7 weeks, lwt by 3 months), and one branch had been deleted upstream
-# altogether, which broke a cold setup outright.
-#
-# Bumping a pin is now a one-line edit to sources.yml: it shows up in review, and
-# CI rebuilds and re-runs everything against it. That is the whole point.
+# Read pinned versions from sources.yml and clone git sources at their pinned
+# commit. Source this file; don't execute it. Bumping a pin is a one-line edit
+# to sources.yml.
 
-# Shell helpers that behave the same on GNU and BSD userland (sed_i, checksum,
-# ncpu and friends). Sourced here so every vendor-*.sh gets them, since they all
-# source this file; setup-monorepo.sh does too.
+# Sourced here so every vendor-*.sh gets the GNU/BSD-portable helpers.
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-portable.sh"
 
 _SOURCES_YML="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/sources.yml"
 
-# src_field <top-level key> <field> — print one field from sources.yml.
-#
-# Deliberately dependency-free rather than PyYAML: sources.yml is a flat two-level
-# map with one `key: value` per line, so awk is enough, and setup keeps working on
-# a machine that has nothing but bash, git, curl and a compiler.
+# src_field <top-level key> <field>: print one field from sources.yml.
+# awk rather than PyYAML so setup needs nothing but bash, git, curl and a compiler.
 src_field() {
   awk -v key="$1:" -v field="$2:" '
     $1 == key        { in_block = 1; next }
@@ -38,29 +23,17 @@ src_field() {
   ' "$_SOURCES_YML"
 }
 
-# _peel_commit <dir> <sha> — print the commit <sha> denotes, as seen from <dir>.
-#
-# A pin copied out of `git ls-remote` can name an *annotated tag object* rather
-# than the commit it points at: ls-remote prints the tag object for
-# `refs/tags/<t>` and the commit only for the `refs/tags/<t>^{}` line. Checking
-# such a pin out lands on the commit, so a literal compare against the pin fails
-# even though the tree is exactly the pinned one. Peel before comparing.
-#
-# Falls back to printing <sha> unchanged when the object is not in <dir> (no
-# checkout yet, or a genuinely wrong sha), so a real mismatch still fails loudly
-# instead of silently passing.
+# _peel_commit <dir> <sha>: the commit <sha> denotes. A pin copied from
+# `git ls-remote` may be an annotated tag object, whose checkout lands on the
+# commit it points at. Prints <sha> unchanged when the object is not in <dir>,
+# so a real mismatch still fails.
 _peel_commit() {
   git -C "$1" rev-parse -q --verify "$2^{commit}" 2>/dev/null || printf '%s\n' "$2"
 }
 
 # clone_pinned <sources.yml key> <destination dir>
-#
-# Idempotent: if the destination is already at the pinned commit this does
-# nothing, so setup stays re-runnable. If the pin has moved — or the checkout is a
-# pre-pin one with no .git — it re-clones. The .git dir is kept on purpose: it is
-# how you find out what you actually have (`git -C <dir> rev-parse HEAD`) and how
-# this function decides whether to re-clone. The old scripts deleted it, which is
-# why recovering the pins in the first place meant reverse-engineering tree hashes.
+# No-op when dest is already at the pin, re-clones otherwise. .git is kept so
+# the pin can be checked (`git -C <dir> rev-parse HEAD`).
 clone_pinned() {
   local key="$1" dest="$2"
   local repo commit branch got want
@@ -73,8 +46,7 @@ clone_pinned() {
     return 1
   fi
 
-  # `|| true`: with no ${dest} yet — every first clone — `git -C` exits 128, and a
-  # bare failing assignment is fatal under the callers' `set -e`.
+  # `|| true`: on a first clone `git -C` exits 128, fatal under callers' `set -e`.
   got="$(git -C "${dest}" rev-parse HEAD 2>/dev/null || true)"
   if [ -n "${got}" ] && [ "${got}" = "$(_peel_commit "${dest}" "${commit}")" ]; then
     echo "  ${key}: already at pinned ${commit:0:12}. Skipping."
@@ -86,12 +58,8 @@ clone_pinned() {
   mkdir -p "${dest}"
   git -C "${dest}" init -q
   git -C "${dest}" remote add origin "${repo}"
-  # Three ways to land on the pinned commit, cheapest first:
-  #   1. shallow fetch of the commit itself — GitHub allows this;
-  #   2. shallow fetch of the branch/tag it came from, then verify we got the
-  #      pinned commit — for hosts that refuse a bare commit (GitLab by default).
-  #      Still pinned: if the ref has moved, the verify below fails loudly;
-  #   3. full clone — last resort, correct but slow.
+  # Cheapest first: fetch the commit (GitHub allows it), else shallow-fetch the
+  # branch/tag (GitLab refuses bare commits; verified below), else full clone.
   if git -C "${dest}" fetch -q --depth 1 origin "${commit}" 2>/dev/null; then
     git -C "${dest}" checkout -q --detach FETCH_HEAD
   elif [ -n "${branch}" ] && git -C "${dest}" fetch -q --depth 1 origin "${branch}" 2>/dev/null; then
@@ -104,9 +72,7 @@ clone_pinned() {
     git -C "${dest}" checkout -q --detach "${commit}"
   fi
 
-  # Verify against the *peeled* pin: an annotated-tag pin is still a pin (the tag
-  # object is immutable too), so accept it and say so rather than failing on a
-  # tree that is bit-for-bit the pinned one.
+  # Compare against the peeled pin: an annotated-tag pin is still immutable.
   want="$(_peel_commit "${dest}" "${commit}")"
   if [ "${want}" != "${commit}" ]; then
     echo "    (pin ${commit:0:12} is an annotated tag object; it peels to commit ${want:0:12})"

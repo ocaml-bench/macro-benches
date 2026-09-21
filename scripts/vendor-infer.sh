@@ -1,41 +1,17 @@
 #!/usr/bin/env bash
-# vendor-infer.sh — clone Infer source into vendor/infer for a java-only,
-# pure-dune macro-benchmark build.
+# Clone Infer into vendor/infer for a java-only, pure-dune build. Infer's own
+# build is autoconf + make that generates its dune files, and its configure
+# asserts deps are installed, so instead: clone the pin, drop its
+# dune-workspace, neutralize every *.opam (deps are declared in dune-project's
+# macro-bench-infer) and copy the pre-generated java-only dune files from
+# dune-overlays/infer/ (darwin=false pinned, so flags are identical across runtimes).
 #
-# WHY MANUAL VENDORING (like frama-c / pplacer, not opam-monorepo):
-# Infer's upstream build is autoconf + make that *generates* its dune files
-# from *.in templates (substituting a handful of @BUILD_*_ANALYZERS@ /
-# @BUILD_PLATFORM@ booleans) and its ./configure ASSERTS that many OCaml
-# packages are already installed (atdgen, javalib, sawja, yojson, ...) and
-# probes for external tools (javac, menhir, atdgen).  In the monorepo those
-# deps live in duniverse/, not the tools switch, so running ./configure at
-# setup would fail.  Instead we:
-#   1. clone the source at a pinned ref,
-#   2. drop the top-level dune-workspace (the monorepo provides the single
-#      workspace/context) but KEEP infer/dune-project so vendor/infer is a
-#      self-contained dune project pinning `(lang dune 3.16)` + menhir 3.0,
-#   3. neutralize every *.opam in the tree so opam-monorepo does not treat
-#      Infer as a local package and try to vendor its (already-declared)
-#      deps a second time — the real deps are declared in dune-project's
-#      `macro-bench-infer` package,
-#   4. lay down a committed set of pre-generated *java-only* dune files
-#      (dune-overlays/infer/) — the exact files `./configure && make`
-#      produces for a java-only tree, with @BUILD_PLATFORM@ pinned to Linux
-#      (darwin=false => -O3 flambda, identical across runtimes).
-#
-# Regenerating the overlay (only when bumping INFER_REF): configure an Infer
-# checkout java-only (./build-infer.sh java) and copy the generated
-# infer/src/{dune,dune.common,unit/dune,integration/dune,integration/unit/dune,
-# java/dune,opensource/dune} and infer/src/base/Version.ml into
-# dune-overlays/infer/, then set `let darwin = false` in dune.common.
-#
-# The benchmark exe is built by benchmarks/infer/infer.build.sh as
-#   dune build vendor/infer/infer/src/infer.exe
+# To regenerate the overlay when bumping the pin: configure a checkout java-only
+# (./build-infer.sh java), copy the generated infer/src/{dune,dune.common,
+# unit/dune,integration/dune,integration/unit/dune,java/dune,opensource/dune} and
+# infer/src/base/Version.ml into dune-overlays/infer/, set `let darwin = false`.
 set -euo pipefail
 
-# Pinned source: the java-only, OCaml 5.2–5.4 tree, tagged `inferbench-v1.1`.
-# Pinned to an immutable release tag (not a branch name) so the benchmark
-# source can't shift under us if development branches are later updated.
 INFER_URL="${INFER_URL:-https://github.com/ngorogiannis/infer.git}"
 INFER_REF="${INFER_REF:-inferbench-v1.1}"
 
@@ -44,18 +20,11 @@ VENDOR_DIR="${MONOREPO_DIR}/vendor"
 INFER_DIR="${VENDOR_DIR}/infer"
 OVERLAY_DIR="${MONOREPO_DIR}/dune-overlays/infer"
 
-# clone_pinned — the URL and pinned commit come from sources.yml (`infer` key).
-# INFER_URL/INFER_REF above are kept only for the overlay-regeneration comment.
+# The pin comes from sources.yml; INFER_URL/INFER_REF above are informational only.
 source "${MONOREPO_DIR}/scripts/lib-sources.sh"
 
-# Idempotence sentinel: base/Version.ml, which ONLY the overlay below supplies
-# (upstream ships Version.ml.in + Version.mli and generates the .ml via
-# ./configure).  Deliberately not a source-tree file like infer/dune-project or
-# src/infer.ml: those exist in a bare clone, so if vendoring aborted part-way —
-# e.g. clone_pinned rejecting a bad pin — the half-vendored tree would look
-# "already vendored" here and the build would fail much later with a confusing
-# `(modules_without_implementation version)` dune error.  Keyed on an
-# overlay-only file, an interrupted vendoring re-runs and self-heals.
+# The sentinel is the overlay-only Version.ml, not a cloned file, so a vendoring
+# that aborted part-way re-runs instead of looking done.
 if [ -f "${INFER_DIR}/infer/src/base/Version.ml" ]; then
   echo "vendor/infer/ already exists. Remove it first to re-vendor."
   exit 0
@@ -67,10 +36,7 @@ clone_pinned infer "${INFER_DIR}"
 # Drop .git: vendor/infer is a self-contained, patched tree, not a live checkout.
 rm -rf "${INFER_DIR}/.git"
 
-# ---- Strip subtrees we never build (java-only, pure OCaml, no C/C++ frontends) ----
-#   facebook-clang-plugins : large C++ clang plugin (clang analyzer only)
-#   website / docker / examples / _build_logs : docs, images, artifacts
-#   sledge                 : LLVM-based analyzer (swift), not built
+# Never built: the C++ clang plugin, docs, sledge (swift).
 rm -rf \
   "${INFER_DIR}/facebook-clang-plugins" \
   "${INFER_DIR}/website" \
@@ -80,69 +46,46 @@ rm -rf \
   "${INFER_DIR}/_build" \
   "${INFER_DIR}"/_build_logs 2>/dev/null || true
 
-# opam-monorepo scans the whole vendored tree.  Two things trip it up:
-#   - infer/opam/{infer,infer-tests}.opam duplicate infer/infer.opam ("defined
-#     multiple times"); drop the opam/ packaging dir, keeping infer/infer.opam
-#     (neutralized below) as the single package decl that dune public_names need.
-#   - infer/bin/infer-* and infer/lib/wrappers/* are dangling symlinks to the
-#     (not-yet-built) infer binary; opam-monorepo errors trying to stat them.
+# opam-monorepo scans the whole tree: infer/opam/*.opam duplicate infer/infer.opam
+# ("defined multiple times"), and bin/infer-* are dangling symlinks it cannot stat.
 rm -rf "${INFER_DIR}/opam"
 find "${INFER_DIR}" -xtype l -delete 2>/dev/null || true
 
-# Disabled-frontend OCaml source dirs.  NOTE: the java-only exe STILL links
-# ClangFrontend (infer/src/clang) — analyzer selection drops python/rust/
-# erlang/swift from the link line but not clang — so clang MUST be kept (its
-# generated dune is supplied by the overlay; its ClangFrontend library is
-# pure OCaml, needing no facebook-clang-plugins).  python/rust have no dune
-# at all and erlang/swift are already gone, so pruning them is safe.
+# The java-only exe still links ClangFrontend (pure OCaml), so infer/src/clang
+# stays; these four are not linked.
 for d in python rust erlang swift; do
   rm -rf "${INFER_DIR}/infer/src/${d}" 2>/dev/null || true
 done
 
-# ---- One dune workspace only: drop Infer's (the monorepo root owns it) ----
+# The monorepo root owns the dune workspace.
 rm -f "${INFER_DIR}/infer/dune-workspace"
 
-# ---- Neutralize every *.opam so opam-monorepo ignores Infer as a package ----
-# (mirrors scripts/vendor-frama-c.sh's empty-opam fill).  Infer's real deps
-# are declared in dune-project's macro-bench-infer package.
+# Neutralize every *.opam so opam-monorepo ignores Infer as a package (as
+# vendor-frama-c.sh does).
 while IFS= read -r f; do
   printf 'opam-version: "2.0"\n' > "$f"
 done < <(find "${INFER_DIR}" -name '*.opam')
 
-# ---- Lay down the pre-generated java-only dune files + Version.ml ----
 if [ ! -d "${OVERLAY_DIR}" ]; then
   echo "ERROR: missing dune-overlays/infer/ (the pre-generated java-only dune files)." >&2
   exit 1
 fi
 cp -R "${OVERLAY_DIR}/infer/." "${INFER_DIR}/infer/"
 
-# ---- Materialize IBase's ppx_blob docs as a real directory ----
-# infer/src/base/IssueType.ml / Checker.ml embed docs via [%blob
-# "./documentation/<...>.md"].  Upstream, src/base/documentation is a symlink
-# to ../../documentation and base/dune declares the blob files with a
-# `../../documentation/*.md` glob.  dune's preprocessing sandbox does not
-# bridge the blob's `./documentation` path through that symlink+glob (a
-# non-sandboxed in-tree `make` happens to work; a clean sandboxed dune build
-# does not).  The overlay's base/dune globs `documentation/*.md` instead, so
-# replace the symlink with a real copy for the dep path to match the blob path.
+# IssueType.ml/Checker.ml embed docs via [%blob "./documentation/..."]; upstream
+# src/base/documentation is a symlink, which dune's sandbox does not bridge for
+# the blob path. Replace it with a real copy (the overlay's base/dune globs
+# documentation/*.md).
 if [ -L "${INFER_DIR}/infer/src/base/documentation" ]; then
   rm -f "${INFER_DIR}/infer/src/base/documentation"
 fi
 rm -rf "${INFER_DIR}/infer/src/base/documentation"
 cp -R "${INFER_DIR}/infer/documentation" "${INFER_DIR}/infer/src/base/documentation"
 
-# ---- Silence per-procedure task logging ----
-# Logging.task_progress logs "<x> starting" / "<x> DONE" around every analysed
-# procedure. Logging.log routes that to the console when the progress bar is
-# `Plain` (which `auto` picks whenever stdout is not a tty -- i.e. always under
-# running-ng) and to the results-dir `logs` file otherwise, so --no-progress-bar
-# alone just moves the volume rather than removing it. On the large rung that is
-# ~13M lines per invocation: ~780 MB of benchmark log AND a multi-GB `logs` file
-# inside the capture dir (one sweep accumulated 31 GB across four runtimes and
-# filled the host's disk), plus the write I/O inside the measured region.
-#
-# Skip both log calls when the bar is `Quiet` (what --no-progress-bar sets);
-# every other style keeps upstream behaviour, and `f ()` still runs either way.
+# Logging.task_progress logs two lines per analysed procedure, to the console
+# (bar `Plain`, chosen whenever stdout is not a tty) or to the results-dir logs
+# file: ~13M lines per large invocation, inside the measured region (one sweep
+# filled a disk with 31 GB). Skip both when the bar is `Quiet` (--no-progress-bar).
 LOGGING_ML="${INFER_DIR}/infer/src/base/Logging.ml"
 if grep -q 'MACRO_BENCHES_QUIET_TASK_PROGRESS' "${LOGGING_ML}" 2>/dev/null; then
   echo "  Logging.task_progress: already patched."
@@ -175,22 +118,11 @@ else
   exit 1
 fi
 
-# ---- Place each analysis domain on its own CPU ----
-# DomainPool spawns `--jobs` domains and leaves placement to the kernel.  That
-# is fine on an ordinary machine, where the scheduler balances them across
-# whatever mask the process inherited.  It is not fine on a benchmark host that
-# isolates cores: `isolcpus=` removes those CPUs from load balancing, so every
-# domain lands on the one it was first placed on.  Measured on an 8-core Xeon,
-# infer analyze --multicore over roots_small, pinned to the six isolated cores:
-# 87.93s at 100% CPU before this, 26.31s at 330% after.
-#
-# So do what lavyek_bench.ml does and place each worker explicitly, one per CPU
-# of the mask running-ng handed us.  Deriving the CPUs from the inherited mask
-# rather than from the machine topology is what keeps the policy in running-ng
-# (which knows about isolation and interrupt affinity) and what makes this
-# correct on FreeBSD and on ARM: Affinity.get_ids/set_ids are direct C
-# externals over pthread_{get,set}affinity_np, whereas Processor.Topology has a
-# real implementation only on amd64.
+# DomainPool leaves domain placement to the kernel; with `isolcpus=` there is
+# no load balancing and every domain lands on one core (87.9s at 100% CPU vs
+# 26.3s at 330% pinned). Place one worker per CPU of the inherited mask, as
+# lavyek_bench.ml does; Affinity.get_ids/set_ids are direct pthread affinity
+# externals, so this also holds on FreeBSD and ARM.
 INFER_DOMAINPOOL="${INFER_DIR}/infer/src/base/DomainPool.ml"
 if grep -q 'MACRO_BENCHES_DOMAIN_PINNING' "${INFER_DOMAINPOOL}" 2>/dev/null; then
   echo "  DomainPool domain pinning: already patched."

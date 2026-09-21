@@ -1,26 +1,19 @@
 #!/usr/bin/env bash
-# vendor-devkit-deps.sh — download and extract non-dune deps for devkit.
-#
-# These are thin OCaml C-binding wrappers.  Hand-written dune overlays
-# in dune-overlays/ teach dune how to build them.
-#
-# System dependencies: libevent-dev, libcurl4-openssl-dev (or libcurl4-gnutls-dev)
+# Download and extract devkit's non-dune deps (libevent, ocurl C bindings);
+# dune overlays from dune-overlays/ make them buildable.
+# System deps: libevent-dev, libcurl4-openssl-dev (or libcurl4-gnutls-dev)
 set -euo pipefail
 
-# src_field — every version, URL and checksum below comes from sources.yml,
-# which is the single source of truth for what this repo vendors.
 source "$(cd "$(dirname "$0")/.." && pwd)/scripts/lib-sources.sh"
 
 MONOREPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 VENDOR_DIR="${MONOREPO_DIR}/vendor"
 DUNE_OVERLAY_DIR="${MONOREPO_DIR}/dune-overlays"
 
-# --- libevent OCaml bindings ---
 LIBEVENT_VERSION="$(src_field libevent version)"
 LIBEVENT_URL="$(src_field libevent url)"
 LIBEVENT_MD5="$(src_field libevent md5)"
 
-# --- ocurl (OCaml bindings to libcurl) ---
 OCURL_VERSION="$(src_field ocurl version)"
 OCURL_URL="$(src_field ocurl url)"
 OCURL_MD5="$(src_field ocurl md5)"
@@ -65,13 +58,11 @@ download_and_extract() {
 download_and_extract "libevent" "${LIBEVENT_URL}" "${LIBEVENT_MD5}" "${VENDOR_DIR}/libevent"
 download_and_extract "ocurl" "${OCURL_URL}" "${OCURL_MD5}" "${VENDOR_DIR}/ocurl"
 
-# Install dune overlays
 for pkg in libevent ocurl; do
   if [ -d "${DUNE_OVERLAY_DIR}/${pkg}" ]; then
     echo "Installing dune overlay for ${pkg}..."
     cp "${DUNE_OVERLAY_DIR}/${pkg}/dune" "${VENDOR_DIR}/${pkg}/dune"
     cp "${DUNE_OVERLAY_DIR}/${pkg}/dune-project" "${VENDOR_DIR}/${pkg}/dune-project"
-    # Copy config.h if present (needed by ocurl)
     [ -f "${DUNE_OVERLAY_DIR}/${pkg}/config.h" ] && \
       cp "${DUNE_OVERLAY_DIR}/${pkg}/config.h" "${VENDOR_DIR}/${pkg}/config.h"
   fi

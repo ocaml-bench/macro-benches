@@ -1,18 +1,11 @@
 #!/usr/bin/env bash
-# ci-build-all.sh — build every program in benchmarks/manifest.yml.
+# Build every program in benchmarks/manifest.yml. Runs everything before
+# failing (a hermeticity break usually hits several benchmarks), prints a result
+# table (also to $GITHUB_STEP_SUMMARY), exits 1 if any build failed.
 #
-# Deliberately does NOT stop at the first failure: a hermeticity break usually
-# hits several benchmarks at once, and one CI run should show all of them.
-# Prints a result table, writes it to $GITHUB_STEP_SUMMARY when running under
-# GitHub Actions, and exits 1 if any program failed to build.
-#
-# Per-program build logs go to $LOG_DIR (default ci-logs/build).
-#
-# Environment:
-#   RUNNING_OCAML_RUNTIME_NAME  runtime tag; picks the build dir _build-<tag>
-#                               (default: ci)
-#   LOG_DIR                     where to write per-program logs
-#   ONLY                        space-separated program names to build (default: all)
+# Env: RUNNING_OCAML_RUNTIME_NAME  runtime tag, selects _build-<tag> (default ci)
+#      LOG_DIR                     per-program logs (default ci-logs/build)
+#      ONLY                        space-separated program names (default all)
 set -uo pipefail
 
 MONOREPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -42,10 +35,8 @@ while IFS=$'\t' read -r name tool script; do
   log="${LOG_DIR}/${name}.log"
   count=$((count + 1))
 
-  # Force a real build even if a stale wrapper is lying around: a wrapper that
-  # exec's a missing .exe is the classic "builds fine, dies at run with 127"
-  # failure, and leaving it in place would make running-ng (and us) skip the
-  # rebuild. See CLAUDE.md §Gotchas.
+  # A stale wrapper exec'ing a missing .exe would make running-ng skip the
+  # rebuild and die at run time with 127.
   rm -f "${out}"
 
   printf '%-24s ' "${name}"

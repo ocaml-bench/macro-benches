@@ -62,18 +62,15 @@ let () =
     Store.Repo.v config >>= fun repo ->
     Store.main repo >>= fun store ->
 
-    (* Phase 1: Write n_keys entries *)
     let t0 = Unix.gettimeofday () in
     write_loop store n_keys >>= fun () ->
     let t1 = Unix.gettimeofday () in
     printf "Write phase: %d keys in %.3fs\n%!" n_keys (t1 -. t0);
 
-    (* Phase 2: Read all entries *)
     read_loop store n_keys >>= fun found ->
     let t2 = Unix.gettimeofday () in
     printf "Read phase: %d/%d found in %.3fs\n%!" found n_keys (t2 -. t1);
 
-    (* Phase 3: Mixed read/write *)
     mixed_rw store n_keys read_pct total >>= fun (reads, writes) ->
     let t3 = Unix.gettimeofday () in
     printf "Mixed phase (%d%% read): %d reads, %d writes in %.3fs\n%!"

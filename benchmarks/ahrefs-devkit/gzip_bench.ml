@@ -1,17 +1,9 @@
-(** Gzip GC Benchmark Suite
-
-    This suite stresses the OCaml garbage collector through intensive
-    compression and decompression operations. The benchmarks test:
-    - Buffer-based I/O with continuous allocations
-    - Zlib compression/decompression creating temporary buffers
-    - Streaming patterns with state management
-    - CRC calculations and header processing
-    - Variable-sized buffer operations *)
+(** Gzip GC benchmark suite: buffer, streaming and zlib compression patterns
+    stressing the collector. *)
 
 open Devkit
 open ExtLib
 
-(* Helper functions for string compression/decompression *)
 let compress_string ?level str =
   let _ = level in
   let oc = Gzip_io.output (IO.output_string ()) in
@@ -24,7 +16,6 @@ let uncompress_string str =
   IO.close_in ic;
   result
 
-(* Helper function to generate test data *)
 let generate_test_data size pattern =
   let data = Bytes.create size in
   for i = 0 to size - 1 do
@@ -32,7 +23,6 @@ let generate_test_data size pattern =
   done;
   Bytes.to_string data
 
-(* Benchmark 1: Small Buffer Compression Storm *)
 let bench_small_buffer_storm () =
   let compressed_data = ref [] in
 
@@ -57,7 +47,6 @@ let bench_small_buffer_storm () =
       compressed_data := ExtList.List.take 150 !compressed_data
   done
 
-(* Benchmark 2: Large Block Compression *)
 let bench_large_block_compression () =
   let retained_blocks = ref [] in
 
@@ -93,7 +82,6 @@ let bench_large_block_compression () =
       retained_blocks := ExtList.List.take 10 !retained_blocks
   done
 
-(* Benchmark 3: Streaming Compression/Decompression *)
 let bench_streaming_operations () =
   let stream_buffers = ref [] in
 
@@ -140,7 +128,6 @@ let bench_streaming_operations () =
       stream_buffers := ExtList.List.take 50 !stream_buffers
   done
 
-(* Benchmark 4: Mixed Size Compression Patterns *)
 let bench_mixed_size_patterns () =
   let mixed_cache = Hashtbl.create 1000 in
 
@@ -181,7 +168,6 @@ let bench_mixed_size_patterns () =
         mixed_cache
   done
 
-(* Benchmark 5: Concurrent-style Compression *)
 let bench_concurrent_style () =
   let active_streams = Array.init 10 (fun _ -> ref []) in
   let completed = ref [] in
@@ -212,7 +198,6 @@ let bench_concurrent_style () =
       completed := ExtList.List.take 50 !completed
   done
 
-(* Benchmark 6: Compression with Headers and Metadata *)
 let bench_headers_metadata () =
   let metadata_cache = ref [] in
 
@@ -253,7 +238,6 @@ let bench_headers_metadata () =
       metadata_cache := ExtList.List.take 50 !metadata_cache
   done
 
-(* Benchmark 7: Buffer Reuse and Recycling *)
 let bench_buffer_recycling () =
   let buffer_pool = Array.init 20 (fun _ -> Buffer.create 1024) in
   let compressed_pool = ref [] in
@@ -295,7 +279,6 @@ let bench_buffer_recycling () =
       compressed_pool := ExtList.List.take 25 !compressed_pool
   done
 
-(* Benchmark 8: Complex Compression Pipelines *)
 let bench_compression_pipelines () =
   let pipeline_stages = Hashtbl.create 500 in
   let final_results = ref [] in
@@ -343,17 +326,12 @@ let bench_compression_pipelines () =
         final_results := ExtList.List.take 20 !final_results)
   done
 
-(* In-process iteration loop: Sys.argv.(1) controls how many full passes
-   over the 8 internal benchmarks are run, all in one OCaml process so
-   olly observes the whole run.  Default 1 keeps the binary useful as a
-   standalone executable.  See macro-benches README §"Iteration counts"
-   for the pattern. *)
+(* Sys.argv.(1) = full passes over the 8 benchmarks, in one process so olly sees the whole run. *)
 let loop =
   if Array.length Sys.argv > 1
   then try int_of_string Sys.argv.(1) with _ -> 1
   else 1
 
-(* Main benchmark suite runner *)
 let () =
   for _ = 1 to loop do
     bench_small_buffer_storm ();

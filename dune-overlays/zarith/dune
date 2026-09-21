@@ -1,5 +1,4 @@
 ; Hand-written dune file for zarith (upstream uses configure/make).
-; Links against system GMP (-lgmp).
 
 (rule
  (target zarith_version.ml)

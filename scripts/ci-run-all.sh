@@ -1,21 +1,12 @@
 #!/usr/bin/env bash
-# ci-run-all.sh — run every program in benchmarks/manifest.yml exactly once.
+# Run every program in benchmarks/manifest.yml once, with its manifest args,
+# from a fresh scratch cwd. A correctness/hermeticity gate, not a measurement:
+# no olly, no perf, no pinning. Runs everything before failing; exits 1 if any
+# program exited unexpectedly or timed out.
 #
-# This is a correctness/hermeticity gate, not a measurement: one invocation, no
-# olly, no perf, no pinning, wall time reported only so an obvious blow-up is
-# visible. Real numbers come from running-ng on dedicated hardware.
-#
-# Each program runs with its manifest args (identical to running-ng's) from a
-# fresh scratch working directory, so relative outputs (menhir's `--base`,
-# goblint's witness.yml) land there and not in the source tree.
-#
-# Like ci-build-all.sh it runs everything before failing, and exits 1 if any
-# program exited non-zero or hit its timeout.
-#
-# Environment:
-#   RUNNING_OCAML_RUNTIME_NAME  runtime tag, matching the build (default: ci)
-#   LOG_DIR                     where to write per-program logs
-#   ONLY                        space-separated program names to run (default: all)
+# Env: RUNNING_OCAML_RUNTIME_NAME  runtime tag matching the build (default ci)
+#      LOG_DIR                     per-program logs (default ci-logs/run)
+#      ONLY                        space-separated program names (default all)
 set -uo pipefail
 
 MONOREPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -55,12 +46,11 @@ while IFS=$'\t' read -r name tool timeout_s expected_exit args; do
   cwd="${SCRATCH}/${name}"
   mkdir -p "${cwd}"
 
-  # ${SCRATCH} in the manifest args means "this program's scratch cwd" — used by
-  # the one benchmark that would otherwise write its output into the source tree.
-  # Must happen before the word split below.
+  # ${SCRATCH} in manifest args means this program's scratch cwd; substitute
+  # before the word split below.
   args="${args//\$\{SCRATCH\}/${cwd}}"
 
-  # Manifest args are plain paths and numbers — word splitting is what we want.
+  # Manifest args are plain paths and numbers; word splitting is intended.
   read -ra argv <<< "${args}"
 
   start=${SECONDS}
@@ -71,8 +61,8 @@ while IFS=$'\t' read -r name tool timeout_s expected_exit args; do
 
   case ${rc} in
     "${expected_exit}")
-      # Most programs expect 0; a couple exit non-zero by design (alt-ergo's
-      # --timelimit kills itself with SIGALRM), declared as expected_exit.
+      # Some programs exit non-zero by design (alt-ergo's --timelimit dies by
+      # SIGALRM), declared as expected_exit.
       if [ "${expected_exit}" = "0" ]; then
         printf 'ok      %4ds\n' "${elapsed}"
       else

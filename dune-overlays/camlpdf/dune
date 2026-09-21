@@ -1,8 +1,5 @@
-; Hand-written dune file for camlpdf (upstream uses OCamlMakefile).
-; Module list from Makefile PDFMODS + C stubs.
-;
-; Note: miniz.c is #include'd by flatestubs.c, not compiled separately.
-; We list it as an extra_objects dependency so dune copies it to the build dir.
+; Hand-written dune file for camlpdf (upstream uses OCamlMakefile); module list
+; from Makefile PDFMODS. miniz.c is #include'd by flatestubs.c, hence extra_deps.
 
 (library
  (name camlpdf)

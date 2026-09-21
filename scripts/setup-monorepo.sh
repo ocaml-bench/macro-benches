@@ -1,29 +1,17 @@
 #!/usr/bin/env bash
-# setup-monorepo.sh — Full setup of the macro-benches monorepo.
+# Full setup of the macro-benches monorepo: populate duniverse/ and vendor/,
+# apply the source patches, generate rocq's config + dunestrap files, smoke-build.
 #
-# Populates duniverse/ and vendor/, applies all required patches, generates
-# rocq's config + dunestrap files, and runs a test build of all benchmarks.
-#
-# Prerequisites:
-#   - opam 2.3+ available (at /usr/local/bin/opam or on PATH)
-#   - An opam switch with dune + ocamlfind (default: "running-ng-tools")
-#   - System packages: libgmp-dev, libevent-dev, libcurl4-openssl-dev,
-#                      libpcre3-dev, zlib1g-dev
-#
-# Usage:
-#   bash scripts/setup-monorepo.sh
-#
-# After setup, run benchmarks standalone: build any benchmark and run its binary
-# (e.g. `bash benchmarks/eio/eio.build.sh && ./benchmarks/eio/eio-<runtime>`), or
-# `bash scripts/ci-build-all.sh && bash scripts/ci-run-all.sh` to build + smoke-run.
-# For cross-runtime / GC-parameter sweeps, plug in an orchestrator (running-ng is
-# one option) with RUNNING_MACRO_BENCH_DIR=~/macro-benches pointing it here.
+# Usage: bash scripts/setup-monorepo.sh
+# Env:   TOOLS_SWITCH (default running-ng-tools): opam switch with dune + ocamlfind
+#        SKIP_TEST_BUILD=1: skip the [9/9] smoke build
+# Needs opam 2.3+ and libgmp-dev, libevent-dev, libcurl4-openssl-dev,
+# libpcre3-dev, zlib1g-dev.
 set -euo pipefail
 
 MONOREPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$MONOREPO_DIR"
 
-# src_field / clone_pinned — every version and commit comes from sources.yml.
 source "$MONOREPO_DIR/scripts/lib-sources.sh"
 
 if [[ -x /usr/local/bin/opam ]]; then
@@ -37,24 +25,11 @@ if [ -z "${_OPAM:-}" ]; then
 fi
 TOOLS_SWITCH="${TOOLS_SWITCH:-running-ng-tools}"
 
-# Adopt the tools switch's OWN environment rather than inheriting the caller's.
-#
-# The steps below put $TOOLS_BIN on PATH so dune/ocamlc come from the tools
-# switch, but bytecode linking resolves C stub libraries (dllunixbyt.so and
-# friends) through CAML_LD_LIBRARY_PATH, which is inherited from whatever
-# `opam env` the invoking shell happens to have. Run setup from a shell pointed
-# at a *benchmark* switch and the tools switch's unix.cma gets linked against
-# another switch's stubs, so rocq's bytecode targets die with
-#   Error while linking .../running-ng-tools/lib/ocaml/unix/unix.cma(Unix):
+# Take the tools switch's own environment rather than the caller's: bytecode
+# linking resolves C stubs through the inherited CAML_LD_LIBRARY_PATH, so a
+# shell pointed at a benchmark switch makes rocq's bytecode targets fail with
 #   The external function caml_unix_sigwait is not available
-# (caml_unix_sigwait is in 5.4's dllunixbyt.so, absent from 5.2.1's).
-#
-# Ask opam for the switch's environment instead of hand-rolling the paths: it is
-# opam that knows the layout, so this stays correct across opam versions and
-# machines. Note the switch's own ld.conf is NOT sufficient on its own -- it
-# lists lib/ocaml/stublibs but not lib/stublibs, where stubs from opam
-# *packages* (as opposed to the compiler) live -- which is exactly why this has
-# to come from `opam env` rather than from unsetting the variable.
+# The switch's ld.conf alone is not enough (it omits lib/stublibs), hence `opam env`.
 _tools_env="$("$_OPAM" env --switch="$TOOLS_SWITCH" --set-switch 2>/dev/null || true)"
 if [ -z "$_tools_env" ]; then
   echo "ERROR: cannot read the environment of opam switch '$TOOLS_SWITCH'." >&2
@@ -74,12 +49,10 @@ echo "Monorepo dir: $MONOREPO_DIR"
 echo "Tools switch: $TOOLS_SWITCH ($TOOLS_BIN)"
 echo ""
 
-# ---- Ensure tools switch has required packages ----
 echo "[1/9] Ensuring tools switch has opam-monorepo + zarith..."
 "$_OPAM" install --switch "$TOOLS_SWITCH" --yes opam-monorepo zarith dune ocamlfind
 echo ""
 
-# ---- Pull vendored sources ----
 echo "[2/9] Pulling vendored sources (opam monorepo pull)..."
 if [ -d duniverse ] && [ "$(ls duniverse/ | wc -l)" -gt 0 ]; then
   echo "  duniverse/ already populated ($(ls duniverse/ | wc -l) packages). Skipping."
@@ -89,13 +62,10 @@ else
 fi
 echo ""
 
-# ---- Vendor merlin (not in opam-monorepo lockfile) ----
 echo "[2.1/9] Vendoring merlin (pinned)..."
 clone_pinned merlin duniverse/merlin
-# Patch gen_config.ml: the upstream merlin-domains branch only enumerates
-# OCaml versions up to 5.3 in its variant type, so 5.4.1 / 5.5-beta / trunk
-# all fail to compile. Extend the variant list to cover them. Idempotent:
-# only patches if the new tags aren't already present.
+# The merlin-domains branch only enumerates OCaml versions up to 5.3, so 5.4+
+# fail to compile; extend the variant.
 if [ -f duniverse/merlin/src/config/gen_config.ml ] && \
    ! grep -q "OCaml_5_4_0" duniverse/merlin/src/config/gen_config.ml; then
   echo "  Patching merlin gen_config.ml for OCaml >= 5.4..."
@@ -111,16 +81,9 @@ PY
 fi
 echo ""
 
-# ---- Patch dolmen base.ml to work around an OCaml 5.6-trunk typechecker bug ----
-# `term_app_chain` and `term_app_chain_ast` in
-# duniverse/dolmen/src/typecheck/base.ml take a (module Type) with two
-# locally abstract types (env, term) and pass that same module to
-# `map_chain`, which introduces its own (type t).  Post-cfb30145 trunk
-# (and PR #14796 which builds on it) crashes during type_function /
-# type_newtype with `Fatal error: exception Ctype.Unify(_)`.  Inlining
-# `map_chain`'s body inside the two callers sidesteps the nested
-# locally-abstract-type interaction.  Functionally identical.
-# Idempotent: skip if the workaround marker is already present.
+# Work around an OCaml 5.6-trunk typechecker crash (`Fatal error: exception
+# Ctype.Unify(_)` in type_newtype) by inlining `map_chain` into its two callers
+# in dolmen's base.ml; functionally identical.
 echo "[2.2.5/9] Patching dolmen base.ml for OCaml 5.6 trunk typechecker bug..."
 if [ -f duniverse/dolmen/src/typecheck/base.ml ] && \
    ! grep -q "map_chain_inlined" duniverse/dolmen/src/typecheck/base.ml; then
@@ -176,64 +139,37 @@ else
 fi
 echo ""
 
-# ---- Vendor js_of_ocaml (not in opam-monorepo lockfile) ----
-# The opam-monorepo pull would give us a released js_of_ocaml, which rejects
-# OCaml >= 5.5 outright (explicit failwith in compiler/lib/magic_number.ml).
-# The 5.6 support (bytecode magic + WASM/JS runtime, upper bound < 5.7) landed on
-# master, so the pin is a master commit — see sources.yml. It used to track the
-# `ocaml-5.6` PR branch, which upstream squashed and deleted; cloning that branch
-# fails outright now, which is exactly the failure mode pinning removes.
+# Released js_of_ocaml rejects OCaml >= 5.5; the pin is a master commit (sources.yml).
 echo "[2.2/9] Vendoring js_of_ocaml (pinned)..."
 clone_pinned js_of_ocaml duniverse/js_of_ocaml
 
-# Cmdliner upgrade: jsoo's recent code uses Cmdliner.Arg.Completion, which
-# was added in Cmdliner 2.0. opam-monorepo gives us 1.3.0; replace with 2.1.0.
+# jsoo needs Cmdliner.Arg.Completion (2.x); the lock pins 1.3.0.
 echo "[2.3/9] Vendoring cmdliner v2.1.1..."
 if [ -d duniverse/cmdliner ] && \
    grep -qE "^version: \"2\." duniverse/cmdliner/cmdliner.opam 2>/dev/null; then
   echo "  duniverse/cmdliner/ already at >= 2.x. Skipping."
 else
-  # opam-monorepo's lockfile pins cmdliner 1.3.0+dune, but jsoo's ocaml-5.6
-  # branch needs the 2.x `Arg.Completion` API.  Fetch the dune-universe
-  # overlay's 2.1.1+dune build (upstream dbuenzli/cmdliner has NO dune
-  # files and cannot be built in this workspace).  Its cmdliner.opam
-  # carries `version: "2.1.1+dune"`, so the >= 2.x skip-check above matches
-  # on subsequent runs.
+  # Upstream cmdliner has no dune files, so use the dune-universe 2.1.1+dune
+  # build; its opam `version:` satisfies the skip-check above.
   rm -rf duniverse/cmdliner
   mkdir -p duniverse/cmdliner
   _cmdliner_url="$(src_field cmdliner-dune url)"
   _cmdliner_tbz="$(mktemp -d)/cmdliner.tbz"
   curl -fsSL "$_cmdliner_url" -o "$_cmdliner_tbz"
-  # --no-same-owner: as root, both GNU tar and bsdtar try to restore the
-  # archive's uid/gid, which fails with EPERM wherever root cannot chown, such
-  # as an NFS export with root squashed (the FreeBSD CI mounts the workspace
-  # that way). Ownership of a vendored source tree is never wanted, and a
-  # non-root extraction already behaves like this, so the flag only makes the
-  # result independent of who runs it. Both tars accept the long form; `-o`
-  # means different things to each, so do not use it.
+  # --no-same-owner: as root, tar restores the archive's uid/gid, which fails
+  # with EPERM on a root-squashed NFS export (FreeBSD CI). Both tars accept the
+  # long form; `-o` means different things to each.
   tar --no-same-owner -xf "$_cmdliner_tbz" -C duniverse/cmdliner --strip-components=1
   rm -f "$_cmdliner_tbz"
   echo "  Fetched cmdliner $(src_field cmdliner-dune version) (dune-universe overlay)."
 fi
 echo ""
 
-# ---- Vendor lavyek + multicore deps — DISABLED (private repo) ----------------
-# lavyek lives in a PRIVATE repo (github.com/tarides/lavyek), so this step is
-# skipped the same way macro-merlin is skipped in the running-ng configs: the
-# benchmark stays in the tree but is never cloned, built, or enabled, so builds
-# without lavyek access work out of the box. The companion change empties
-# macro-lavyek-monorepo in running-ng's macro_base.yml `benchmarks:` block and
-# drops benchmarks/lavyek/lavyek_bench.exe from the [9/9] test build below.
-#
-# To RE-ENABLE (requires lavyek access): uncomment this whole block, re-add the
-# lavyek_bench.exe line to the [9/9] test build, and uncomment the lavyek cells
-# in macro_base.yml + smoke_macro.yml.
-#
-# lavyek: multicore key-value store (Eio + io_uring + kcas). The kcas/saturn
-# ecosystem and ocaml-processor (per-domain pthread_setaffinity_np pinning) are
-# not in the lockfile, hence the shallow clones. The upstream lavyek root `dune`
-# builds a `test` exe linking ahrocksdb + lmdb; `(dirs src)` overrides it to
-# build only the lavyek library.
+# lavyek lives in a private repo (github.com/tarides/lavyek), so it is never
+# cloned or built. To re-enable: uncomment this block, re-add lavyek_bench.exe
+# to the [9/9] smoke build, and uncomment the lavyek cells in running-ng's
+# macro_base.yml + smoke_macro.yml. `(dirs src)` skips upstream's `test` exe
+# (links ahrocksdb + lmdb).
 echo "[2.4/9] Vendoring lavyek + multicore deps... SKIPPED (private repo)."
 # _clone_if_missing() {
 #   local url="$1" dir="$2" branch="$3"
@@ -257,10 +193,8 @@ echo "[2.4/9] Vendoring lavyek + multicore deps... SKIPPED (private repo)."
 # echo "(dirs src)" > duniverse/lavyek/dune
 echo ""
 
-# ---- Patch dune_ lang (3.2x → 3.21) ----
-# The switch dune binaries are 3.22.1 (5.4.1/5.5/tools) and can't parse a
-# `lang dune 3.23` dune-project (which the lock's dune now pulls).  Lower
-# whatever 3.2x the lock produced to 3.21 so every switch's dune can build it.
+# The switch dune binaries (3.22.1) cannot parse the `lang dune 3.23`
+# dune-project the lock's dune pulls; lower it to 3.21.
 echo "[3/9] Patching duniverse/dune_/dune-project (lang dune 3.2x → 3.21)..."
 if grep -qE 'lang dune 3\.2[0-9]' duniverse/dune_/dune-project 2>/dev/null && \
    ! grep -q 'lang dune 3.21' duniverse/dune_/dune-project 2>/dev/null; then
@@ -272,21 +206,11 @@ else
 fi
 echo ""
 
-# ---- Drop rocq's dead Coq-Build-Language declarations ----
-# dune 3.24 deleted the `coq` language extension ("The Coq Build Language has
-# been replaced by the Rocq Build Language"), so a workspace containing
-# `(using coq 0.8)` fails to *parse* — every build in the monorepo dies, not
-# just rocq's:
+# dune 3.24 deleted the `coq` language extension, so `(using coq 0.8)` fails to
+# parse and takes every build in the workspace down:
 #   Error: Extension coq was deleted in the 3.24 version of the dune language
-#
-# Both declarations are dead weight here.  No active `dune` file in
-# duniverse/rocq contains a `coq.theory`/`coq.pp`/`coq.extraction` stanza --
-# rocq compiles its theories through its own tools/dune_rule_gen, and the only
-# files that would need the extension are two `dune.disabled` ones that dune
-# never reads.  The `(coq (flags ...))` env field is likewise only in the `dev`
-# profile, while the monorepo always builds `--profile release`.  So we remove
-# them rather than migrating to `(using rocq ...)`, which would mean porting
-# rocq's build language for no benefit.
+# Both declarations are dead here: rocq generates its theory rules via
+# tools/dune_rule_gen, and the `(coq (flags))` field is only in the dev profile.
 echo "[3b/9] Patching duniverse/rocq for dune >= 3.24 (dropping dead coq extension)..."
 _rocq_patched=0
 if grep -qE '^\(using coq [0-9.]+\)' duniverse/rocq/dune-project 2>/dev/null; then
@@ -296,8 +220,6 @@ if grep -qE '^\(using coq [0-9.]+\)' duniverse/rocq/dune-project 2>/dev/null; th
   _rocq_patched=1
 fi
 if grep -qE '^ *\(coq \(flags' duniverse/rocq/dune 2>/dev/null; then
-  # Remove the `(coq (flags ...))` field from the dev profile, closing the
-  # paren it leaves behind on the preceding (flags ...) line.
   python3 - <<'PYEOF'
 import pathlib, re
 p = pathlib.Path("duniverse/rocq/dune")
@@ -319,24 +241,12 @@ fi
 unset _rocq_patched
 echo ""
 
-# Patch 20: rocq toplevel/dune — force the memtrace-free init variant.
-# rocq-runtime has an *optional* memtrace integration:
-#   (select memtrace_init.ml from
-#    (memtrace -> memtrace_init.memtrace.ml)
-#    (!memtrace -> memtrace_init.default.ml))
-# and `depopts: [... memtrace]`.  dune's (select) turns this on automatically the
-# moment `memtrace` is present anywhere in the workspace -- which it now is, since
-# a benchmark (decompress) vendors it.  That makes rocq-runtime.toplevel *link*
-# memtrace and its generated META gain `requires ... memtrace`.  But the rocq
-# bootstrap ([8/9] below) runs tools/dune_rule_gen/gen_rules.exe, which resolves
-# rocq-runtime.toplevel purely through findlib on $OCAMLPATH, where the vendored
-# memtrace is never installed -- so gen_rules dies with:
-#   [gen_rules] Fatal error: findlib error: memtrace not found ...
-#   required by `rocq-runtime.toplevel'
-# We don't want rocq's own memtrace profiling here, so collapse the select to its
-# default (memtrace-free) clause: rocq-runtime.toplevel then never links or
-# requires memtrace, regardless of any benchmark vendoring it.  Idempotent: the
-# collapsed form has no (memtrace -> ...) clause left to match.
+# Patch 20: rocq toplevel/dune: force the memtrace-free init variant. dune's
+# (select) picks the memtrace clause as soon as memtrace is anywhere in the
+# workspace (decompress vendors it), but the rocq bootstrap's gen_rules.exe
+# resolves rocq-runtime.toplevel through findlib on $OCAMLPATH, where the
+# vendored memtrace is never installed:
+#   [gen_rules] Fatal error: findlib error: memtrace not found
 echo "[3c/9] Patching duniverse/rocq/toplevel/dune (force memtrace-free init)..."
 ROCQ_TOP_DUNE="duniverse/rocq/toplevel/dune"
 if [ -f "$ROCQ_TOP_DUNE" ] && grep -qF "(memtrace -> memtrace_init.memtrace.ml)" "$ROCQ_TOP_DUNE" 2>/dev/null; then
@@ -367,7 +277,6 @@ else
 fi
 echo ""
 
-# ---- Vendor cpdf + camlpdf ----
 echo "[4/9] Vendoring cpdf + camlpdf..."
 if [ -d vendor/camlpdf ] && [ -d vendor/cpdf-source ]; then
   echo "  vendor/camlpdf and vendor/cpdf-source already exist. Skipping."
@@ -376,15 +285,12 @@ else
 fi
 echo ""
 
-# ---- Vendor processor (CPU affinity) ----
 echo "[4b/9] Vendoring processor..."
 if [ -d vendor/processor ]; then
   echo "  vendor/processor already exists. Skipping."
 else
-  # Per-thread CPU affinity, used by infer to place its analysis domains on
-  # distinct cores (and by lavyek when that is re-enabled).  A plain dune
-  # library with one C stub, so it drops straight into the workspace -- no
-  # per-runtime prefix like apron or javalib, which are not dune projects.
+  # Per-thread CPU affinity for infer's analysis domains. A plain dune library,
+  # so it drops straight into the workspace.
   rm -rf vendor/processor
   mkdir -p vendor/processor
   _proc_url="$(src_field processor url)"
@@ -398,18 +304,14 @@ else
   fi
   tar --no-same-owner -xzf "${_proc_tgz}" -C vendor/processor --strip-components=1
   rm -f "${_proc_tgz}"
-  # Drop everything but the library.  bin/ declares an executable with
-  # `(public_name ocaml-processor-dump)`, and a vendored executable's public
-  # name in a shared workspace is exactly what patches 2, 8 and 9 exist to
-  # remove; not vendoring it is simpler than patching it.  Nothing here runs
-  # the tests either.
+  # bin/ declares a public executable, which patches 2, 8 and 9 exist to remove
+  # from vendored code; drop it instead.
   rm -rf vendor/processor/test vendor/processor/bench \
          vendor/processor/bin vendor/processor/other
   echo "  Fetched processor $(src_field processor version)."
 fi
 echo ""
 
-# ---- Vendor zarith ----
 echo "[5/9] Vendoring zarith..."
 if ls duniverse/[Zz]arith*/zarith.opam >/dev/null 2>&1; then
   echo "  zarith already in duniverse (dune-universe +dune version). Skipping manual vendor."
@@ -417,25 +319,21 @@ elif [ -d vendor/zarith ]; then
   echo "  vendor/zarith already exists. Skipping."
 else
   bash scripts/vendor-coq.sh
-  # rocq is already in duniverse — remove vendor/rocq to avoid duplication
   rm -rf vendor/rocq
   echo "  Removed vendor/rocq (using duniverse/rocq instead)."
 fi
 echo ""
 
-# ---- Vendor devkit deps (libevent + ocurl) ----
 echo "[6/9] Vendoring devkit deps (libevent + ocurl)..."
 if [ -d vendor/libevent ]; then
   echo "  vendor/libevent already exists. Skipping."
 else
   bash scripts/vendor-devkit-deps.sh
-  # If opam-monorepo also pulled ocurl into duniverse/, remove the vendor one
   if [ -d duniverse/ocurl ] && [ -d vendor/ocurl ]; then
     rm -rf vendor/ocurl
     echo "  Removed vendor/ocurl (using duniverse/ocurl instead)."
   fi
 fi
-# Clean up any stale duplicates between vendor/ and duniverse/
 for pkg in ocurl menhir; do
   if [ -d "duniverse/$pkg" ] && [ -d "vendor/$pkg" ]; then
     rm -rf "vendor/$pkg"
@@ -444,17 +342,14 @@ for pkg in ocurl menhir; do
 done
 echo ""
 
-# ---- Vendor pplacer + mcl ----
 echo "[6b/9] Vendoring pplacer + mcl..."
 bash scripts/vendor-pplacer.sh
 echo ""
 
-# ---- Vendor frama-c (kernel + EVA only) ----
 echo "[6c/9] Vendoring frama-c (kernel + EVA)..."
 bash scripts/vendor-frama-c.sh
 echo ""
 
-# ---- Apply vendored source patches ----
 echo "[7/9] Applying vendored source patches..."
 
 # Patch 1: alt-ergo ppx_blob paths (workspace-root-relative)
@@ -469,7 +364,7 @@ fi
 # Patch 2: alt-ergo public_name removal from Main_text executable
 ALT_ERGO_DUNE="duniverse/alt-ergo/src/bin/text/dune"
 if grep -q '(public_name alt-ergo)' "$ALT_ERGO_DUNE" 2>/dev/null; then
-  # Rewrite the file entirely — sed is too fragile for nested s-expressions
+  # Rewrite the whole file: sed is too fragile for nested s-expressions.
   cat > "$ALT_ERGO_DUNE" << 'DUNE_EOF'
 (executable
   (name gen_link_flags)
@@ -489,7 +384,6 @@ else
   echo "  [2] alt-ergo dune: already patched."
 fi
 
-# Patch 3: dune_ version — already done in step 3
 echo "  [3] dune_ version: done in step 3."
 
 # Patch 4: ppxlib 5.6 support (replace the lockfile's ppxlib with a pinned commit)
@@ -500,9 +394,8 @@ clone_pinned ppxlib duniverse/ppxlib
 echo "  [5] lwt 5.6 support (socketaddr.h):"
 clone_pinned lwt duniverse/lwt
 
-# Patch 6: devkit lwt 6.x compat (engine_id extension)
-# Only needed if lwt >= 6.1.1 (which adds virtual method `id` to Lwt_engine.abstract).
-# With the locked lwt 6.1.0, this patch is NOT needed.
+# Patch 6: devkit lwt 6.x compat; only needed once lwt >= 6.1.1 adds the
+# virtual method `id` to Lwt_engine.abstract.
 DEVKIT_LWT="duniverse/devkit/lwt_engines.ml"
 if grep -q 'method virtual id' duniverse/lwt/src/unix/lwt_engine.mli 2>/dev/null; then
   if grep -q 'Engine_id__libevent' "$DEVKIT_LWT" 2>/dev/null; then
@@ -529,15 +422,12 @@ else
   echo "  [7] libevent labels: patched."
 fi
 
-# Patch 8: js_of_ocaml public_name removal from executable stanza
-# Only remove from the (executable ...) block, not from (install ...) stanzas.
+# Patch 8: js_of_ocaml public_name removal (executable stanza only, not the
+# install stanzas)
 JSOO_DUNE="duniverse/js_of_ocaml/compiler/bin-js_of_ocaml/dune"
 if [ -f "$JSOO_DUNE" ] && grep -q '(public_name js_of_ocaml)' "$JSOO_DUNE" 2>/dev/null; then
-  # The executable stanza is first in the file, so first-occurrence deletion
-  # hits it and leaves the (package js_of_ocaml-compiler) lines in the later
-  # (install ...) stanzas alone. Do NOT anchor to a line number: upstream
-  # reorders these fields (public_name moved from line 2 to line 3), which
-  # silently turned this patch into a no-op that still reported success.
+  # Match on content, not line number: upstream reordered these fields and a
+  # line-anchored sed silently became a no-op that still reported success.
   delete_first_match "$JSOO_DUNE" '^ [(]public_name js_of_ocaml[)]$'
   delete_first_match "$JSOO_DUNE" '^ [(]package js_of_ocaml-compiler[)]$'
   echo "  [8] jsoo public_name: removed from executable stanza."
@@ -550,8 +440,6 @@ fi
 # Patch 9: ocamlformat public_name removal (only from executable stanza)
 OCFMT_DUNE="duniverse/ocamlformat/bin/ocamlformat/dune"
 if [ -f "$OCFMT_DUNE" ] && grep -q '(public_name ocamlformat)' "$OCFMT_DUNE" 2>/dev/null; then
-  # Remove only the first occurrence of public_name and the package line
-  # immediately after it (lines 14-15 in the executable stanza).
   delete_first_match "$OCFMT_DUNE" '[(]public_name ocamlformat[)]'
   delete_first_match "$OCFMT_DUNE" '^ [(]package ocamlformat[)]$'
   echo "  [9] ocamlformat public_name: removed."
@@ -561,7 +449,7 @@ else
   echo "  [9] ocamlformat: not vendored. Skipping."
 fi
 
-# Patch 10: owl C bug — std_gaussian_rvs called with arguments but takes none
+# Patch 10: owl C bug: std_gaussian_rvs called with arguments but takes none
 OWL_EXPONPOW="duniverse/owl/src/owl/stats/owl_stats_dist_exponpow.c"
 if [ -f "$OWL_EXPONPOW" ] && grep -q 'std_gaussian_rvs (a' "$OWL_EXPONPOW" 2>/dev/null; then
   sed_i 's/std_gaussian_rvs (a \/ sqrt (2.0))/gaussian_rvs (0, a \/ sqrt (2.0))/' "$OWL_EXPONPOW"
@@ -573,10 +461,8 @@ else
   echo "  [10] owl: not vendored. Skipping."
 fi
 
-# Patch 11: batteries Gc.stat — live_stacks_words gate.  Upstream batteries
-# gates it at ##V>=5.6##, but the field actually landed in OCaml 5.5 (e.g.
-# 5.5.0-beta1 == ocaml/ocaml commit d8bb46c3).  Relax the gate to 5.5 so
-# batteries compiles against 5.5.x runtimes too.
+# Patch 11: batteries gates Gc.stat's live_stacks_words at ##V>=5.6##, but the
+# field landed in OCaml 5.5; relax the gate.
 BATGC_MLI="duniverse/batteries-included/src/batGc.mli"
 if [ -f "$BATGC_MLI" ]; then
   if grep -q '##V>=5\.6## live_stacks_words' "$BATGC_MLI"; then
@@ -595,11 +481,10 @@ else
   echo "  [11] batteries: not vendored. Skipping."
 fi
 
-# Patch 12: mcl caml_mcl.c — add #include <stdint.h> for OCaml 5.6 trunk headers
+# Patch 12: mcl caml_mcl.c: add #include <stdint.h> for OCaml 5.6 trunk headers
 MCL_CAML="vendor/pplacer/mcl/caml/caml_mcl.c"
 if [ -f "$MCL_CAML" ] && ! grep -q 'stdint.h' "$MCL_CAML" 2>/dev/null; then
-  # insert_at_line, not sed_i: `1a text` is GNU one-line append syntax, and
-  # sed_i makes `-i` portable but passes the SCRIPT through verbatim.
+  # insert_at_line, not sed_i: `1a text` is GNU-only append syntax.
   insert_at_line "$MCL_CAML" 1 '#include <stdint.h>'
   echo "  [12] mcl caml_mcl.c: added #include <stdint.h>."
 elif [ -f "$MCL_CAML" ]; then
@@ -608,10 +493,8 @@ else
   echo "  [12] mcl: not vendored. Skipping."
 fi
 
-# Patch 13: pplacer tests.ml — add PPLACER_TEST_LOOP env var so the test
-# suite can be repeated N times in one OCaml process. Lets olly observe
-# the full benchmark without spawning N children. See macro-benches
-# README §"Iteration counts" for the pattern.
+# Patch 13: pplacer tests.ml: PPLACER_TEST_LOOP repeats the suite N times in
+# one process so olly observes the whole benchmark.
 PPLACER_TESTS_ML="vendor/pplacer/tests/tests.ml"
 if [ -f "$PPLACER_TESTS_ML" ] && ! grep -q 'PPLACER_TEST_LOOP' "$PPLACER_TESTS_ML" 2>/dev/null; then
   cat > "$PPLACER_TESTS_ML" << 'TESTS_ML_EOF'
@@ -658,12 +541,9 @@ else
   echo "  [13] pplacer: not vendored. Skipping."
 fi
 
-# Patch 14: goblint runtime header — GCC 14+/C23 conflicting-types error.
-# goblint.h declares __goblint_assume_join() with no args (= void(void) under
-# C23), but goblint.c defines it taking a pthread_t, so modern gcc rejects the
-# mismatch.  Make the declaration match the definition; pthread_t is unsigned
-# long on Linux/glibc, so we avoid pulling pthread.h into the header (which the
-# upstream comment deliberately avoids).
+# Patch 14: goblint.h declares __goblint_assume_join() with no args (void(void)
+# under C23) but goblint.c defines it with a pthread_t; GCC 14+ rejects the
+# mismatch. pthread_t is unsigned long on Linux/glibc, avoiding pthread.h.
 GOBLINT_H="duniverse/analyzer/lib/goblint/runtime/include/goblint.h"
 if [ -f "$GOBLINT_H" ] && grep -q '__goblint_assume_join(/\* pthread_t' "$GOBLINT_H" 2>/dev/null; then
   sed_i 's|void __goblint_assume_join(/\* pthread_t thread \*/);.*|void __goblint_assume_join(unsigned long thread); // pthread_t is unsigned long on Linux; avoids pthread.h vs kernel headers|' "$GOBLINT_H"
@@ -674,21 +554,11 @@ else
   echo "  [14] goblint: not vendored. Skipping."
 fi
 
-# Patch 15: cpu (goblint dep) — generate config.h.  cpu's opam build runs
-# `autoconf; autoheader; ./configure` before dune, which produces src/config.h
-# that its C stub (#include "config.h") needs.  opam-monorepo vendors the
-# source but not that build step, so generate it here.  Idempotent.
-#
-# cpu's ./configure probes for ocamlc and aborts with "You must install the OCaml
-# compiler" if it can't find one, so it needs the tools switch on PATH. $TOOLS_BIN
-# only joins PATH globally at step [8], *after* this patch section, so set it here
-# explicitly rather than relying on whatever the caller's shell happens to have.
-#
-# And failure is fatal. This used to swallow all output and downgrade to a
-# warning, which meant a cold `make setup` printed one easily-missed line, exited
-# 0, and then goblint failed to build much later with `cpu_stubs.c:1:10: fatal
-# error: config.h: No such file or directory` — a symptom several steps removed
-# from the cause. If goblint can't build, setup should say so here.
+# Patch 15: cpu's opam build runs autoconf/autoheader/configure to produce
+# src/config.h; opam-monorepo does not, so do it here. configure probes for
+# ocamlc, and $TOOLS_BIN only joins PATH at step [8], so set it explicitly.
+# Failure is fatal: goblint would otherwise fail much later with
+# `cpu_stubs.c:1:10: fatal error: config.h: No such file or directory`.
 CPU_DIR="duniverse/cpu"
 if [ -f "$CPU_DIR/configure.ac" ] && [ ! -f "$CPU_DIR/src/config.h" ]; then
   _cpu_log="$(mktemp)"
@@ -710,14 +580,9 @@ else
 fi
 echo ""
 
-# Patch 16: json-data-encoding (goblint dep) — re-align the dune-universe fork's
-# Json_repr.Yojson type with upstream / Yojson.Safe.t.  opam-monorepo vendors the
-# pirbo +dune fork, which narrows `yojson` to 8 constructors (drops `Tuple` /
-# `Variant`).  Goblint treats Json_repr.Yojson.value and Yojson.Safe.t as the
-# SAME type (and converts both directions), so it won't typecheck against the
-# narrowed fork.  Add the two missing tags (making it = Yojson.Safe.t) plus the
-# matching view / to_basic cases.  goblint config values never contain
-# Tuple/Variant, so the added converter arms are unreachable.  Idempotent.
+# Patch 16: the dune-universe json-data-encoding fork narrows Json_repr.Yojson
+# to 8 constructors, but goblint treats it as Yojson.Safe.t; add `Tuple/`Variant
+# and matching converter arms (unreachable for goblint configs).
 JR_ML="duniverse/json-data-encoding/src/json_repr.ml"
 if [ -f "$JR_ML" ] && ! grep -qF "Tuple of value list" "$JR_ML" 2>/dev/null; then
   python3 - <<'PY'
@@ -775,10 +640,8 @@ else
 fi
 echo ""
 
-# Patch 17: bare_encoding (goblint/catapult dep) — install its source .ml/.mli.
-# catapult's core lib does `(copy %{lib:bare_encoding:Bare_encoding.ml} ...)`,
-# which needs the (capitalised) source installed under the package's lib dir;
-# the plain (library) stanza doesn't install source, so add an install stanza.
+# Patch 17: catapult copies %{lib:bare_encoding:Bare_encoding.ml}, so
+# bare_encoding must install its (capitalised) source.
 BARE_DUNE="duniverse/bare-ocaml/src/dune"
 if [ -f "$BARE_DUNE" ] && ! grep -qF "Bare_encoding.ml" "$BARE_DUNE" 2>/dev/null; then
   cat >> "$BARE_DUNE" <<'DUNE_EOF'
@@ -798,18 +661,11 @@ else
 fi
 echo ""
 
-# Patch 18: goblint control.ml — first-class-module signature inference.
-# `analyze_loop` takes `(module CFG : CfgBidirSkip)`; the two call sites pack
-# `(module CFG)` without annotation.  OCaml >= 5.5's stricter typechecker can't
-# infer the packaged-module signature there ("signature for this packaged module
-# couldn't be inferred"), so annotate the packs.  Harmless on 5.4.1.
+# Patch 18: OCaml >= 5.5 cannot infer the packaged-module signature at
+# analyze_loop's two call sites; annotate them.
 GOBLINT_CTRL="duniverse/analyzer/src/framework/control.ml"
-# Guard on the *unannotated call*, not on the annotation appearing anywhere in the
-# file. Upstream already annotates the `let rec analyze_loop (module CFG :
-# CfgBidirSkip)` *definition*, so a "does the annotation exist?" check matches that
-# definition, skips, and leaves the two call sites bare — the build then fails with
-# "The signature for this packaged module couldn't be inferred". Still idempotent:
-# after the sed there is no unannotated call left to match.
+# Guard on the unannotated call, not on the annotation appearing anywhere:
+# upstream already annotates the definition.
 if [ -f "$GOBLINT_CTRL" ] && grep -qF "analyze_loop (module CFG) file fs change_info" "$GOBLINT_CTRL" 2>/dev/null; then
   _n=$(grep -cF "analyze_loop (module CFG) file fs change_info" "$GOBLINT_CTRL")
   sed_i 's/analyze_loop (module CFG) file fs change_info/analyze_loop (module CFG : CfgBidirSkip) file fs change_info/g' "$GOBLINT_CTRL"
@@ -822,12 +678,8 @@ else
 fi
 echo ""
 
-# Patch 24: goblint maingoblint.ml — -m32/-m64 are x86-only cpp flags.
-# In sv-comp mode goblint maps `exp.architecture` 64bit/32bit to `cpp -m64`/`-m32`.
-# Those are x86-only; on aarch64 (and other non-x86 hosts) cpp rejects `-m64` with
-# "unrecognized command-line option", so every goblint analysis dies in the
-# preprocessor. Guard the flag on the host actually being x86 (word size is native
-# elsewhere, so omitting it is correct). Idempotent: skip if the marker is present.
+# Patch 24: -m32/-m64 are x86-only cpp flags; on aarch64 cpp rejects them and
+# every goblint analysis dies in the preprocessor. Guard on the host being x86.
 GOBLINT_MAIN="duniverse/analyzer/src/maingoblint.ml"
 if [ -f "$GOBLINT_MAIN" ] && ! grep -q "host_is_x86" "$GOBLINT_MAIN" 2>/dev/null; then
   python3 - <<'PY'
@@ -869,20 +721,9 @@ else
 fi
 echo ""
 
-# [21] sedlex unicode data download: make curl fail loudly.
-#
-# duniverse/sedlex/src/generator/data/dune fetches the Unicode tables at build
-# time with `curl -L -s <url> -o <target>`. Without --fail, curl exits 0 on an
-# HTTP error and writes the error *body* to the target, so dune records the rule
-# as successful and caches the garbage. A transient unicode.org outage
-# (2026-08-23: a 16-byte "error code: 522" in place of DerivedCoreProperties.txt)
-# therefore poisoned the build cache, and the only symptom was
-#   Fatal error: exception File ".../gen_unicode.ml", line 97: Assertion failed
-# from gen_unicode parsing the error page -- several steps removed from the cause,
-# and sticky, because the bad artifact was cached as valid.
-#
-# Adding -f makes the rule fail at the download instead. It also changes the
-# rule's digest, which is what evicts an already-poisoned cache entry.
+# [21] sedlex fetches Unicode tables at build time with curl but without --fail,
+# so an HTTP error body gets cached as a valid target and gen_unicode later dies
+# with an assertion. -f also changes the rule digest, evicting a poisoned entry.
 SEDLEX_DATA_DUNE="duniverse/sedlex/src/generator/data/dune"
 if [ -f "$SEDLEX_DATA_DUNE" ]; then
   if grep -qE '^\s*-f$' "$SEDLEX_DATA_DUNE"; then
@@ -906,25 +747,10 @@ else
 fi
 echo ""
 
-# Patch 25: extunix gettid -- teach the probe FreeBSD's spelling.
-# devkit's log.ml and files.ml call `U.gettid ()` where `U = ExtUnix.Specific`
-# (prelude.ml). ExtUnix.Specific exposes only what the platform actually has,
-# so on FreeBSD the whole devkit build dies at compile time with
+# Patch 25: extunix's gettid probe has no FreeBSD spelling
+# (pthread_getthreadid_np in <pthread_np.h>), so devkit fails with
 #   Error: Unbound value U.gettid
-# and with it benchmarks/ahrefs-devkit, the only consumer.
-#
-# This is NOT a missing system library and NOT devkit's bug. extunix already
-# implements gettid four ways in src/unistd.c (Win32 GetCurrentThreadId, macOS
-# pthread_threadid_np, older macOS SYS_thread_selfid, Linux SYS_gettid); its
-# discover.ml probes them as an ordered ANY[...] and FreeBSD matches none,
-# purely on spelling. FreeBSD calls it pthread_getthreadid_np(), declared in
-# <pthread_np.h>, where macOS calls it pthread_threadid_np().
-#
-# So add a fifth alternative, shaped exactly like the macOS one. `I` and
-# `DEFINE` are both documented in discover.ml as "promoted to config", so the
-# include and the define land in the generated config.h that unistd.c already
-# includes. On Linux nothing changes: the probe is ordered, the pthread_np.h
-# alternative fails there, and the SYS_gettid branch still wins.
+# Add a fifth alternative after the macOS one; Linux still matches SYS_gettid.
 EXTUNIX_DISCOVER="duniverse/extunix/discover/discover.ml"
 EXTUNIX_UNISTD="duniverse/extunix/src/unistd.c"
 if [ -f "$EXTUNIX_DISCOVER" ] && [ -f "$EXTUNIX_UNISTD" ]; then
@@ -963,36 +789,11 @@ else
 fi
 echo ""
 
-# Patch 26: owl OpenMP link flags on FreeBSD.
-# owl's stubs compile but fail to LINK there:
-#   ld: error: undefined symbol: __kmpc_fork_call
-#   ld: error: undefined symbol: __kmpc_for_static_init_8
-# Those __kmpc_* symbols are emitted by the compiler for `#pragma omp`, so
-# something is passing -fopenmp at compile time while nothing adds the OpenMP
-# runtime at link time. libomp.so is present in the FreeBSD base system, so it
-# is purely a missing flag.
-#
-# Two holes, and this closes both:
-#
-#  (a) get_openmp_config matches "linux"/"linux_elf" -> -lgomp, "macosx" ->
-#      -lomp, "mingw64" -> -lgomp, and everything else falls to `_ -> [], []`.
-#      FreeBSD lands there and gets no flags at all. Its cc is clang, so the
-#      right pair is the macOS one without -Xpreprocessor: -fopenmp / -lomp.
-#      This only fires when OWL_ENABLE_OPENMP=1, which is NOT the default
-#      (bgetenv returns 0 when the variable is unset).
-#
-#  (b) which is why (a) alone is probably not what bit rosemary. openblas_conf
-#      comes from `pkg-config openblas`, and FreeBSD's openblas is built with
-#      OpenMP threading, so its .pc can put -fopenmp into cflags even when
-#      owl's own OpenMP support is switched off. Then cflags has -fopenmp and
-#      libs has no runtime, which is exactly the observed symptom. So also add
-#      -lomp whenever the assembled cflags ask for OpenMP and the assembled
-#      libs carry no runtime yet.
-#
-# Both are confined to FreeBSD, so Linux keeps -fopenmp/-lgomp and macOS keeps
-# -Xpreprocessor. UNVERIFIED on hardware: the (b) diagnosis is inferred from
-# the link error plus the flag assembly, not observed, so if owl still fails
-# after this, dump the assembled cflags/libs rather than guessing again.
+# Patch 26: owl fails to link on FreeBSD (`undefined symbol: __kmpc_fork_call`):
+# get_openmp_config has no freebsd arm, and FreeBSD's openblas .pc puts -fopenmp
+# in cflags with no runtime in libs. Add -fopenmp/-lomp for freebsd, and -lomp
+# whenever cflags ask for OpenMP with no runtime. The second diagnosis is
+# inferred, not observed: if owl still fails, dump the assembled cflags/libs.
 OWL_CONFIGURE="duniverse/owl/src/owl/config/configure.ml"
 if [ -f "$OWL_CONFIGURE" ]; then
   if grep -q 'freebsd' "$OWL_CONFIGURE" 2>/dev/null; then
@@ -1047,39 +848,12 @@ else
 fi
 echo ""
 
-# Patch 27: gsl-ocaml discover -- stop assuming gsl headers are in /usr/include.
-# pplacer dies in a dune rule with
-#   Fatal error: exception Sys_error("/usr/include/gsl/gsl_cdf.h: No such
-#   file or directory")
-# because src/config/discover.ml hardcodes
-#   let default_gsl_include = [ "/usr/include" ]
-# and on FreeBSD gsl is under LOCALBASE (/usr/local/include).
-#
-# Why the default is even reached is NOT established. The first explanation
-# recorded here, that pkgconf strips -I/usr/local/include as a system include
-# path, was measured on FreeBSD and is FALSE:
-#
-#   $ pkg-config --cflags gsl
-#   -I/usr/local/include
-#
-# pkgconf does emit the flag. So something else makes discover fall through to
-# the default: `C.Pkg_config.get c` returning None because pkg-config is not on
-# PATH in dune's build environment, or the gsl query failing because its .pc
-# lives in /usr/local/libdata/pkgconfig and PKG_CONFIG_PATH does not cover it
-# there. Both are guesses; do not treat either as settled.
-#
-# The fix below holds either way, because it does not consult pkg-config at
-# all: it probes the filesystem. That is why this is worth keeping despite the
-# cause being unknown. But if the probe ever needs changing, the reasoning
-# underneath it is not a reliable guide, so establish the real cause first.
-#
-# This is the one member of the /usr/local class that a compiler search path
-# cannot fix: the literal is read by OCaml and used to open a file, never
-# passed to the compiler, so C_INCLUDE_PATH is irrelevant to it.
-#
-# Probe instead of assume. /usr/include stays ahead of /usr/local/include, so
-# a Linux box resolves exactly as before; LOCALBASE, when set, is tried first
-# so a non-default pkg prefix works.
+# Patch 27: gsl-ocaml's discover.ml hardcodes /usr/include for the gsl headers;
+# on FreeBSD gsl is under LOCALBASE, so pplacer dies with
+#   Sys_error("/usr/include/gsl/gsl_cdf.h: No such file or directory")
+# C_INCLUDE_PATH cannot help: OCaml opens the path itself. Probe the filesystem
+# instead (/usr/include first, so Linux is unchanged). Why the default is reached
+# at all is not established (pkg-config does emit -I/usr/local/include there).
 GSL_DISCOVER="duniverse/gsl-ocaml/src/config/discover.ml"
 if [ -f "$GSL_DISCOVER" ]; then
   if grep -q 'gsl_cdf.h' "$GSL_DISCOVER" 2>/dev/null; then
@@ -1124,37 +898,11 @@ else
 fi
 echo ""
 
-# Patch 28: goblint parallel -- pin the domainslib `select` to one answer.
-# goblint fails to build wherever domainslib happens to be installed in the
-# runtime switch:
-#   Error: Conflict between the following libraries:
-#   - "domain-local-await" in .../duniverse/domain-local-await/src
-#   - "domain-local-await" in ~/.opam/<switch>/lib/domain-local-await
-#     -> required by library "domainslib" ... -> "goblint.parallel"
-#
-# The chain: domain-local-await is a HARD dep of goblint, so opam-monorepo
-# vendors it. domainslib is a DEPOPT, so it is not vendored, and
-# src/util/parallel/dune picks an implementation with
-#   (select gobMutex.ml from (domainslib -> ...) ( -> ...))
-# When the switch happens to carry domainslib, that select resolves to the
-# domainslib branch, which drags in the SWITCH's domain-local-await alongside
-# the vendored one, and dune refuses the ambiguity.
-#
-# Whether the switch carries domainslib is not a property of this repo at all:
-# running-ng's install_deps_*.sh install it for the MICRO suite's multicore/
-# benchmarks. So a machine that ran micro before macro builds a different
-# goblint from one that did not.
-#
-# That makes this a measurement bug, not only a build failure. Left alone,
-# goblint silently switches threadpool implementation depending on what else
-# has been run on the box, and the numbers stop being comparable. Every
-# goblint figure we have was produced with the no-domainslib variants, because
-# no switch we used had domainslib until rosemary ran micro first.
-#
-# So pin it to the no-domainslib branch: deterministic everywhere, and it
-# matches the established Linux behaviour rather than changing it. Dropping
-# the domainslib alternative leaves a select with only a default, which is
-# valid dune.
+# Patch 28: goblint's parallel/dune selects a domainslib implementation when the
+# runtime switch happens to carry domainslib, dragging the switch's
+# domain-local-await in beside the vendored one (`Error: Conflict between the
+# following libraries`) and silently changing the threadpool being measured.
+# Pin to the no-domainslib defaults, which every goblint figure was produced with.
 GOBLINT_PARALLEL="duniverse/analyzer/src/util/parallel/dune"
 if [ -f "$GOBLINT_PARALLEL" ]; then
   if ! grep -q 'domainslib ->' "$GOBLINT_PARALLEL" 2>/dev/null; then
@@ -1184,22 +932,11 @@ else
 fi
 echo ""
 
-# Patch 29: CIL's real-GCC search -- FreeBSD spells versioned GCC without a
-# hyphen. goblint dies at configure time with
-#   Fatal error: exception Failure("couldn't find real gcc")
-# because duniverse/cil/bin/realGccConfigure.ml only ever tries "gcc" and the
-# hyphenated "gcc-7" .. "gcc-16". FreeBSD's pkg installs gcc14, gcc13 and so
-# on, with no hyphen, so every candidate misses and CIL concludes there is no
-# real GCC on a machine that has one.
-#
-# It has to be real GCC: CIL's own is_bad_gcc_version rejects anything whose
-# --version mentions clang/apple/darwin, which is correct (goblint needs gcc
-# semantics, and `cc` on FreeBSD is clang). The FreeBSD gcc14 package passes
-# that check, so the only thing missing is the spelling.
-#
-# Unhyphenated names go AFTER plain "gcc", so where a plain gcc exists (every
-# Linux box) the chosen compiler does not change; the extra candidates simply
-# do not exist there. Newest first, matching the existing list's order.
+# Patch 29: CIL's real-GCC search tries `gcc` and hyphenated `gcc-N` only;
+# FreeBSD's pkg installs gcc14 unhyphenated, so goblint dies with
+#   Failure("couldn't find real gcc")
+# (cc there is clang, which CIL rightly rejects). Unhyphenated names go after
+# plain gcc, so Linux is unchanged.
 CIL_GCC="duniverse/cil/bin/realGccConfigure.ml"
 if [ -f "$CIL_GCC" ]; then
   if grep -q '"gcc14"' "$CIL_GCC" 2>/dev/null; then
@@ -1229,24 +966,11 @@ else
 fi
 echo ""
 
-# Patch 30: goblint's preprocessor search -- the same unhyphenated-name problem
-# as patch 29, one layer up. goblint dies at RUN time on FreeBSD with
-#   Fatal error: exception Failure("No good preprocessor (cpp) found")
-#
-# src/util/preprocessor.ml tries plain `cpp` first and rejects it when its
-# --version mentions clang/apple/darwin. On FreeBSD /usr/bin/cpp IS clang, so
-# that rejection is correct: goblint needs gcc's preprocessor semantics. It then
-# falls back to `compgen -c cpp-`, which only finds HYPHENATED names like
-# Debian's cpp-14. FreeBSD's gcc package installs cpp14, with no hyphen, so the
-# fallback matches nothing and the analysis aborts.
-#
-# Also search the unhyphenated prefix. "cpp-" is kept first so Linux picks
-# exactly what it picked before; the unhyphenated list is only consulted when
-# the hyphenated one yields nothing good, and every candidate still goes through
-# the same is_good check, so a binary that merely starts with "cpp" cannot be
-# selected unless it really is a working non-clang preprocessor.
-#
-# Requires a real GCC to be installed: see README's FreeBSD prerequisites.
+# Patch 30: same as 29 one layer up: goblint's preprocessor.ml falls back to
+# `compgen -c cpp-`, which misses FreeBSD's cpp14, so the analysis aborts at
+# run time with
+#   Failure("No good preprocessor (cpp) found")
+# Also search the unhyphenated prefix, hyphenated first. Needs a real GCC installed.
 GOBLINT_CPP="duniverse/analyzer/src/util/preprocessor.ml"
 if [ -f "$GOBLINT_CPP" ]; then
   if grep -q 'compgen "cpp"' "$GOBLINT_CPP" 2>/dev/null; then
@@ -1272,27 +996,10 @@ else
 fi
 echo ""
 
-# Patch 31: zarith's version rule -- a SIGPIPE landmine under `pipefail`.
-# duniverse/Zarith/dune generates zarith_version.ml with
-#   (bash "grep \"version\" META | head -1")
-# and dune runs every (bash ...) action as `bash -e -u -o pipefail -c`. META has
-# TWO lines matching "version" (the package's own 1.14 and the zarith_top
-# subpackage's 1.13), so `head -1` exits after the first one while grep still has
-# the second to write. grep then takes SIGPIPE, pipefail promotes its 141 to the
-# pipeline's status, and the rule fails with
-#   Command exited with code 141.
-# taking the whole rocq bootstrap (step [8/9]) with it.
-#
-# Whether it fires is a buffering race, which is why it is intermittent and why
-# it showed up on FreeBSD rather than here. GNU grep block-buffers when stdout is
-# a pipe, so both lines usually land in one write() that completes before head
-# exits; FreeBSD's grep is line-buffered, so the second write happens after head
-# is gone and the race is lost far more often. Nothing about this repo makes it
-# more or less likely: it is latent on every platform.
-#
-# `grep -m1` stops after the first match, so there is no second write and no pipe
-# at all. Output is byte-identical (the first matching line), -m is in both GNU
-# and BSD grep, and Linux behaviour does not change.
+# Patch 31: zarith's version rule pipes `grep "version" META | head -1` under
+# dune's `bash -o pipefail`; META has two matching lines, so grep can take
+# SIGPIPE and the rule fails with `Command exited with code 141` (a buffering
+# race, frequent with FreeBSD's line-buffered grep). `grep -m1` needs no pipe.
 ZARITH_DUNE="duniverse/Zarith/dune"
 if [ -f "$ZARITH_DUNE" ]; then
   if grep -q 'grep -m1' "$ZARITH_DUNE" 2>/dev/null; then
@@ -1316,21 +1023,10 @@ else
 fi
 echo ""
 
-# [22] sedlex unicode.ml: stop regenerating it from a live download.
-#
-# duniverse/sedlex/src/syntax/dune has a `(mode promote)` rule that regenerates
-# unicode.ml by running gen_unicode.exe over Unicode tables fetched from
-# www.unicode.org at build time. The vendored tree already SHIPS the generated
-# unicode.ml, so that rule buys nothing here and puts a flaky third-party host on
-# the critical path of every clean build: on 2026-08-23 unicode.org returned
-# intermittent Cloudflare 522s, a different file failing on each attempt, so the
-# smoke build failed non-deterministically (and, before patch [21] added --fail,
-# silently baked an error page into the generated source).
-#
-# Drop the rule so dune treats the shipped unicode.ml as a plain source file.
-# Guarded on that file actually being present and generator-produced, so this can
-# never delete the rule and leave nothing behind. Patch [21] stays as a safety
-# net for anyone who puts the rule back.
+# [22] sedlex's `(mode promote)` rule regenerates the shipped unicode.ml from
+# tables downloaded from www.unicode.org on every clean build, which fails
+# intermittently. Drop the rule; guarded on the shipped generated file being
+# present. Patch [21] stays as a safety net.
 SEDLEX_SYNTAX_DUNE="duniverse/sedlex/src/syntax/dune"
 SEDLEX_UNICODE_ML="duniverse/sedlex/src/syntax/unicode.ml"
 if [ ! -f "$SEDLEX_SYNTAX_DUNE" ]; then
@@ -1365,15 +1061,9 @@ PYEOF
 fi
 echo ""
 
-# ---- Generate rocq config + dunestrap ----
-# [23] camlpdf pdftree.ml: drop the duplicate name/number tree key warning.
-#
-# cpdf_squeeze merges N copies of one PDF, so every name/number tree key
-# collides and camlpdf logs one line per duplicate through Pdfe.default
-# (prerr_string + flush stderr). On the _large rung (N=64) that is ~13M flushed
-# writes per invocation: ~830 MB of benchmark log per config, and stderr I/O
-# inside the measured region. The dedup behaviour is unchanged -- only the log
-# call goes; camlpdf's other Pdfe diagnostics still print.
+# [23] cpdf_squeeze merges N copies of one PDF, so every name/number tree key
+# collides and camlpdf logs one flushed stderr line per duplicate (~13M per
+# _large invocation, inside the measured region). Drop the log call only.
 PDFTREE_ML="vendor/camlpdf/pdftree.ml"
 if grep -q 'Pdfe.log "Warning Duplicate name/number tree key' "$PDFTREE_ML" 2>/dev/null; then
   sed_i '/Pdfe.log "Warning Duplicate name\/number tree key/d' "$PDFTREE_ML"
@@ -1390,23 +1080,16 @@ if [ -f "$ROCQ_DIR/config/coq_config.ml" ] && [ -f "$ROCQ_DIR/theories/Corelib/d
   echo "  Config and dunestrap files already exist. Skipping."
 else
   export PATH="$TOOLS_BIN:$PATH"
-  # `_build/install/default/lib` first: rocq's dunestrap rules run
-  # tools/dune_rule_gen/gen_rules.exe, which resolves the `rocq-runtime` findlib
-  # package to locate rocqworker (tools/coqdep/lib/fl.ml:101), and initialises
-  # findlib from $OCAMLPATH alone (tools/coqdep/lib/common.ml:377). The rules
-  # already depend on %{workspace_root}/_build/install/%{context_name}/lib/
-  # rocq-runtime/META, so dune materialises the package there — but nothing put
-  # that directory on OCAMLPATH, so on a switch without rocq installed gen_rules
-  # died with:
-  #   [gen_rules] Fatal error: Anomaly
-  #   "Uncaught exception Fl_package_base.No_such_package("rocq-runtime", "")."
+  # `_build/install/default/lib` first: rocq's dunestrap rules run gen_rules.exe,
+  # which resolves the rocq-runtime findlib package from $OCAMLPATH alone;
+  # without it, on a switch without rocq installed:
+  #   Fl_package_base.No_such_package("rocq-runtime", "")
   export OCAMLPATH="$MONOREPO_DIR/_build/install/default/lib:$("$_OPAM" var prefix --switch="$TOOLS_SWITCH")/lib:$("$_OPAM" var prefix --switch="$TOOLS_SWITCH")/lib/ocaml"
 
-  # Generate coq_config.ml via dune fallback rule
   echo "  Building rocq configure..."
   dune build "$ROCQ_DIR/config/coq_config.ml" --profile release
 
-  # Copy all fallback targets to source tree (dune requires all-or-nothing)
+  # dune requires all fallback targets in the source tree, or none.
   for f in coq_config.ml coq_byte_config.ml coq_config.py dune.c_flags; do
     if [ -f "_build/default/$ROCQ_DIR/config/$f" ]; then
       cp "_build/default/$ROCQ_DIR/config/$f" "$ROCQ_DIR/config/$f"
@@ -1414,7 +1097,6 @@ else
   done
   echo "  Config files copied to source tree."
 
-  # Generate dunestrap files (theories/Corelib/dune and theories/Ltac2/dune)
   echo "  Building dunestrap targets..."
   dune build "$ROCQ_DIR/corelib_dune" "$ROCQ_DIR/ltac2_dune" --profile release
   cp "_build/default/$ROCQ_DIR/corelib_dune" "$ROCQ_DIR/theories/Corelib/dune"
@@ -1422,33 +1104,29 @@ else
   echo "  Dunestrap files installed."
 fi
 
-# Install rocq-runtime + rocq-core into a local prefix so coqc can
-# find its stdlib (.vo files), plugins, and META at runtime.
+# Install rocq-runtime + rocq-core into a local prefix so coqc finds its stdlib
+# (.vo files), plugins and META at runtime.
 ROCQ_PREFIX="$MONOREPO_DIR/_rocq_prefix"
 if [ -f "$ROCQ_PREFIX/rocq/lib/coq/theories/Init/Prelude.vo" ]; then
   echo "  Rocq already installed to _rocq_prefix/. Skipping."
 else
   echo "  Installing rocq-runtime + rocq-core to _rocq_prefix/..."
   export PATH="$TOOLS_BIN:$PATH"
-  # Same reason as the dunestrap step above: building rocq-core compiles the
-  # theories with coqc/coqdep, which resolve the in-workspace `rocq-runtime`
-  # through findlib, and findlib only reads $OCAMLPATH.
+  # As above: coqc/coqdep resolve the in-workspace rocq-runtime through findlib,
+  # which reads only $OCAMLPATH.
   export OCAMLPATH="$MONOREPO_DIR/_build/install/default/lib:$("$_OPAM" var prefix --switch="$TOOLS_SWITCH")/lib:$("$_OPAM" var prefix --switch="$TOOLS_SWITCH")/lib/ocaml"
 
-  # Build and install rocq-runtime
   dune build duniverse/rocq/rocq-runtime.install --profile release
   DESTDIR="$ROCQ_PREFIX" dune install rocq-runtime --prefix /rocq --profile release
 
-  # The generated theories/Corelib/dune files reference .vo compilation deps
-  # via %{workspace_root}/_build/../../install/default/lib/rocq-runtime/.
-  # This resolves to <parent_of_monorepo>/install/default/lib/rocq-runtime/.
-  # We create a symlink there pointing at our local install.
+  # The generated theories dune files reference .vo deps via
+  # %{workspace_root}/_build/../../install/default/lib/rocq-runtime/, i.e.
+  # <parent_of_monorepo>/install/...; symlink that to the local install.
   ROCQ_INSTALL_LINK="$(dirname "$MONOREPO_DIR")/install/default/lib"
   mkdir -p "$ROCQ_INSTALL_LINK"
   ln -sfn "$ROCQ_PREFIX/rocq/lib/rocq-runtime" "$ROCQ_INSTALL_LINK/rocq-runtime"
   echo "  Symlink: $ROCQ_INSTALL_LINK/rocq-runtime -> _rocq_prefix"
 
-  # Build and install rocq-core (theories / .vo files)
   dune build duniverse/rocq/rocq-core.install --profile release
   DESTDIR="$ROCQ_PREFIX" dune install rocq-core --prefix /rocq --profile release
 
@@ -1456,11 +1134,9 @@ else
 fi
 echo ""
 
-# ---- Test build ----
-# SKIP_TEST_BUILD=1 skips this step. CI sets it because scripts/ci-build-all.sh
-# builds every program straight after, and this step targets the default _build/
-# rather than the per-runtime _build-<tag>/ — running both means compiling the
-# duniverse twice (~2.5 GB and several CPU-minutes of duplicate work).
+# CI sets SKIP_TEST_BUILD=1: ci-build-all.sh runs straight after into
+# _build-<tag>/, and this step targets the default _build/, so both would
+# compile the duniverse twice.
 if [ "${SKIP_TEST_BUILD:-0}" = "1" ]; then
   echo "[9/9] Test build SKIPPED (SKIP_TEST_BUILD=1)."
   echo ""
@@ -1468,11 +1144,8 @@ if [ "${SKIP_TEST_BUILD:-0}" = "1" ]; then
   exit 0
 fi
 
-# NOTE: this is a *smoke* build of a hand-maintained subset, not every program.
-# It deliberately omits the ones needing per-runtime external prefixes — goblint
-# (apron/camlidl via scripts/vendor-apron.sh) above all — plus several that share a
-# tool already listed. `benchmarks/manifest.yml` is the authoritative program list;
-# `scripts/ci-build-all.sh` is what actually builds all of them.
+# Smoke build of a hand-maintained subset (omits goblint and the other programs
+# needing per-runtime prefixes); benchmarks/manifest.yml + ci-build-all.sh cover all.
 echo "[9/9] Smoke build of a subset of benchmark binaries..."
 export PATH="$TOOLS_BIN:$PATH"
 export OCAMLPATH="$("$_OPAM" var prefix --switch="$TOOLS_SWITCH")/lib:$("$_OPAM" var prefix --switch="$TOOLS_SWITCH")/lib/ocaml"

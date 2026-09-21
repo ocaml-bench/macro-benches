@@ -1,16 +1,8 @@
-(** Network GC Benchmark Suite
-
-    This suite stresses the OCaml garbage collector through intensive network
-    parsing and manipulation operations. The benchmarks test:
-    - IPv4 address parsing (ragel-based parser creating intermediate values)
-    - CIDR subnet calculations with bitwise operations
-    - Int32 boxing/unboxing patterns
-    - String-to-structured data conversions
-    - Network address comparisons and transformations *)
+(** Network GC benchmark suite: IPv4/CIDR parsing and Int32-heavy address
+    arithmetic stressing the collector. *)
 
 open Devkit
 
-(* Benchmark 1: IPv4 Address Parsing Storm *)
 let bench_ipv4_parsing_storm () =
   let parsed_ips = ref [] in
 
@@ -51,7 +43,6 @@ let bench_ipv4_parsing_storm () =
       parsed_ips := ExtList.List.take 50 !parsed_ips
   done
 
-(* Benchmark 2: CIDR Subnet Calculations *)
 let bench_cidr_calculations () =
   let subnet_cache = Hashtbl.create 1000 in
 
@@ -100,7 +91,6 @@ let bench_cidr_calculations () =
         subnet_cache
   done
 
-(* Benchmark 3: Network Range Operations *)
 let bench_range_operations () =
   let range_results = ref [] in
 
@@ -153,7 +143,6 @@ let bench_range_operations () =
       range_results := ExtList.List.take 250 !range_results
   done
 
-(* Benchmark 4: Mixed Network Format Parsing *)
 let bench_mixed_format_parsing () =
   let parsed_data = ref [] in
 
@@ -222,7 +211,6 @@ let bench_mixed_format_parsing () =
       parsed_data := ExtList.List.take 100 !parsed_data
   done
 
-(* Benchmark 5: Network Address Translation Tables *)
 let bench_nat_tables () =
   let nat_table = Hashtbl.create 10000 in
   let reverse_table = Hashtbl.create 10000 in
@@ -278,7 +266,6 @@ let bench_nat_tables () =
         !to_remove)
   done
 
-(* Benchmark 6: IP Address Sorting and Comparison *)
 let bench_ip_sorting () =
   let sorted_lists = ref [] in
 
@@ -335,7 +322,6 @@ let bench_ip_sorting () =
       sorted_lists := ExtList.List.take 10 !sorted_lists
   done
 
-(* Benchmark 7: Broadcast and Network Address Calculations *)
 let bench_broadcast_calculations () =
   let boundary_cache = ref [] in
 
@@ -398,7 +384,6 @@ let bench_broadcast_calculations () =
       boundary_cache := ExtList.List.take 50 !boundary_cache
   done
 
-(* Benchmark 8: Complex Network Operations *)
 let bench_complex_network_ops () =
   let operation_cache = Hashtbl.create 1000 in
   let results = ref [] in
@@ -473,17 +458,12 @@ let bench_complex_network_ops () =
         results := ExtList.List.take 100 !results)
   done
 
-(* In-process iteration loop: Sys.argv.(1) controls how many full passes
-   over the 8 internal benchmarks are run, all in one OCaml process so
-   olly observes the whole run.  Default 1 keeps the binary useful as a
-   standalone executable.  See macro-benches README §"Iteration counts"
-   for the pattern. *)
+(* Sys.argv.(1) = full passes over the 8 benchmarks, in one process so olly sees the whole run. *)
 let loop =
   if Array.length Sys.argv > 1
   then try int_of_string Sys.argv.(1) with _ -> 1
   else 1
 
-(* Main benchmark suite runner *)
 let () =
   for _ = 1 to loop do
     bench_ipv4_parsing_storm ();

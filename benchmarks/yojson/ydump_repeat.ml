@@ -1,18 +1,7 @@
 (* ydump_repeat: parse + compact-serialize a JSON document N times.
-   Exercises JSON parsing, tree construction, serialization, and GC.
-
-   Two knobs:
-     argv.1 = iteration count (repetition; default 10).
-     argv.2 = the document. If it names an existing file, that file is read
-              (legacy behaviour, e.g. sample.json). Otherwise it is parsed as
-              an integer RECORD COUNT and a JSON document of that many records
-              is generated in-process (input size, working-set size) — so the ladder
-              rungs need no vendored/generated files, just a count argument.
-
-   The generated document is a JSON array of records shaped like
-     {"id":i,"name":"item_i","value":i.j,"tags":["alpha","beta","gamma"],
-      "active":bool,"nested":{"x":..,"y":..}}
-   (~125 bytes each), which builds a realistically nested Yojson tree. *)
+   argv.1 = iterations (default 10). argv.2 = an existing file to read, or an
+   integer record count: a nested JSON array of that many ~125-byte records is
+   generated in-process, so the ladder rungs need no input files. *)
 
 let generate_json records =
   let b = Buffer.create (records * 128) in

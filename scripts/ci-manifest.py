@@ -1,34 +1,15 @@
 #!/usr/bin/env python3
 """Read benchmarks/manifest.yml for the CI scripts.
 
-Two modes:
+  ci-manifest.py list       one TAB-separated row per program:
+                            name  tool  build_script  timeout  expected_exit  args
+  ci-manifest.py list-run   same, only `ci_run: true` programs
+  ci-manifest.py check      verify the manifest against the tree (build scripts,
+                            case-dispatch names, input paths, docs pages, README
+                            table, sources.yml pins); exits 1 listing problems
 
-  ci-manifest.py list       emit one TAB-separated row per program
-  ci-manifest.py list-run   like list, but only `ci_run: true` programs (CI run set)
-                          name  tool  build_script  timeout  expected_exit  args
-                          (${RUNNING_MACRO_BENCH_DIR} already expanded)
-
-                          `args` is last on purpose: bash treats TAB as
-                          whitespace-IFS, so an empty field in the middle of the
-                          row would collapse and shift every later column.
-
-  ci-manifest.py check    verify the manifest against the tree:
-                            - every program's tool dir and build script exist
-                            - every build script in benchmarks/ is either
-                              claimed by a program or listed under `disabled`
-                            - build scripts that dispatch on the program name
-                              (a `case "${BM_NAME}"`) accept exactly the programs
-                              the manifest claims for them, no more, no less
-                            - every in-tree input path in a program's args exists
-                            - every tool has a docs/benchmarks/<tool>.md page,
-                              and every page has a tool
-                            - the README benchmark table names a real program
-                              for each tool, and every tool with a `default`
-                              rung has a row
-                          Prints the counts it compared, then exits 1 with the
-                          list of problems if anything is off.
-
-Kept deliberately small: the CI shell scripts do the work, this only parses.
+`args` is last: bash treats TAB as whitespace-IFS, so an empty middle field
+would shift every later column.
 """
 
 import os
@@ -52,8 +33,7 @@ def load():
 
 
 def expand(args):
-    # The manifest uses running-ng's ${RUNNING_MACRO_BENCH_DIR} spelling so the
-    # two arg lists can be diffed mechanically.
+    # running-ng's spelling, so the two arg lists can be diffed mechanically.
     return args.replace("${RUNNING_MACRO_BENCH_DIR}", str(ROOT))
 
 
@@ -74,16 +54,9 @@ def cmd_list(ci_run_only=False):
 
 
 def dispatched_program_names(script):
-    """Program names a build script's `case "${BM_NAME}"` dispatch accepts.
+    """Program names a build script's `case "${BM_NAME}"` dispatch accepts, or None.
 
-    Some scripts serve several programs and pick their dune target from the output
-    filename (ahrefs-devkit is the current example), erroring on a name they don't
-    know. That case block is a second, independent statement of the program list,
-    so it can be checked against the manifest. Only the *first* such block is read
-    — that's the dispatch; later ones (e.g. deciding which programs get a wrapper)
-    are deliberately partial.
-
-    Returns None for scripts with no such dispatch, which is most of them.
+    Only the first case block is read: later ones are deliberately partial.
     """
     text = script.read_text()
     block = re.search(r'case\s+"\$\{(?:BM_NAME|OUT_BASE)\}"\s+in(.*?)esac', text, re.S)
@@ -96,14 +69,7 @@ def dispatched_program_names(script):
 
 
 def check_pins():
-    """Nothing this repo vendors may float.
-
-    sources.yml is the single source of truth: every version, URL, checksum and
-    commit lives there and the scripts read it through lib-sources.sh. This checks
-    that the two halves agree, and — the part that keeps it from rotting — that no
-    script has quietly gone back to cloning a branch HEAD. Six of them used to,
-    which is how the tree silently drifted away from what was validated.
-    """
+    """sources.yml and the scripts must agree, and no script may clone a branch HEAD."""
     problems = []
     with (ROOT / "sources.yml").open() as f:
         sources = yaml.safe_load(f) or {}
@@ -126,7 +92,6 @@ def check_pins():
             l for l in text.splitlines() if not l.lstrip().startswith("#")
         )
 
-        # Every key a script reads must exist, with the field it asks for.
         for key, field in re.findall(r"src_field\s+([A-Za-z0-9._-]+)\s+([a-z0-9_]+)", code):
             if key not in sources:
                 problems.append(f"{rel}: src_field reads '{key}', absent from sources.yml")
@@ -140,9 +105,8 @@ def check_pins():
             elif "commit" not in (sources[key] or {}):
                 problems.append(f"{rel}: clone_pinned '{key}', which has no commit pin")
 
-        # And nothing may clone directly. lib-sources.sh is where the one allowed
-        # `git clone` lives (the full-clone fallback for hosts that refuse a
-        # fetch-by-commit), so it is exempt.
+        # lib-sources.sh holds the one allowed `git clone` (the full-clone
+        # fallback), so it is exempt.
         if script.name == "lib-sources.sh":
             continue
         for i, line in enumerate(text.splitlines(), 1):
@@ -159,8 +123,7 @@ def cmd_check():
     disabled = m.get("disabled") or {}
     problems = []
 
-    # 1. Every program's tool dir and build script exist. Collect the scripts the
-    #    manifest claims, and which programs each one is claimed for.
+    # 1. Every program's tool dir and build script exist.
     claimed = {}
     for name, p in programs.items():
         tool_dir = ROOT / "benchmarks" / p["tool"]
@@ -174,8 +137,8 @@ def cmd_check():
     for tool, d in disabled.items():
         claimed.setdefault((ROOT / "benchmarks" / tool / d["build_script"]).resolve(), set())
 
-    # 2. Every build script in the tree is accounted for. This is the check that
-    #    catches a whole new benchmark landing without a manifest entry.
+    # 2. Every build script in the tree is accounted for: catches a new benchmark
+    #    with no manifest entry.
     scripts = sorted((ROOT / "benchmarks").glob("*/*.build.sh"))
     for script in scripts:
         if script.resolve() not in claimed:
@@ -185,9 +148,8 @@ def cmd_check():
                 f"under `disabled:` with a reason)"
             )
 
-    # 3. Name-dispatching scripts must accept exactly the claimed programs. This is
-    #    the check that catches a new program added to an *existing* tool, where the
-    #    build script already exists so (2) stays quiet.
+    # 3. Name-dispatching scripts must accept exactly the claimed programs: catches
+    #    a new program on an existing tool, where (2) stays quiet.
     for script in scripts:
         declared = dispatched_program_names(script)
         if declared is None:
@@ -207,8 +169,7 @@ def cmd_check():
                 f"does not accept the name — it would fail with 'Unknown benchmark'"
             )
 
-    # 4. In-tree input files named in args must exist. Catches a program added
-    #    without committing its input. Generated inputs opt out explicitly.
+    # 4. In-tree input files named in args must exist; generated inputs opt out.
     for name, p in programs.items():
         if p.get("inputs_generated"):
             continue
@@ -222,7 +183,7 @@ def cmd_check():
                     f"(if the build script generates it, set `inputs_generated: true`)"
                 )
 
-    # 5. One docs page per tool, both ways (CLAUDE.md's documentation rule).
+    # 5. One docs page per tool, both ways.
     tools = {s.parent.name for s in scripts}
     for tool in sorted(tools):
         if not (ROOT / "docs" / "benchmarks" / f"{tool}.md").is_file():
@@ -234,9 +195,8 @@ def cmd_check():
                 f"benchmarks/{page.stem}/*.build.sh"
             )
 
-    # 6. The README benchmark table must name real programs. It is one row per
-    #    active tool giving that tool's `default` rung, so the table rots the
-    #    moment a ladder changes name or a tool is added. Checked both ways.
+    # 6. The README benchmark table (one row per active tool's `default` rung)
+    #    must name real programs, both ways.
     readme = (ROOT / "README.md").read_text()
     rows = re.findall(
         r"^\| \[([^\]]+)\]\(docs/benchmarks/[^)]+\) \| `([a-z0-9_]+)` \|",
@@ -258,7 +218,7 @@ def cmd_check():
                     f"README.md: the {tool} row names `{prog}`, but the manifest "
                     f"lists that program under tool `{programs[prog]['tool']}`")
         # Every tool with a `default` rung is part of a bare sweep, so it belongs
-        # in the table. Legacy-only tools (no `_default` program) do not.
+        # in the table.
         for tool in sorted({p["tool"] for n, p in programs.items()
                             if n.endswith("_default")}):
             if tool not in listed_tools:
@@ -268,7 +228,7 @@ def cmd_check():
 
     problems += check_pins()
 
-    # The counts, always, so the log shows what was compared against what.
+    # Always print the counts so the log shows what was compared.
     with_programs = len({p["tool"] for p in programs.values()})
     print(f"benchmark directories with a build script : {len(tools)}")
     print(f"  of those, in the manifest: {with_programs} with programs "
@@ -291,8 +251,6 @@ if __name__ == "__main__":
     if mode == "list":
         cmd_list()
     elif mode == "list-run":
-        # Only programs flagged `ci_run: true` (the small rung of each tool) —
-        # what CI runs. ci-build-all uses `list` (every program) to build.
         cmd_list(ci_run_only=True)
     elif mode == "check":
         sys.exit(cmd_check())

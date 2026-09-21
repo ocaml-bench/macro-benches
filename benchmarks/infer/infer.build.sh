@@ -1,40 +1,16 @@
 #!/usr/bin/env bash
-# infer.build.sh — build the java-only Infer static analyzer and emit its
-# benchmark wrapper.  Mirrors benchmarks/goblint/goblint.build.sh (per-runtime
-# non-dune prefix + hermetic in-tree dune build), except the non-dune deps are
-# javalib + sawja (scripts/vendor-javalib-sawja.sh) rather than apron.
-#
-# Infer itself is vendored manually (vendor/infer, via scripts/vendor-infer.sh):
-# its upstream build is autoconf+make that *generates* dune files, so it can't
-# join the opam-monorepo lock; instead a java-only pre-generated dune overlay is
-# laid down at vendor time and it builds as an ordinary in-tree dune project.
-#
-# WORKLOAD.  Infer's *multicore* (domains, shared-heap) analysis of a fixed
-# subset of a real Java corpus.  Bytecode capture (javalib, JVM-free) is done
-# here at build time; the emitted wrapper runs ONLY `infer analyze --multicore`
-# on a fresh copy of that capture, so running-ng measures the shared-heap
-# parallel analysis — the mode where olly/runtime_events sees all GC activity in
-# one process.  Capture and analyze use the SAME per-runtime binary, so the
-# marshalled capture DB never crosses an OCaml-version boundary.
-#
-# TUNING.  Workload size = the rung's roots subset (benchmarks/infer/roots_<rung>.idx),
-# a committed slice of the corpus's ~11k classes.  small/default/large hold
-# 72/215/542 roots (warm -j12 ~9/16/44s on a 32-core box; the full corpus is ~20x
-# the large rung, so there is years of headroom).  To retune for a farm, resample
-# each rung:
-#   infer debug --source-files -o <capture> | grep '\.class$' | sort \
-#     | awk 'NR % K == 1' > benchmarks/infer/roots_<rung>.idx
-# and pick K per rung so its wall lands where you want.  Parallelism is INFER_JOBS
-# (default 12); a fork/parmap wall-clock companion is INFER_MULTICORE=0.
+# infer.build.sh: build the java-only Infer analyzer (vendor/infer, dune overlay
+# laid down by scripts/vendor-infer.sh) and emit a wrapper that runs
+# `infer analyze --multicore` on a Java corpus captured here (javalib, JVM-free)
+# with the same per-runtime binary, so the marshalled capture DB never crosses
+# an OCaml version. Knobs: INFER_JOBS (default 12); INFER_MULTICORE=0 for fork/parmap.
+# Retune a rung: infer debug --source-files -o <capture> | grep '\.class$' | sort \
+#   | awk 'NR % K == 1' > benchmarks/infer/roots_<rung>.idx
 set -euo pipefail
 
-# running-ng invokes this script DIRECTLY at run time, so it does NOT inherit
-# the environment setup-monorepo.sh builds up. Source the portability library
-# for its LOCALBASE exports: on FreeBSD, pkg puts headers in
-# /usr/local/include, which the base clang does not search, so a vendored C
-# stub that includes one fails with "'event.h' file not found" even though the
-# package is installed. FreeBSD-gated and idempotent, so this is a no-op on
-# Linux. scripts/tests/test-build-scripts-portable.sh enforces this line.
+# running-ng runs this script directly, without setup-monorepo.sh's environment;
+# lib-portable.sh supplies the FreeBSD LOCALBASE exports (else a vendored C stub
+# fails with "'event.h' file not found"). scripts/tests/test-build-scripts-portable.sh enforces this.
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/scripts/lib-portable.sh"
 
 BENCH_DIR="${RUNNING_OCAML_BENCH_DIR:-$(cd "$(dirname "$0")" && pwd)}"
@@ -46,12 +22,8 @@ BUILD_DIR="${MONOREPO_DIR}/_build-${SAFE_TAG}"
 JS_PREFIX="${MONOREPO_DIR}/vendor/.infer-js-prefix-${SAFE_TAG}"
 CORPUS="${MONOREPO_DIR}/vendor/.infer-corpus/corpus.jar"
 CAPTURE="${MONOREPO_DIR}/vendor/.infer-capture-${SAFE_TAG}"
-# Input-size ladder: the rung is baked into the output name (small/default/large),
-# each selecting a committed roots subset (roots_<rung>.idx — a sampled slice of the
-# ~11k-class corpus). More roots = more procedures analysed = more shared-heap
-# allocation + multicore GC, at a flat capture footprint. Warm walls at -j12 on a
-# 32-core box: small ~9s (72 roots), default ~16s (215), large ~44s (542); a cold
-# first analysis is ~2-2.5x. Retune counts per farm by resampling (see the doc page).
+# The rung in the output name selects a committed roots subset; more roots means
+# more procedures analysed at a flat capture footprint (72/215/542 roots ~9/16/44s at -j12).
 case "$(basename "${OUT}")" in
   *infer_small*) ROOTS="${BENCH_DIR}/roots_small.idx" ;;
   *infer_large*) ROOTS="${BENCH_DIR}/roots_large.idx" ;;
@@ -61,32 +33,17 @@ JOBS="${INFER_JOBS:-12}"
 
 echo "Building infer (monorepo) for runtime: ${RUNTIME_TAG}"
 
-# 0. Vendored Infer source (idempotent; normally done by setup-monorepo.sh).
 [ -f "${MONOREPO_DIR}/vendor/infer/infer/src/base/Version.ml" ] \
   || bash "${MONOREPO_DIR}/scripts/vendor-infer.sh"
 
-# 1. Corpus jars (runtime-independent; fetch + merge once).
 [ -f "${CORPUS}" ] || bash "${MONOREPO_DIR}/scripts/vendor-infer-corpus.sh"
 
-# 2. Per-runtime javalib/sawja prefix (opam-free; only the active compiler).
 JS_SRC="${MONOREPO_DIR}/vendor/.infer-js-src" JS_PREFIX="${JS_PREFIX}" \
   bash "${MONOREPO_DIR}/scripts/vendor-javalib-sawja.sh"
 
-# 3. Hermetic dune build of infer.exe.  The duniverse deps (core, atdgen, ...)
-#    come from the in-tree dune workspace; only the javalib/sawja prefix is
-#    exposed via OCAMLPATH (all C stubs are statically linked, so the wrapper
-#    needs no runtime library path).
-#
-#    extlib + camlzip/zip collision: javalib/sawja link extlib and zip, which
-#    the prefix supplies (built by vendor-javalib-sawja.sh).  But the duniverse
-#    ALSO ships extlib (ocaml-extlib) and zip (camlzip) because devkit depends
-#    on them, and dune rejects two libraries with the same public name in one
-#    build ("Conflict between the following libraries: extlib ...").  The clash
-#    is *only* visible while this prefix is on OCAMLPATH — devkit's own build
-#    never sets it, so it always sees the duniverse copies.  We therefore hide
-#    the duniverse duplicates for the duration of infer's build and restore
-#    them on exit (same source/version as the prefix copies, so nothing else
-#    is affected).  A trap restores them even if the build fails or is killed.
+# Hide the duniverse extlib/camlzip during the build: the javalib/sawja prefix
+# on OCAMLPATH ships the same libraries and dune rejects the duplicate ("Conflict
+# between the following libraries: extlib ..."). Restored on exit, even on failure.
 unset OPAM_SWITCH_PREFIX OCAMLTOP_INCLUDE_PATH CAML_LD_LIBRARY_PATH OCAMLLIB
 export OCAMLPATH="${JS_PREFIX}/lib"
 
@@ -111,21 +68,15 @@ _infer_restore_dups
 trap - EXIT
 REAL_EXE="${BUILD_DIR}/default/vendor/infer/infer/src/infer.exe"
 
-# 4. Capture the corpus once with THIS runtime's binary (JVM-free: javalib
-#    parses .class directly).  Verified: analyze is READ-ONLY on the 251 MB
-#    capture.db (freshly_captured stays set), so the wrapper re-analyses in
-#    place with no per-run copy.  Cached across the three ladder rungs (which
-#    share this per-runtime capture) — re-captured only when infer.exe is newer
-#    than the capture, i.e. after an actual rebuild of this runtime's binary.
+# Capture once per runtime (shared by the rungs, redone when infer.exe is newer).
+# analyze is read-only on capture.db, so the wrapper re-analyses in place.
 if [ ! -d "${CAPTURE}" ] || [ "${REAL_EXE}" -nt "${CAPTURE}" ]; then
   rm -rf "${CAPTURE}"
   "${REAL_EXE}" capture -o "${CAPTURE}" \
     --generated-classes "${CORPUS}" --classpath "${CORPUS}" >/dev/null 2>&1
 fi
 
-# 5. Emit the wrapper: analyze the roots subset IN PLACE.  --changed-files-index
-#    re-invalidates + re-analyses the roots on every run (no incremental skip),
-#    so each measured run is a full cold analysis (verified stable across runs).
+# --changed-files-index re-analyses the roots on every run (no incremental skip).
 MC_FLAG="--multicore"; [ "${INFER_MULTICORE:-1}" = "0" ] && MC_FLAG=""
 mkdir -p "$(dirname "${OUT}")"
 cat > "${OUT}" <<WRAPPER

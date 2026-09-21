@@ -2,13 +2,10 @@
 (name macro-benches)
 (generate_opam_files true)
 
-; Package declarations for opam-monorepo dependency resolution.
-;
-; The x-opam-monorepo-opam-repositories field in .opam.template files
-; points the solver at dune-universe overlays first, ensuring it picks
-; dune-compatible versions of non-dune packages (zarith, fmt, etc.).
-;
-; cpdf/camlpdf don't use dune at all — vendored via scripts/vendor-cpdf.sh.
+; Package declarations for opam-monorepo dependency resolution. The
+; x-opam-monorepo-opam-repositories field in the .opam.template files points
+; the solver at dune-universe overlays first, so it picks dune-compatible
+; versions of non-dune packages. cpdf/camlpdf are vendored by scripts/vendor-cpdf.sh.
 
 (package
  (name macro-bench-menhir)
@@ -34,11 +31,9 @@
  (depends
   (devkit (>= 1.20240429))))
 
-; cmdliner (2.x, for jsoo's Arg.Completion) and the dune_ lang level are both
-; handled post-pull in setup-monorepo.sh ([2.3] / [3]) — opam-monorepo ignores
-; version pins on these base/overlay packages anyway, and a `dune = 3.22.2` pin
-; here actually makes the solve UNSAT (the set wants 3.23.1, which the [3] lang
-; patch builds fine on the 3.22.1 binaries).  So jsoo stays unconstrained.
+; cmdliner 2.x (for jsoo) and the dune lang level are handled post-pull in
+; setup-monorepo.sh; a dune version pin here makes the solve UNSAT, so jsoo
+; stays unconstrained.
 (package
  (name macro-bench-jsoo)
  (allow_empty)
@@ -98,10 +93,8 @@
   (xmlm (>= 1.3.0))
   (ounit2 (>= 2.2.0))))
 
-; frama-c is vendored manually (scripts/vendor-frama-c.sh — 32.1 is not
-; in opam, and we build only a trimmed kernel+EVA, no WP/why3/GUI/apron).
-; These are the OCaml deps of the kernel + EVA subtree only.  yaml is the
-; one dep not already pulled by another benchmark.
+; frama-c is vendored by scripts/vendor-frama-c.sh; these are the OCaml deps
+; of the kernel + EVA subtree only.
 (package
  (name macro-bench-frama-c)
  (allow_empty)
@@ -118,38 +111,23 @@
   (ppx_deriving_yaml (>= 0.2.0))
   (ppx_inline_test (>= 0.17.0))))
 
-; goblint: static analyser (ocaml#13733 regression reproducer).  Vendored
-; via opam-monorepo (goblint + goblint-cil + deps are pure dune).  apron is
-; REQUIRED by the svcomp config but is non-dune (configure/make + camlidl),
-; so it is listed opam-provided (see the .opam.template) to keep the lock
-; from trying to vendor it; it is supplied instead from a vendored,
-; per-runtime prefix built by scripts/vendor-apron.sh (see
-; benchmarks/goblint/goblint.build.sh).
+; goblint (ocaml#13733 reproducer). apron is required by the svcomp config but
+; is non-dune, so it is opam-provided (see the .opam.template) and supplied from
+; the per-runtime prefix built by scripts/vendor-apron.sh.
 (package
  (name macro-bench-goblint)
  (allow_empty)
  (depends
   (goblint (= 2.7.1))
-  ; catapult's core lib copies Bare_encoding + runs bare-codegen at build time,
-  ; but catapult's opam doesn't declare it (optional there); name it so the
-  ; lock vendors it.
+  ; catapult runs bare-codegen at build time but its opam does not declare
+  ; bare_encoding; name it so the lock vendors it.
   (bare_encoding (>= 0.3.0))))
 
-; infer: Meta's multi-language static analyzer, built java-only (clang /
-; erlang / hack / python / rust / swift disabled).  Infer's own build is
-; autoconf + make that *generates* its dune files, so it is not an
-; opam-monorepo-buildable opam package; the source (with java-only dune
-; files generated at vendor time) is vendored manually via
-; scripts/vendor-infer.sh, and its OCaml deps are declared here.  The
-; system libs (sqlite3, zlib, gmp) are opam-provided (see .opam.template).
-; The core / ppx_* v0.17 band matches what the lock already pins (base
-; v0.17.3, ppx_compare v0.17.0), so adding infer pushes only lower bounds.
-; javalib + sawja are non-dune (native configure/Makefile) and are NOT
-; declared anywhere in the lock (infer is manually vendored, so its deps are
-; under our control; marking them opam-provided drags their opam dep cone
-; into the global opam-provided solve and collides with devkit's libevent).
-; They are built per-runtime into a prefix by scripts/vendor-javalib-sawja.sh
-; and exposed to infer's dune build via OCAMLPATH (apron model).
+; infer, java-only. Its build generates its dune files, so the source is
+; vendored by scripts/vendor-infer.sh and its OCaml deps declared here; system
+; libs are opam-provided. javalib + sawja stay out of the lock (opam-provided
+; would collide with devkit's libevent); scripts/vendor-javalib-sawja.sh builds
+; them into a per-runtime prefix exposed via OCAMLPATH.
 (package
  (name macro-bench-infer)
  (allow_empty)

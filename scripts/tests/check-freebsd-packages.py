@@ -1,25 +1,12 @@
 #!/usr/bin/env python3
-"""Check that every package the FreeBSD workflow installs actually exists.
+"""Check that every package the FreeBSD workflow installs exists in FreeBSD's
+published package index, from any platform.
 
     python3 scripts/tests/check-freebsd-packages.py
 
-Runs on any platform: it reads FreeBSD's published package index over HTTP
-rather than needing a FreeBSD host. That is the point. A wrong package name is
-only discoverable on FreeBSD otherwise, and each one costs a full CI round trip
-to find, one at a time.
-
-Two real examples, both of which cost a run:
-
-  * `opam` does not exist; FreeBSD ships it as `ocaml-opam`.
-  * `py312-yaml` does not exist either. The port was renamed devel/py-yaml ->
-    devel/py-pyyaml in 2024, so it is `py312-pyyaml`, and the pyXY prefix
-    tracks whichever Python is default for the release.
-
-Neither is guessable from the Linux name, and both are caught here in seconds.
-
-Exits 0 if every name resolves, 1 if any does not, and 0 with a notice if the
-index cannot be fetched, so an offline checkout or a network blip does not fail
-a build over something advisory.
+Names are not guessable from Linux (`opam` is `ocaml-opam`, `py312-yaml` is
+`py312-pyyaml`). Exits 1 on a bad name; exits 0 with a notice if the index
+cannot be fetched (advisory, not a gate).
 """
 import json
 import re
@@ -31,28 +18,19 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github" / "workflows" / "ci-freebsd.yml"
 
-#: Must match the `release:` the workflow asks vmactions for. The package set
-#: differs between releases: a name valid on 14 can be absent on 15, which is
-#: exactly the sort of thing this exists to catch.
+#: Must match the workflow's `release:`; the package set differs between releases.
 ABI = "FreeBSD:15:amd64"
 INDEX = "https://pkg.freebsd.org/{}/latest/packagesite.pkg".format(ABI)
 
 
 def packages_from_workflow(text):
-    """The names passed to `pkg install` in the workflow.
-
-    Deliberately reads the workflow rather than taking a hardcoded list: a list
-    here would be a second copy to keep in step, and the copy that drifts is
-    always the one nobody runs.
-    """
+    """The names passed to `pkg install` in the workflow (read, not hardcoded, so
+    there is no second copy to drift)."""
     lines = text.splitlines()
     names = []
     for i, line in enumerate(lines):
-        # Only the main dependency list: the one written as a multi-line
-        # `pkg install -y \` block. The workflow also installs PyYAML with a
-        # dynamic name and an `||` fallback, which is not checkable from here
-        # and does not need to be: that step verifies itself by importing the
-        # module. Scraping it yields shell tokens, not package names.
+        # Only the multi-line `pkg install -y \` block; the PyYAML install uses a
+        # dynamic name with an `||` fallback and verifies itself.
         if "pkg install -y" not in line or not line.rstrip().endswith("\\"):
             continue
         j = i + 1
@@ -73,9 +51,8 @@ def repo_package_names():
         import zstandard  # noqa: F401
     except ImportError:
         pass
-    # The index is a zstd-compressed tar holding packagesite.yaml, which is
-    # JSON-lines despite the name. Shell out rather than depend on a python
-    # zstd binding that is not in the stdlib.
+    # The index is a zstd tar holding packagesite.yaml (JSON lines despite the
+    # name). Shell out: no zstd binding in the stdlib.
     import subprocess
     import tarfile
     import io

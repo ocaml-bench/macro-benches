@@ -1,9 +1,8 @@
 (* Adapted from Zarith tests code
    see https://github.com/ocaml/Zarith *)
 
-(* Pi digits computed with the streaming algorithm given on pages 4, 6
-   & 7 of "Unbounded Spigot Algorithms for the Digits of Pi", Jeremy
-   Gibbons, August 2004. *)
+(* Pi digits via the streaming algorithm of Jeremy Gibbons, "Unbounded Spigot
+   Algorithms for the Digits of Pi", 2004. *)
 
 open Printf
 

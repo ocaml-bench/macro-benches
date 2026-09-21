@@ -1,16 +1,8 @@
-(** Stre GC Benchmark Suite
-
-    This suite stresses the OCaml garbage collector through intensive string
-    manipulation operations using the Stre module. Each benchmark targets
-    different GC behaviors through string allocation patterns:
-    - Substring allocation pressure
-    - String splitting and concatenation
-    - Pattern-based operations with regular expressions
-    - Temporary string creation and disposal *)
+(** Stre GC benchmark suite: string splitting, slicing and concatenation
+    patterns stressing the collector. *)
 
 open Devkit
 
-(* Benchmark 1: String Split Storm (Minor GC stress) *)
 let bench_split_storm () =
   let retained = ref [] in
 
@@ -43,7 +35,6 @@ let bench_split_storm () =
       retained := ExtList.List.take 500 !retained
   done
 
-(* Benchmark 2: Substring Slicing Pressure *)
 let bench_substring_slicing () =
   let retained_slices = ref [] in
 
@@ -75,7 +66,6 @@ let bench_substring_slicing () =
       retained_slices := ExtList.List.take 250 !retained_slices
   done
 
-(* Benchmark 3: Pattern-based String Operations *)
 let bench_pattern_operations () =
   let retained_matches = ref [] in
 
@@ -129,7 +119,6 @@ let bench_pattern_operations () =
       retained_matches := ExtList.List.take 500 !retained_matches
   done
 
-(* Benchmark 4: String Concatenation Chains *)
 let bench_concatenation_chains () =
   let retained_chains = ref [] in
 
@@ -163,7 +152,6 @@ let bench_concatenation_chains () =
       retained_chains := ExtList.List.take 100 !retained_chains
   done
 
-(* Benchmark 5: Enumeration-based String Processing *)
 let bench_enum_string_ops () =
   let retained_enums = ref [] in
 
@@ -206,7 +194,6 @@ let bench_enum_string_ops () =
       retained_enums := ExtList.List.take 250 !retained_enums
   done
 
-(* Benchmark 6: Mixed-size String Allocations *)
 let bench_mixed_size_allocations () =
   let retained_mixed = Hashtbl.create 1000 in
   let counter = ref 0 in
@@ -249,7 +236,6 @@ let bench_mixed_size_allocations () =
       sizes
   done
 
-(* Benchmark 7: String Building with Buffers *)
 let bench_string_building () =
   let retained_built = ref [] in
 
@@ -286,7 +272,6 @@ let bench_string_building () =
       retained_built := ExtList.List.take 150 !retained_built
   done
 
-(* Benchmark 8: Deep String Transformation Chains *)
 let bench_transformation_chains () =
   let transformation_cache = Hashtbl.create 500 in
   let stage_results = ref [] in
@@ -355,17 +340,12 @@ let bench_transformation_chains () =
       stage_results := ExtList.List.take 25 !stage_results
   done
 
-(* In-process iteration loop: Sys.argv.(1) controls how many full passes
-   over the 8 internal benchmarks are run, all in one OCaml process so
-   olly observes the whole run.  Default 1 keeps the binary useful as a
-   standalone executable.  See macro-benches README §"Iteration counts"
-   for the pattern. *)
+(* Sys.argv.(1) = full passes over the 8 benchmarks, in one process so olly sees the whole run. *)
 let loop =
   if Array.length Sys.argv > 1
   then try int_of_string Sys.argv.(1) with _ -> 1
   else 1
 
-(* Main benchmark suite runner *)
 let () =
   for _ = 1 to loop do
     bench_split_storm ();

@@ -1,13 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# running-ng invokes this script DIRECTLY at run time, so it does NOT inherit
-# the environment setup-monorepo.sh builds up. Source the portability library
-# for its LOCALBASE exports: on FreeBSD, pkg puts headers in
-# /usr/local/include, which the base clang does not search, so a vendored C
-# stub that includes one fails with "'event.h' file not found" even though the
-# package is installed. FreeBSD-gated and idempotent, so this is a no-op on
-# Linux. scripts/tests/test-build-scripts-portable.sh enforces this line.
+# running-ng runs this script directly, without setup-monorepo.sh's environment;
+# lib-portable.sh supplies the FreeBSD LOCALBASE exports (else a vendored C stub
+# fails with "'event.h' file not found"). scripts/tests/test-build-scripts-portable.sh enforces this.
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/scripts/lib-portable.sh"
 
 BENCH_DIR="${RUNNING_OCAML_BENCH_DIR:-$(cd "$(dirname "$0")" && pwd)}"
@@ -21,14 +17,8 @@ echo "Building eio_bench (monorepo) for runtime: ${RUNTIME_TAG}"
 unset OPAM_SWITCH_PREFIX OCAMLTOP_INCLUDE_PATH CAML_LD_LIBRARY_PATH OCAMLLIB
 export OCAMLPATH=""
 
-# Two benchmarks share this build, selected by output name:
-#   * eio_conc_* — the input-size concurrency ladder (eio_conc_bench.exe). input size =
-#     number of independent producer/consumer fiber pairs (argv.1), each on its
-#     own bounded stream, so the working set (live fibers + buffered data) grows
-#     ~linearly. The frozen eio_fiber_stream is a throughput bench with a tiny,
-#     constant live set; this scales concurrency instead. The rung differs only
-#     in its macro_base arg (n_pairs).
-#   * eio_fiber_stream (default) — the frozen throughput benchmark, unchanged.
+# Output name selects the binary: eio_conc_* is the concurrency ladder (argv.1 =
+# producer/consumer fiber pairs), anything else the frozen eio_fiber_stream.
 case "$(basename "${OUT}")" in
   *eio_conc_*) EXE="eio_conc_bench" ;;
   *)           EXE="eio_bench" ;;

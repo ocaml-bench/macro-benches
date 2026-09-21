@@ -1,31 +1,14 @@
-(** HtmlStream GC Benchmark Suite
-
-    This suite is designed to stress the OCaml garbage collector with various
-    allocation patterns and heap shape changes over time. Each benchmark targets
-    different GC behaviors:
-    - Minor collection pressure (ephemeral allocations)
-    - Major collection pressure (long-lived data)
-    - Heap fragmentation
-    - Generational hypothesis violations
-    - Large object handling
-
-    input size = working-set scale (Sys.argv.(1), default 1). It multiplies the
-    per-document content counts that grow the working set — the number of
-    elements generated into each HTML document and the size of the structures
-    retained from parsing it — while leaving the outer `for _ = 1 to 10` document
-    *repetition* fixed. Only loops whose per-element cost is
-    bounded are scaled, so wall/allocation grow ~linearly with the factor; the
-    intrinsically super-linear pieces (bench_morphing_heap's `10240 * phase`
-    block, bench_generational_violation's `for j = 1 to batch` nest) keep their
-    fixed size so a bigger factor does not blow the heap up quadratically.
-    Factor 1 reproduces the frozen benchmark exactly. *)
+(** HtmlStream GC benchmark suite. Sys.argv.(1) (default 1) scales the
+    per-document content counts, not the outer document repetition; the
+    intrinsically super-linear loops (bench_morphing_heap's `10240 * phase`,
+    bench_generational_violation's `for j = 1 to batch`) stay fixed so growth
+    is ~linear. Factor 1 is the frozen benchmark. *)
 
 open Devkit
 
 let scale =
   if Array.length Sys.argv > 1 then max 1 (int_of_string Sys.argv.(1)) else 1
 
-(* Benchmark 1: Small String Pressure (Minor GC stress) *)
 let bench_small_strings () =
   let collected_texts = ref [] in
 
@@ -50,7 +33,6 @@ let bench_small_strings () =
       html
   done
 
-(* Benchmark 2: Attribute List Pressure *)
 let bench_attribute_lists () =
   let total_attrs = ref 0 in
 
@@ -77,7 +59,6 @@ let bench_attribute_lists () =
       html
   done
 
-(* Benchmark 3: Large Block Allocations *)
 let bench_large_blocks () =
   let retained_blocks = ref [] in
 
@@ -105,7 +86,6 @@ let bench_large_blocks () =
       html
   done
 
-(* Benchmark 4: Heap Shape Morphing *)
 let bench_morphing_heap () =
   let phase_data = ref [] in
 
@@ -142,7 +122,6 @@ let bench_morphing_heap () =
       html
   done
 
-(* Benchmark 5: Fragmentation Stress *)
 let bench_fragmentation () =
   let retained = Hashtbl.create 1000 in
   let counter = ref 0 in
@@ -182,7 +161,6 @@ let bench_fragmentation () =
       html
   done
 
-(* Benchmark 6: Generational Hypothesis Violation *)
 let bench_generational_violation () =
   let old_generation = ref [] in
   let middle_generation = ref [] in
@@ -225,7 +203,6 @@ let bench_generational_violation () =
       html
   done
 
-(* Benchmark 7: Allocation Rate Variation *)
 let bench_variable_rate () =
   let allocation_history = Array.make 1000 [] in
   let index = ref 0 in
@@ -270,7 +247,6 @@ let bench_variable_rate () =
       html
   done
 
-(* Benchmark 8: Reference Graph Complexity *)
 let bench_complex_references () =
   let graph = Hashtbl.create 1000 in
   let edges = ref [] in
@@ -317,7 +293,6 @@ let bench_complex_references () =
       html
   done
 
-(* Main benchmark suite runner *)
 let () =
   bench_small_strings ();
   bench_attribute_lists ();

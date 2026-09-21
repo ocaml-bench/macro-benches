@@ -1,31 +1,22 @@
 #!/usr/bin/env bash
-# vendor-coq.sh — download and extract rocq (Coq) + zarith into vendor/.
-#
-# Zarith uses configure/make, not dune.  A hand-written dune overlay is
-# installed so it builds inside the monorepo workspace.
-#
-# System dependency: libgmp-dev (for zarith).
+# Download and extract rocq + zarith into vendor/. zarith is configure/make, so
+# a dune overlay from dune-overlays/ is installed. System dep: libgmp-dev.
 set -euo pipefail
 
-# src_field — every version, URL and checksum below comes from sources.yml,
-# which is the single source of truth for what this repo vendors.
 source "$(cd "$(dirname "$0")/.." && pwd)/scripts/lib-sources.sh"
 
 MONOREPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 VENDOR_DIR="${MONOREPO_DIR}/vendor"
 DUNE_OVERLAY_DIR="${MONOREPO_DIR}/dune-overlays"
 
-# --- zarith (arbitrary-precision arithmetic, GMP wrapper) ---
 ZARITH_VERSION="$(src_field zarith version)"
 ZARITH_URL="$(src_field zarith url)"
 ZARITH_MD5="$(src_field zarith md5)"
 
-# --- rocq (Coq proof assistant, renamed to Rocq in 9.0) ---
 ROCQ_VERSION="$(src_field rocq version)"
 ROCQ_URL="$(src_field rocq url)"
 ROCQ_MD5="$(src_field rocq md5)"
 
-# ---- helpers ----
 download_and_extract() {
   local name="$1" url="$2" md5="$3" dest="$4"
 
@@ -63,27 +54,18 @@ download_and_extract() {
   echo "Vendored ${name} to vendor/${name}/"
 }
 
-# ---- check system deps ----
 if ! pkg-config --exists gmp 2>/dev/null && [ ! -f /usr/include/gmp.h ]; then
   echo "WARNING: GMP headers not found. Install libgmp-dev for zarith." >&2
 fi
 
-# ---- download ----
 download_and_extract "zarith" "${ZARITH_URL}" "${ZARITH_MD5}" "${VENDOR_DIR}/zarith"
 download_and_extract "rocq" "${ROCQ_URL}" "${ROCQ_MD5}" "${VENDOR_DIR}/rocq"
 
-# ---- install dune overlays ----
-# zarith uses configure/make.  Install hand-written dune files.
 if [ -d "${DUNE_OVERLAY_DIR}/zarith" ]; then
   echo "Installing dune overlay for zarith..."
   cp "${DUNE_OVERLAY_DIR}/zarith/dune" "${VENDOR_DIR}/zarith/dune"
   cp "${DUNE_OVERLAY_DIR}/zarith/dune-project" "${VENDOR_DIR}/zarith/dune-project"
 fi
-
-# rocq uses dune natively but needs dunestrap for .vo theory files.
-# For benchmarking we only need the OCaml binaries, so just build coqc.
-# Run dunestrap before building:
-#   cd vendor/rocq && make dunestrap
 
 echo "Done.  To build:"
 echo "  1. cd vendor/rocq && make dunestrap"

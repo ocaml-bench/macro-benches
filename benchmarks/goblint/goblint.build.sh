@@ -1,27 +1,14 @@
 #!/usr/bin/env bash
-# goblint.build.sh — build the Goblint SV-COMP benchmark from the monorepo.
-#
-# Goblint (ocaml#13733) is a static analyser; on OCaml 5.x it exhibits the
-# allocation/GC regression tracked in that issue (the sibling of frama-c's
-# ocaml#11733).  Goblint + goblint-cil + ~60 deps are vendored via
-# opam-monorepo (duniverse/analyzer, duniverse/cil).  apron — required by the
-# svcomp config — is non-dune, so it is built per-runtime from vendored source
-# into a self-contained prefix by scripts/vendor-apron.sh and exposed to the
-# otherwise-hermetic dune build via OCAMLPATH (apron chain only).
-#
-# Runtime workload (one extreme SV-COMP outlier from the issue):
-#   goblint --conf svcomp.json --sets ana.specification unreach-call.prp
-#           --sets exp.architecture 64bit --set pre.cppflags[+] -std=gnu17 bench.c
-# -std=gnu17 keeps GCC 15's C23 stddef.h (nullptr) parseable by goblint-cil.
+# goblint.build.sh: build Goblint (the ocaml#13733 GC-regression reproducer)
+# from duniverse/analyzer and emit a wrapper. apron (needed by the svcomp
+# config) is non-dune, so scripts/vendor-apron.sh builds it per runtime into a
+# prefix exposed via OCAMLPATH. -std=gnu17 keeps GCC 15's C23 stddef.h
+# (nullptr) parseable by goblint-cil.
 set -euo pipefail
 
-# running-ng invokes this script DIRECTLY at run time, so it does NOT inherit
-# the environment setup-monorepo.sh builds up. Source the portability library
-# for its LOCALBASE exports: on FreeBSD, pkg puts headers in
-# /usr/local/include, which the base clang does not search, so a vendored C
-# stub that includes one fails with "'event.h' file not found" even though the
-# package is installed. FreeBSD-gated and idempotent, so this is a no-op on
-# Linux. scripts/tests/test-build-scripts-portable.sh enforces this line.
+# running-ng runs this script directly, without setup-monorepo.sh's environment;
+# lib-portable.sh supplies the FreeBSD LOCALBASE exports (else a vendored C stub
+# fails with "'event.h' file not found"). scripts/tests/test-build-scripts-portable.sh enforces this.
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/scripts/lib-portable.sh"
 
 BENCH_DIR="${RUNNING_OCAML_BENCH_DIR:-$(cd "$(dirname "$0")" && pwd)}"
@@ -33,14 +20,12 @@ APRON_PREFIX="${MONOREPO_DIR}/vendor/.apron_prefix-${RUNTIME_TAG}"
 
 echo "Building goblint (monorepo) for runtime: ${RUNTIME_TAG}"
 
-# 1. Build the vendored apron chain into a per-runtime prefix (opam-free:
-#    only the active compiler + gcc + ocamlfind + make).
+# 1. Per-runtime apron prefix (opam-free).
 APRON_SRC="${MONOREPO_DIR}/vendor/.apron-src" \
 APRON_PREFIX="${APRON_PREFIX}" \
   bash "${MONOREPO_DIR}/scripts/vendor-apron.sh"
 
-# 2. Build goblint hermetically.  The duniverse deps come from the in-tree
-#    dune workspace (not the switch); only the apron prefix is on OCAMLPATH.
+# 2. Hermetic build: only the apron prefix is on OCAMLPATH.
 unset OPAM_SWITCH_PREFIX OCAMLTOP_INCLUDE_PATH CAML_LD_LIBRARY_PATH OCAMLLIB
 export OCAMLPATH="${APRON_PREFIX}/lib"
 dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
@@ -49,29 +34,16 @@ dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
 
 REAL_EXE="${BUILD_DIR}/default/duniverse/analyzer/src/goblint.exe"
 
-# Goblint locates its bundled libc/sv-comp/linux stubs + runtime includes via
-# dune-site (Goblint_sites.lib_*), populated only on `opam install`.  Our
-# hermetic in-tree build never installs, so those sites are empty and goblint
-# aborts ("custom include stdlib.c not found").  Point pre.custom_includes (which
-# goblint searches first) at the vendored source dirs instead.
+# dune-site (Goblint_sites.lib_*) is only populated on `opam install`; the
+# in-tree build leaves it empty and goblint aborts "custom include stdlib.c not
+# found", so pre.custom_includes points at the vendored source dirs instead.
 GLIB="${MONOREPO_DIR}/duniverse/analyzer/lib"
 
-# Generated ladder inputs (goblint_gen_{small,default,large}).
-#
-# The frozen `goblint` program analyses the fixed #13733 reproducer bench.c
-# (~0.2s here — too short for a macro rung). The input-size axis is the SIZE of the
-# analysed program: a bigger C program means more variables tracked by the
-# interval+octagon (apron) domains and more program points, so goblint's
-# constraint solver does proportionally more fixpoint work. gen_goblint.py emits
-# a synthetic Btor2C-style bit-vector state machine (N state vars updated in a
-# for(;;) loop, masked to stay bounded so the analysis reaches a fixpoint and
-# proves the asserts safe) — the same shape as bench.c, parameterised by N. This
-# faithfully scales goblint's signature #13733 behaviour: huge minor-GC
-# allocation churn with a small live set (the octagon domain is O(N^2), so wall
-# and allocation grow super-linearly). Measured 5.5.0 / Ryzen 9 9950X: N=100
-# ~4.3s/3.8G alloc-words/77MB, 165 ~16s/14G/120MB, 240 ~47s/40G/186MB (minor GC
-# 15k->151k, major 41->97, top_heap 5.9->19.5M — live set grows too). Files are
-# gitignored; generated once (deterministic in N).
+# Ladder inputs: bench.c (~0.2s) is too short for a rung, so generate a
+# Btor2C-style bit-vector state machine with N state vars, masked so the
+# analysis reaches a fixpoint. The octagon domain is O(N^2), so wall and
+# allocation grow super-linearly (5.5.0: N=100 ~4s, 165 ~16s, 240 ~47s).
+# Deterministic in N; gitignored.
 gen_chain_c () {  # $1 = output .c, $2 = N
   python3 - "$2" "$1" << 'PY'
 import sys
@@ -114,11 +86,7 @@ for spec in "small:100" "default:165" "large:240"; do
   fi
 done
 
-# 3. Emit a wrapper that runs Goblint on the SV-COMP workload.  apron's shared
-#    libs live in the prefix, so the wrapper puts them on the dynamic loader
-#    path (the OCaml side is statically linked, but apron's C .so are dlopened).
-#    The analysed C file is chosen by output name: goblint_gen_<rung> gets the
-#    matching generated state machine; the frozen `goblint` program keeps bench.c.
+# 3. Wrapper. The analysed file follows the output name: goblint_gen_<rung> or bench.c.
 case "$(basename "${OUT}")" in
   *goblint_gen_small*)   TARGET_C="${BENCH_DIR}/goblint_gen_small.c" ;;
   *goblint_gen_default*) TARGET_C="${BENCH_DIR}/goblint_gen_default.c" ;;

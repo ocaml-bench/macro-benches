@@ -1,17 +1,11 @@
 #!/usr/bin/env bash
-# cpdf.build.sh — build cpdf from the macro-benches monorepo.
-#
-# cpdf + camlpdf are manually vendored (non-dune upstream) with hand-written
-# dune overlays in vendor/.
+# cpdf.build.sh: build cpdf. cpdf + camlpdf are manually vendored (non-dune
+# upstream) with dune overlays in vendor/.
 set -euo pipefail
 
-# running-ng invokes this script DIRECTLY at run time, so it does NOT inherit
-# the environment setup-monorepo.sh builds up. Source the portability library
-# for its LOCALBASE exports: on FreeBSD, pkg puts headers in
-# /usr/local/include, which the base clang does not search, so a vendored C
-# stub that includes one fails with "'event.h' file not found" even though the
-# package is installed. FreeBSD-gated and idempotent, so this is a no-op on
-# Linux. scripts/tests/test-build-scripts-portable.sh enforces this line.
+# running-ng runs this script directly, without setup-monorepo.sh's environment;
+# lib-portable.sh supplies the FreeBSD LOCALBASE exports (else a vendored C stub
+# fails with "'event.h' file not found"). scripts/tests/test-build-scripts-portable.sh enforces this.
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/scripts/lib-portable.sh"
 
 BENCH_DIR="${RUNNING_OCAML_BENCH_DIR:-$(cd "$(dirname "$0")" && pwd)}"
@@ -31,14 +25,10 @@ dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
 
 REAL_EXE="${BUILD_DIR}/default/vendor/cpdf-source/cpdfcommandrun.exe"
 
-# input-size squeeze ladder. input size = document working set: merge N copies of the
-# input PDF (so the whole parsed object graph is resident at once — top_heap
-# grows ~linearly with N) and recompress every stream (-squeeze), which is the
-# CPU that lifts wall into the small/default/large time bands. The copy count N
-# arrives as argv.1 (set per rung in macro_base.yml: 8/24/64), so all three rungs
-# share one wrapper. Emitted for any output whose name contains "cpdf_squeeze_"
-# (the rungs); the plain cpdf_* programs — including the cpdf_squeeze anchor — get
-# a straight copy of the exe and select their op via args, as before.
+# Squeeze ladder: merge N copies of the PDF (whole object graph resident, so
+# top_heap grows ~linearly) and recompress every stream. N is argv.1 (8/24/64
+# per rung). Only cpdf_squeeze_* outputs get this wrapper; other cpdf_* programs
+# (including the cpdf_squeeze anchor) get the bare exe and pick their op via args.
 emit_squeeze_ladder () {  # $1 = output path
   cat > "$1" << WRAPPER
 #!/usr/bin/env bash

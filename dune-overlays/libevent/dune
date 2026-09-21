@@ -1,5 +1,4 @@
 ; Hand-written dune file for ocaml-libevent (upstream uses Makefile).
-; Links against system libevent (-levent).
 
 (library
  (name libevent)

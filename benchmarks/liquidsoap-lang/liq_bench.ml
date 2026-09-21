@@ -1,5 +1,4 @@
-(* liq_bench.ml — benchmark liquidsoap-lang parser + typechecker.
-   Repeatedly parses and typechecks a large liquidsoap script. *)
+(* liq_bench.ml: repeatedly parse and typecheck a liquidsoap script. *)
 
 let script = {|
 # Liquidsoap benchmark workload: exercises parser, typechecker, evaluator
@@ -83,13 +82,9 @@ let f = fib(10)
 let g = factorial(8)
 |}
 
-(* input size = script SIZE. When a unit count is given (argv.2), generate a
-   script of that many independent units instead of replaying the fixed one.
-   Each unit is a self-contained block (recursion + higher-order + lists,
-   using the same liquidsoap idioms as the fixed script) with a unique
-   suffix, so the parser builds a proportionally bigger AST and the
-   typechecker a proportionally bigger type environment — the live set (and
-   RSS) grow with the count, unlike replaying one small script N times. *)
+(* argv.2 = unit count: generate a script of that many independent units so the
+   AST and type environment (hence the live set) grow with the count, unlike
+   replaying one small script N times. *)
 let generate_script units =
   let b = Buffer.create (units * 400) in
   for i = 1 to units do

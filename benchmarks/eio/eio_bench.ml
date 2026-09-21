@@ -1,8 +1,4 @@
-(* Eio concurrent fiber benchmark.
-   Stresses the OCaml 5 effect-based scheduler and GC with:
-   - Many concurrent fibers producing/consuming data
-   - Stream-based communication between fibers
-   - Repeated allocation and GC pressure from fiber switching *)
+(* Eio fiber benchmark: many fibers producing and consuming through a stream. *)
 
 let n_producers = 4
 let n_consumers = 4

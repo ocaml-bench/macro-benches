@@ -1,35 +1,16 @@
-(* like_bench.ml — input-size ladder macro-benchmark driver for pplacer's phylogenetic
-   likelihood hot path (generalized likelihood vectors over a reference tree).
-
-   This is the compute core of `pplacer` placement, lifted almost verbatim from
-   tests/pplacer/test_like.ml (which itself copied it from pplacer_run.ml), with
-   two changes: the exact-likelihood assertion is dropped (we scale the input, so
-   the value changes) and the alignment length is scaled by replicating columns.
-
-   input size = n_sites (alignment length). The generalized likelihood vectors (Glv,
-   GSL-backed off-heap Bigarrays) and every per-edge evolve/logdot are sized by
-   n_sites, so a bigger alignment grows the off-heap GSL working set linearly and
-   proportionally more matrix-vector likelihood work — the same axis owl scales,
-   but on pplacer's real Felsenstein-pruning code. The reference tree and taxa
-   (hence off-heap-vs-on-heap ratio) stay fixed; only the site dimension grows.
-
-   Env vars (defaults model the jtt protein test — 20 states, the biggest Glv):
+(* like_bench.ml: pplacer's likelihood hot path (Felsenstein pruning over
+   generalized likelihood vectors), lifted from tests/pplacer/test_like.ml minus
+   its exact-value assertion. Input size is n_sites: the Glv are GSL-backed
+   off-heap Bigarrays sized by n_sites, so the off-heap working set grows
+   linearly with the column-replication factor; tree and taxa stay fixed.
+   Env vars (defaults are the jtt protein test, 20 states):
      PPLACER_LIKE_DIR   (tests/data/like/jtt/)  data dir, with a trailing slash
      PPLACER_LIKE_FASTA (actin.fasta)           reference alignment in DIR
      PPLACER_LIKE_TREE  (actin.phy_phyml_tree.txt)  Newick tree in DIR
-     PPLACER_LIKE_MULT  (1)                      column-replication factor K
-     PPLACER_LIKE_SCAN  (40)                     pendant-branch-length scan points
-
-   The model file is DIR/phylo_model.jplace. Paths are relative to CWD; the
-   build.sh wrapper cd's into vendor/pplacer first (like the test suite).
-
-   Per edge we do a PPLACER_LIKE_SCAN-point maximum-likelihood pendant-branch
-   scan (evolve + log-like at a range of branch lengths, keep the best) — this
-   is what real placement does to attach a query, and it is a fixed methodology
-   constant, NOT the ladder axis. It raises the compute-per-working-set ratio so
-   the ladder reaches owl-like wall bands (~5/15/50s) at modest off-heap RSS,
-   instead of the ~1.7 s/GB of a single Felsenstein pass. the input-size axis is still n_sites
-   (PPLACER_LIKE_MULT); SCAN is held fixed across the ladder. *)
+     PPLACER_LIKE_MULT  (1)                      column-replication factor
+     PPLACER_LIKE_SCAN  (40)                     pendant-branch scan points (a fixed
+                                                 constant, not the ladder axis)
+   Paths are relative to CWD; the build.sh wrapper cd's into vendor/pplacer. *)
 
 open Ppatteries
 open Gmix_model
@@ -47,9 +28,7 @@ let () =
   let scan = try max 1 (int_of_string (Sys.getenv "PPLACER_LIKE_SCAN")) with _ -> 40 in
   let d str = dir ^ str in
 
-  (* Load the reference alignment, then scale n_sites by replicating every
-     column K times (each sequence string repeated K times: taxa and tree are
-     untouched, only the site dimension grows). *)
+  (* Scale n_sites by repeating every sequence K times; taxa and tree are untouched. *)
   let aln0 = Alignment.upper_aln_of_any_file (d fasta) in
   let aln =
     if mult <= 1 then aln0
@@ -70,7 +49,7 @@ let () =
   Printf.printf "pplacer like_bench: %d taxa, %d sites (x%d), running...\n%!"
     (Array.length aln) n_sites mult;
 
-  (* --- Felsenstein pruning over the tree (copied from test_like.ml) --- *)
+  (* Felsenstein pruning over the tree, copied from test_like.ml. *)
   let like_aln_map =
     Like_stree.like_aln_map_of_data (Model.seq_type model) aln tree
   in
@@ -96,9 +75,8 @@ let () =
     let d = darr.(i)
     and p = parr.(i)
     and sn = snodes.(i) in
-    (* ML pendant-branch-length scan: evaluate the attachment log-likelihood at
-       `scan` branch lengths spanning 0.1x..2x the edge's half-length and keep
-       the maximum — the placement optimisation, at fixed working set. *)
+    (* ML pendant-branch scan over 0.1x..2x the edge half-length, keeping the
+       maximum: the placement optimisation, at fixed working set. *)
     let base_bl = half_bl_fun i in
     let best = ref neg_infinity in
     for g = 0 to scan - 1 do

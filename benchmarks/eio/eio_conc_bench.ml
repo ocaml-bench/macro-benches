@@ -1,24 +1,9 @@
-(* Eio concurrency input-size ladder driver.
-
-   The frozen eio_fiber_stream (eio_bench.ml) is a THROUGHPUT benchmark: a few
-   fibers streaming a huge number of items through one shared bounded stream, so
-   its live set is tiny (~9 MB) and constant — scaling its item count is pure
-   repetition. This driver scales the other axis, the one an effect
-   scheduler exists for: the *degree of concurrency*.
-
-   input size = n_pairs (Sys.argv.(1)): the number of independent producer/consumer
-   fiber pairs, each pair communicating over its own bounded Eio.Stream. All
-   2 * n_pairs fibers are alive at once, so the working set grows ~linearly with
-   n_pairs — the parked fibers' effect continuations plus the in-flight data
-   buffered across all n_pairs streams. Unlike a single shared stream (whose
-   O(n) waiter queue makes wall blow up super-linearly under contention), giving
-   each pair its own stream keeps scheduling ~linear, so wall tracks the working
-   set. items_per (Sys.argv.(2), default 20000) is the fixed per-fiber work;
-   it is a methodology constant, not the ladder axis.
-
-   Measured on OCaml 5.5.0, Ryzen 9 9950X: n_pairs 3000 ~5.5s/0.69GB, 9000
-   ~16s/2.1GB, 21000 ~39s/5.1GB (top_heap 84->619M words, promotion ~0.85 — the
-   buffered/in-flight data is genuinely retained, so this is a live-set ladder). *)
+(* Eio concurrency ladder. eio_fiber_stream is a throughput bench with a tiny
+   constant live set; this scales the degree of concurrency instead.
+   argv.1 = n_pairs producer/consumer fiber pairs, each on its own bounded
+   Eio.Stream (one shared stream's O(n) waiter queue makes wall super-linear),
+   so the working set grows ~linearly. argv.2 = items per fiber (20000), a fixed
+   constant. 5.5.0: 3000 ~5.5s/0.69GB, 9000 ~16s/2.1GB, 21000 ~39s/5.1GB. *)
 
 let n_pairs =
   if Array.length Sys.argv > 1 then int_of_string Sys.argv.(1) else 3000

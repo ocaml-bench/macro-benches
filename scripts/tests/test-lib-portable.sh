@@ -1,19 +1,11 @@
 #!/usr/bin/env bash
 # Every helper in lib-portable.sh must produce byte-identical output to the GNU
-# command it replaces. Run on Linux, where both are available, so the portable
-# spelling is checked against the original rather than merely "looking right".
+# command it replaces. Run on Linux, where both are available.
 #
 #   bash scripts/tests/test-lib-portable.sh
 #
-# bash, not sh: lib-portable.sh uses bash arrays (`"${@:1:$#-1}"`) and so does
-# every script that sources it. On FreeBSD bash lives in /usr/local/bin, which
-# the `#!/usr/bin/env bash` shebang finds.
-#
-# On a BSD host the GNU comparisons are skipped, so every helper ALSO carries an
-# unconditional assertion against an expected file. A helper whose only check is
-# a GNU comparison is functionally unverified on the platform it exists for,
-# which is the blind spot that let a GNU-only `sed '1a text'` script body survive
-# in setup-monorepo.sh's patch 12.
+# On a BSD host the GNU comparisons are skipped, so every helper also carries
+# an unconditional assertion against an expected file.
 set -u
 ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 . "$ROOT_DIR/scripts/lib-portable.sh"
@@ -27,7 +19,7 @@ ok()   { printf '  PASS  %s\n' "$1"; pass=$((pass + 1)); }
 bad()  { printf '  FAIL  %s\n' "$1"; fail=$((fail + 1)); }
 same() { if cmp -s "$2" "$3"; then ok "$1"; else bad "$1"; diff "$2" "$3" | head -8; fi; }
 
-# GNU sed -i takes no argument; BSD requires one. Detect rather than assume.
+# GNU sed -i takes no argument; BSD requires one.
 if printf 'x\n' > .probe && sed -i 's/x/y/' .probe 2>/dev/null; then
     HAVE_GNU_SED=1
 else
@@ -37,7 +29,6 @@ fi
 
 gnu() { [ "$HAVE_GNU_SED" = 1 ]; }
 
-# --- insert_after, plain and with leading whitespace -------------------------
 printf 'a\n(* libevent-based engine for lwt *)\nb\n' > in
 cp in p; insert_after p 'libevent-based engine for lwt' 'type Lwt_engine.engine_id += Engine_id__libevent'
 if gnu; then
@@ -56,7 +47,6 @@ else
     grep -q '^  method id' p && ok "insert_after whitespace" || bad "insert_after whitespace"
 fi
 
-# --- delete_first_match: only the first, with two candidates present --------
 printf 'l1\n (public_name ocamlformat)\nl3\n (public_name ocamlformat)\nl5\n' > in
 cp in p; delete_first_match p '[(]public_name ocamlformat[)]'
 if gnu; then
@@ -67,9 +57,7 @@ fi
     && ok "delete_first_match leaves the second occurrence" \
     || bad "delete_first_match deleted too many"
 
-# --- insert_at_line ----------------------------------------------------------
-# This is the helper setup-monorepo.sh's patch 12 uses on caml_mcl.c, so the
-# first case is that call site exactly.
+# First case mirrors setup-monorepo.sh's caml_mcl.c call site.
 printf '#include <stdio.h>\nint main(){}\n' > in
 cp in p; insert_at_line p 1 '#include <stdint.h>'
 printf '#include <stdio.h>\n#include <stdint.h>\nint main(){}\n' > e
@@ -79,18 +67,15 @@ if gnu; then
     same "insert_at_line vs sed '1a text'" g p
 fi
 
-# several lines at once, and at a line that is not the first
 printf 'l1\nl2\nl3\n' > in
 cp in p; insert_at_line p 2 'A' 'B'
 printf 'l1\nl2\nA\nB\nl3\n' > e
 same "insert_at_line inserts several lines in order, mid-file" e p
 
-# a line number past the end must leave the file alone rather than append
 printf 'l1\nl2\n' > in
 cp in p; insert_at_line p 99 'X'
 same "insert_at_line past the end changes nothing" in p
 
-# --- insert_after_offset: the N;N;N case, and offset 0 ----------------------
 printf 'p0\nMATCH\nn1\nn2\nn3\ntail\n' > in
 cp in p; insert_after_offset p 'MATCH' 3 'A1' 'A2' 'A3'
 printf 'p0\nMATCH\nn1\nn2\nn3\nA1\nA2\nA3\ntail\n' > e
@@ -112,10 +97,7 @@ if gnu; then
     same "insert_after_offset offset 0 equals a plain append" g p
 fi
 
-# EVERY match fires, as GNU `a` does; the helper's `!target` guard only stops a
-# second match from moving a target that is still pending, it does not make the
-# insertion first-only. delete_first_match is the one that is deliberately
-# first-only; do not assume the two agree.
+# Every match fires, as GNU `a` does; only delete_first_match is first-only.
 printf 'MATCH\nx\nMATCH\ny\n' > in
 cp in p; insert_after_offset p 'MATCH' 0 'NEW'
 printf 'MATCH\nNEW\nx\nMATCH\nNEW\ny\n' > e
@@ -125,7 +107,6 @@ if gnu; then
     same "insert_after_offset multi-match vs sed '/re/a text'" g p
 fi
 
-# --- sed_i -------------------------------------------------------------------
 printf 'lang dune 3.24\nother\n' > in
 cp in p; sed_i -E 's/lang dune 3\.2[0-9]+/lang dune 3.21/' p
 if gnu; then
@@ -142,7 +123,6 @@ sed_i 's/x/y/' mode
     && ok "sed_i preserves file mode" \
     || bad "sed_i changed the file mode"
 
-# sed_i must not clobber the file when sed fails, which -i also would not.
 printf 'keep\n' > survive
 if sed_i 's/[/' survive 2>/dev/null; then
     bad "sed_i reported success on a bad script"
@@ -152,7 +132,6 @@ else
         || bad "sed_i truncated the file on failure"
 fi
 
-# --- checksum and ncpu -------------------------------------------------------
 printf 'hello\n' > c
 sum="$(checksum c)"
 case "$sum" in
@@ -160,15 +139,9 @@ case "$sum" in
     *) bad "checksum gave '$sum'" ;;
 esac
 
-# --- the FreeBSD pkg prefix exports ------------------------------------------
-# Sourcing this file on FreeBSD must put LOCALBASE's include/lib on the C
-# toolchain's search path (base clang searches neither), must not touch a
-# Linux host, must leave a caller's own value in front, and must not grow a
-# duplicate entry when a vendor script re-sources it in a subprocess.
-#
-# Driven through a fake `uname` so the FreeBSD branch is exercised HERE, on
-# Linux, rather than only on the platform it exists for. That is the same
-# blind spot the insert_* helpers had.
+# FreeBSD pkg prefix exports: must add LOCALBASE include/lib, keep a caller's
+# own value in front, and not duplicate on re-source. Driven through a fake
+# `uname` so the FreeBSD branch is exercised on Linux.
 FAKE="$WORK/fakebin"
 mkdir -p "$FAKE"
 printf '#!/bin/sh\n[ "$1" = "-s" ] && echo FreeBSD || exit 1\n' > "$FAKE/uname"
@@ -199,7 +172,6 @@ chmod +x "$ROOT_DIR/scripts/tests/.reader.sh"
     || bad "FreeBSD: duplicated on re-source: '$(_as_freebsd "" 3)'"
 rm -f "$ROOT_DIR/scripts/tests/.reader.sh"
 
-# On this host (not FreeBSD) sourcing must add nothing at all.
 if [ "$(uname -s)" != "FreeBSD" ]; then
     ( unset C_INCLUDE_PATH; . "$ROOT_DIR/scripts/lib-portable.sh"
       [ -z "${C_INCLUDE_PATH:-}" ] ) \

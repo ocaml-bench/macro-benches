@@ -1,28 +1,14 @@
 #!/usr/bin/env bash
-# merlin.build.sh — build the in-process merlin-domains driver.
-#
-# Notes vs other benchmarks:
-#   * No --profile release. The merlin-domains branch's checked-in
-#     parser_raw.ml references MenhirLib.StaticVersion.require_20201216
-#     while the bundled menhirLib.ml provides require_20250912. dune's
-#     release profile uses the checked-in parser_raw.ml directly; the
-#     dev profile lets menhir regenerate parser_raw.ml from
-#     parser_raw.mly so the require call matches. We use the dev path
-#     (default profile) until upstream merlin fixes the mismatch.
-#   * gen_config.ml in the merlin-domains branch only enumerates OCaml
-#     versions up to 5.3 in its variant type, so 5.4.1 / 5.5-beta /
-#     trunk all fail to compile. The patch is applied via
-#     scripts/setup-monorepo.sh; see that script for the
-#     `OCaml_5_4_0 | OCaml_5_5_0 | OCaml_5_6_0` extension.
+# merlin.build.sh: build the in-process merlin-domains driver.
+# No --profile release: the branch's checked-in parser_raw.ml requires
+# MenhirLib.StaticVersion.require_20201216 but the bundled menhirLib provides
+# require_20250912; the dev profile regenerates parser_raw.ml from the .mly.
+# gen_config.ml only knows OCaml versions up to 5.3; scripts/setup-monorepo.sh patches it.
 set -euo pipefail
 
-# running-ng invokes this script DIRECTLY at run time, so it does NOT inherit
-# the environment setup-monorepo.sh builds up. Source the portability library
-# for its LOCALBASE exports: on FreeBSD, pkg puts headers in
-# /usr/local/include, which the base clang does not search, so a vendored C
-# stub that includes one fails with "'event.h' file not found" even though the
-# package is installed. FreeBSD-gated and idempotent, so this is a no-op on
-# Linux. scripts/tests/test-build-scripts-portable.sh enforces this line.
+# running-ng runs this script directly, without setup-monorepo.sh's environment;
+# lib-portable.sh supplies the FreeBSD LOCALBASE exports (else a vendored C stub
+# fails with "'event.h' file not found"). scripts/tests/test-build-scripts-portable.sh enforces this.
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/scripts/lib-portable.sh"
 
 BENCH_DIR="${RUNNING_OCAML_BENCH_DIR:-$(cd "$(dirname "$0")" && pwd)}"
@@ -42,11 +28,7 @@ dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
 REAL_EXE="${BUILD_DIR}/default/benchmarks/merlin/merlin_bench.exe"
 CTXT_FILE="${MONOREPO_DIR}/duniverse/merlin/tests/test-dirs/server-tests/bench.t/ctxt.ml"
 
-# In-process iteration loop: the OCaml binary reads Sys.argv.(1) as
-# the number of iterations. Each iteration runs all 7 cram-bench
-# queries against the 51 319-line ctxt.ml. The wrapper exec's the
-# binary with the arg passed through and exports MERLIN_BENCH_CTXT
-# so the binary doesn't need to derive the path itself.
+# argv.1 = in-process iteration count; MERLIN_BENCH_CTXT tells the binary where ctxt.ml is.
 mkdir -p "$(dirname "${OUT}")"
 cat > "${OUT}" << WRAPPER
 #!/usr/bin/env bash

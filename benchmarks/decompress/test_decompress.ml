@@ -16,7 +16,6 @@ let blit_to_buffer t b v len =
   go 0 len
 
 let compress data =
-  (* pre-allocation of values. *)
   let w = De.Lz77.make_window ~bits:15 in
   let q = De.Queue.create 0x1000 in
   let i = De.bigstring_create De.io_buffer_size in
@@ -25,11 +24,8 @@ let compress data =
   let t = Bytes.create 0x1000 in
   let b = Buffer.create 0x1000 in
 
-  (* NOTE: [q] can be the bottleneck about compression where [q] is
-   * the shared-queue between Lz77 algorithm and encoder. Smaller is it,
-   * the more encoder will flush!
-   *
-   * [t] degrades performances to pass from a [De.bigstring] to a [Buffer.t] *)
+  (* [q] is the shared queue between Lz77 and the encoder; a smaller queue makes
+     the encoder flush more often. *)
 
   let refill v =
     let len =
@@ -44,7 +40,6 @@ let compress data =
   Buffer.contents b
 
 let uncompress data =
-  (* pre-allocation of values. *)
   let w = De.make_window ~bits:15 in
   let allocate _ = w in
   let i = De.bigstring_create De.io_buffer_size in

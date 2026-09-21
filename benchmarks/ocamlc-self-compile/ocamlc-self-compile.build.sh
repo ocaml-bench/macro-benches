@@ -1,35 +1,15 @@
 #!/usr/bin/env bash
-# ocamlc-self-compile.build.sh — single-process compiler-throughput benchmark.
-#
-# Invokes the runtime-under-test's own `ocamlc` (bytecode compiler) on a
-# generated input file. The runtime is exercised by *executing ocamlc's
-# own code* — ocamlc is a real OCaml application, and the workload it
-# performs (parse, type-check, compile to bytecode) genuinely uses
-# ephemerons (typing/btype.ml), Hashtbl, and Marshal (.cmi writing).
-#
-# Bytecode compilation is chosen over native (`ocamlopt`) deliberately:
-# ocamlopt with flambda runs *more* compiler passes than baseline, so
-# wall time across variants would conflate "runtime perf" with
-# "flambda does extra work". With ocamlc, the workload is uniform
-# across all flag combos and cross-variant deltas reflect runtime
-# performance only.
-#
-# Closes the Ephemeron and Marshal coverage gaps documented in
-# running-ng/docs/benchmark-coverage-gaps-plan.md (Phase 1).
-#
-# Note: this benchmark builds nothing via dune. The only "build" step
-# is generating the input .ml from the JSOO benchmark sources and
-# emitting a wrapper script at ${OUT}.
+# ocamlc-self-compile.build.sh: run the runtime's own ocamlc (bytecode) on a
+# generated input; ocamlc itself exercises ephemerons, Hashtbl and Marshal.
+# Bytecode rather than ocamlopt so flambda variants do the same compiler work
+# and deltas reflect runtime performance only. Nothing is built with dune: this
+# only generates the input and emits a wrapper at ${OUT}.
 
 set -euo pipefail
 
-# running-ng invokes this script DIRECTLY at run time, so it does NOT inherit
-# the environment setup-monorepo.sh builds up. Source the portability library
-# for its LOCALBASE exports: on FreeBSD, pkg puts headers in
-# /usr/local/include, which the base clang does not search, so a vendored C
-# stub that includes one fails with "'event.h' file not found" even though the
-# package is installed. FreeBSD-gated and idempotent, so this is a no-op on
-# Linux. scripts/tests/test-build-scripts-portable.sh enforces this line.
+# running-ng runs this script directly, without setup-monorepo.sh's environment;
+# lib-portable.sh supplies the FreeBSD LOCALBASE exports (else a vendored C stub
+# fails with "'event.h' file not found"). scripts/tests/test-build-scripts-portable.sh enforces this.
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/scripts/lib-portable.sh"
 
 BENCH_DIR="${RUNNING_OCAML_BENCH_DIR:-$(cd "$(dirname "$0")" && pwd)}"
@@ -39,14 +19,6 @@ RUNTIME_TAG="${RUNNING_OCAML_RUNTIME_NAME:-default}"
 
 echo "Building ocamlc-self-compile benchmark for runtime: ${RUNTIME_TAG}"
 
-# ----------------------------------------------------------------------
-# 1. Locate the runtime's ocamlc — the compiler being measured.
-#
-# An orchestrator may point us at its switch via RUNNING_OCAML_SWITCH_PREFIX (a
-# prefix path) or RUNNING_OCAML_SWITCH (an opam switch name we resolve with
-# `opam var prefix`); standalone, the compiler on PATH is the runtime under test
-# (that is how the build scripts get their ocamlopt too). No orchestrator needed.
-# ----------------------------------------------------------------------
 if [[ -n "${RUNNING_OCAML_SWITCH_PREFIX:-}" ]]; then
   OCAMLC="${RUNNING_OCAML_SWITCH_PREFIX}/bin/ocamlc"
 elif [[ -n "${RUNNING_OCAML_SWITCH:-}" ]] && _p="$(opam var prefix --switch="${RUNNING_OCAML_SWITCH}" 2>/dev/null)" && [[ -n "${_p}" ]]; then
@@ -61,18 +33,8 @@ if [[ -z "${OCAMLC}" || ! -x "${OCAMLC}" ]]; then
 fi
 echo "  using ocamlc: ${OCAMLC}"
 
-# ----------------------------------------------------------------------
-# 2. Generate the input.
-#
-# Concatenates the 20 JSOO classic benchmark .ml files (boyer, nucleic,
-# raytrace, kb, fft, ...) — these are well-known compile-stress
-# benchmarks from the OCaml testsuite — wrapped in unique modules and
-# replicated REPLICAS times. Linear scaling.
-#
-# Tune REPLICAS for the target wall time. 30 → ~8s on a slow machine
-# at ocamlc bytecode (roughly proportional on faster hardware).
-# Output is gitignored. Regenerated only when sources change.
-# ----------------------------------------------------------------------
+# Input: the JSOO classic benchmark sources wrapped in unique modules and
+# replicated REPLICAS times (linear; 30 is ~8s on a slow machine). Gitignored.
 JSOO_BENCH="${MONOREPO_DIR}/duniverse/js_of_ocaml/benchmarks/sources/ml"
 WORKLOAD="${BENCH_DIR}/inputs/compile_workload.ml"
 REPLICAS="${OCAMLC_SELF_COMPILE_REPLICAS:-30}"
@@ -83,8 +45,7 @@ if [[ ! -d "${JSOO_BENCH}" ]]; then
   exit 1
 fi
 
-# Need to regenerate if any source file is newer than the workload, or
-# if REPLICAS changed (we encode it in a sentinel comment at the top).
+# Regenerate if a source is newer or REPLICAS changed (sentinel in line 1).
 NEEDS_REGEN=0
 if [[ ! -f "${WORKLOAD}" ]]; then
   NEEDS_REGEN=1
@@ -107,8 +68,7 @@ out = [f"(* GENERATED — REPLICAS={replicas}; do not edit. *)"]
 for rep in range(replicas):
     for path in files:
         base = os.path.splitext(os.path.basename(path))[0]
-        # Sanitize to a valid OCaml module name: capitalised, only
-        # [A-Za-z0-9_], with the replica index appended.
+        # Sanitize to a valid OCaml module name.
         clean = "".join(c if c.isalnum() else "_" for c in base)
         modname = (clean[0].upper() + clean[1:]) + f"_{rep}"
         body = open(path).read()
@@ -122,50 +82,25 @@ else
   echo "  compile_workload.ml is up to date."
 fi
 
-# ----------------------------------------------------------------------
-# 3. Stage a renamed copy of ocamlc.opt.
-#
-# running-ng's pid_is_benchmark filter rejects any /proc/<pid>/exe whose
-# basename is in BUILD_TOOLS (which includes "ocamlc" / "ocamlc.opt") — a
-# guard for transient compiler subprocesses inside *other* benchmarks'
-# wrappers. Here ocamlc IS the benchmark, so we hardlink (or copy) the
-# real ocamlc.opt to a uniquely-named binary so /proc/<pid>/exe basename
-# is `ocamlc_self_compile_bin-<RUNTIME_TAG>` and runtime-events attach
-# succeeds. The hardlink avoids a 16 MB copy when the destination is on
-# the same filesystem.
-# ----------------------------------------------------------------------
-OCAMLC_REAL="$(readlink -f "${OCAMLC}")"  # follow ocamlc → ocamlc.opt
+# Stage ocamlc.opt under a unique name: running-ng's pid_is_benchmark filter
+# rejects /proc/<pid>/exe basenames in BUILD_TOOLS ("ocamlc", "ocamlc.opt"), so
+# runtime-events attach would fail on the real binary. Hardlink avoids a 16 MB copy.
+OCAMLC_REAL="$(readlink -f "${OCAMLC}")"
 STAGED_OCAMLC="${BENCH_DIR}/ocamlc_self_compile_bin-${RUNTIME_TAG}"
-# Remove any previous staging first: if it is already a hardlink to this same
-# ocamlc.opt, both `ln -f` and `cp -f` refuse with "are the same file", so a
-# second build of the same runtime would fail. (Removing a hardlink does not
-# touch the switch's binary.)
+# rm first: if the stale link already points at this ocamlc.opt, both ln -f and
+# cp -f refuse with "are the same file".
 rm -f "${STAGED_OCAMLC}"
 ln -f "${OCAMLC_REAL}" "${STAGED_OCAMLC}" 2>/dev/null \
   || cp -f "${OCAMLC_REAL}" "${STAGED_OCAMLC}"
 echo "  staged ocamlc binary: ${STAGED_OCAMLC}"
 
-# Capture the switch's stdlib path. Some OCaml builds (e.g. 5.5-beta
-# d8bb46c) resolve stdlib *relative to argv[0]*, so executing the staged
-# (hardlinked) binary from outside the switch's bin/ directory makes
-# `ocamlc -where` point at a non-existent dir and the compile fails with
-# "Unbound module Stdlib". Older builds (e.g. 5.4.1) hardcode the
-# absolute path at configure time and don't need this. Setting
-# OCAMLLIB explicitly is correct on both.
+# Some builds (5.5-beta d8bb46c) resolve stdlib relative to argv[0], so the
+# relocated binary fails with "Unbound module Stdlib" unless OCAMLLIB is pinned.
 OCAMLLIB_DIR="$(${OCAMLC} -where)"
 echo "  OCAMLLIB pin:         ${OCAMLLIB_DIR}"
 
-# ----------------------------------------------------------------------
-# 4. Emit the wrapper script.
-#
-# At run time:
-#   - Output .cmi/.cmo to a wrapper-owned scratch dir via -o (so the
-#     source tree stays clean), but DO NOT cd — the OCaml process must
-#     keep running-ng's cwd so OCAML_RUNTIME_EVENTS_DIR resolution and
-#     anything else relative to cwd behave as running-ng expects.
-#   - Pin OCAMLLIB so the relocated binary still finds its stdlib.
-#   - exec the staged (renamed) ocamlc binary.
-# ----------------------------------------------------------------------
+# Wrapper: -o into a scratch dir but no cd, since running-ng resolves
+# OCAML_RUNTIME_EVENTS_DIR and friends relative to the cwd it launched us in.
 mkdir -p "$(dirname "${OUT}")"
 cat > "${OUT}" << WRAPPER
 #!/usr/bin/env bash

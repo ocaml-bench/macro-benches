@@ -1,35 +1,25 @@
 # macro-benches
 
-A suite of real-world OCaml programs used as macro-benchmarks, for comparing one
-OCaml runtime against another on workloads that look like the things people
-actually run: compilers, provers, static analysers, a video pipeline, a key-value
-store, and so on.
+A suite of real-world OCaml programs used as macro-benchmarks, for comparing multiple OCaml runtimes
+on real world workloads: compilers, provers, static analysers, etc.
 
 Every dependency is vendored into the repo with
 [opam-monorepo](https://github.com/tarides/opam-monorepo), so every runtime
-compiles byte-identical source. The only thing that changes between runs is the
-compiler: if a number moves, the runtime moved it, not a different version of
-some library that happened to get pulled in.
+compiles byte-identical source.
 
-You can use it two ways:
+The benchmarks can be used in two ways:
 
-- **Standalone.** Run `make setup` once, then build any single benchmark under
-  any opam switch and run the binary yourself.
-- **Orchestrated.** Point an orchestrator such as
+- **Standalone.** Run `make setup` once, then build any single benchmark under any opam switch and run the binary yourself.
+- **Orchestrated.** Point a benchmark orchestrator such as
   [running-ng](https://github.com/udesou/running-ng) at the repo and let it
-  manage per-runtime switches and drive cross-runtime, frame-pointer, flambda or
+  manage per-runtime switches and drive cross-runtime or
   GC-parameter sweeps.
 
 ## The benchmarks
 
-23 tools, 21 active (`merlin` and `lavyek` are disabled, see below). Each active
-tool has an **input-size ladder**: `small` / `default` / `large` rungs (a couple
-also `huge`) whose input is chosen so each reaches a different GC/runtime regime,
-not just a bigger copy of the one below. A bare run executes the `default` rung
-of every tool; other sizes are opt-in via a tag (see [Run sweeps](#run-sweeps)).
-Older single-point benchmarks with their original anchors, extra per-tool
-workloads, and the frozen issue reproducers are kept as **legacy** benches, run
-only with `RUNNING_TAG=legacy`.
+21 active tools with each tool taking different inputs split in an **input-size ladder**: 
+`small` / `default` / `large` step (a few `huge`) whose input is chosen so each step reaches a different GC/runtime regime.  A bare run executes the `default` step of every tool; 
+other sizes are opt-in via a tag (see [Run sweeps](#run-sweeps)). 
 
 | Benchmark | `default` program | What it runs | Category |
 |-----------|-------------------|--------------|----------|
@@ -60,15 +50,11 @@ Two more tools ship in the tree but are currently disabled:
 [lavyek](docs/benchmarks/lavyek.md) (it lives in a private repo). Their pages
 explain the details and what coverage they would add back.
 
-`ocamlc-self-compile` is a 22nd benchmark directory belonging to the same
-compiler tool as `ocamlc-compile-uucp`; its programs are legacy-only.
-
 ## Quick start
 
 ### Prerequisites
 
-opam 2.3+ and a switch with `dune` and `ocamlfind` (one is created for you if
-needed), plus the system libraries below.
+opam 2.3+ and a switch with `dune` and `ocamlfind`, plus the system libraries below.
 
 Debian/Ubuntu:
 
@@ -87,21 +73,14 @@ pkg install bash git python3 autoconf automake libtool m4 pkgconf gmake gcc zip 
             curl libev libevent pcre py311-pyyaml
 ```
 
-Notes on the FreeBSD list: `gmake` and `gcc` are both load-bearing (a few
-vendored makefiles are GNU-only, and goblint needs a real GCC preprocessor);
-zlib is in the base system; the PyYAML package name is versioned after your
-`python3` and was renamed in 2024, so check `python3 -c 'import yaml'` rather
-than trusting a spelling. `make setup` puts `/usr/local/include` and
-`/usr/local/lib` on the C toolchain's search path; building a benchmark by hand
-outside `make setup` may need the same:
+You might also need to set (if not set already):
 
 ```sh
 export C_INCLUDE_PATH=/usr/local/include LIBRARY_PATH=/usr/local/lib
 ```
 
-Set `LOCALBASE` if your packages are somewhere other than `/usr/local`. Several
-suites need a source patch on FreeBSD; `make setup` applies them all. The
-per-package reasoning, and the patch table, are in [CLAUDE.md](CLAUDE.md).
+Also set `LOCALBASE` if your packages are somewhere other than `/usr/local`. Several
+suites need a source patch on FreeBSD; `make setup` applies them all.
 
 ### Setup
 
@@ -111,13 +90,10 @@ make setup          # or: bash scripts/setup-monorepo.sh
 ```
 
 This pulls the vendored packages, applies the source patches, builds the few
-non-dune dependencies (pplacer, apron, rocq), and test-builds every binary. The
-first run takes around ten minutes; later runs skip the steps that are already
-done. It is idempotent, so you can rerun it any time without `make clean`.
+non-dune dependencies (pplacer, apron, rocq), and test-builds every binary. 
 
 Verified with dune **3.22.1** and **3.24.0**. If you already have a populated
-`duniverse/` and are moving to dune 3.24+, rerun `make setup`: one of the patches
-is what keeps the workspace parseable there.
+`duniverse/` and are moving to dune 3.24+, rerun `make setup`.
 
 ### Run one benchmark by hand
 
@@ -134,13 +110,11 @@ and writes its binary to `$RUNNING_OCAML_OUTPUT` (defaulting to
 `<tool>-<runtime>` in the benchmark's own directory). See
 [Build-script contract](#build-script-contract).
 
-Arguments matter: most benchmarks take an input file, an input size, or a rung
-selector, so running a binary bare is a different benchmark from what the sweep
-runs. Ask the manifest, which prints *name, tool, script, timeout, expected exit,
-args*:
+Most benchmarks take an input file, an input size, or a step
+selector. To know a bit more more about each benchmark, you may ask the manifest using the program name from the table above, which prints *name, tool, script, timeout, expected exit, args*:
 
 ```bash
-python3 scripts/ci-manifest.py list | grep -E '^(eio_conc_small|jsoo_small)\b'
+python3 scripts/ci-manifest.py list | grep -E '^(eio_conc_.*|jsoo_.*)\b'
 ```
 
 The custom-`.ml` benchmarks can also be built straight from the dune workspace:
@@ -152,17 +126,17 @@ dune build -- benchmarks/eio/eio_bench.exe
 
 ### Run sweeps
 
-For cross-runtime, frame-pointer, flambda or GC-parameter sweeps you want an
-orchestrator to manage the per-runtime switches. Point running-ng at the repo
-(`export RUNNING_MACRO_BENCH_DIR=~/macro-benches`) and drive the sweeps from
-there; see its docs for the available configs.
+For cross-runtime or doing GC-parameter sweeps you want an
+orchestrator to manage the per-runtime switches. [running-ng](https://github.com/udesou/running-ng) can be used 
+in combination with the macro-benchmarks by checking it out and defining `export RUNNING_MACRO_BENCH_DIR=~/macro-benches`. 
+The set of scripts helps drive the benchmark runs. To know more about how to use running-ng see its own docs.
 
-Which rungs run is selected by `RUNNING_TAG`:
+Benchmarks can be selected by `RUNNING_TAG`:
 
 | `RUNNING_TAG` | runs |
 |---|---|
-| *(unset)* | the `default` rung of every tool, the standard suite |
-| `small_run` / `large_run` / `huge_run` | that size across every tool |
+| *(unset)* / `default_run` | the `default` step of every tool, the standard suite |
+| `small_run` / `large_run` / `huge_run` | that size across every tool (`huge_run` exists only for zarith and owl) |
 | `legacy` | the pre-ladder anchors, extra workloads, and frozen repros |
 | `all_benches` | everything at once |
 
@@ -173,18 +147,12 @@ The same three phases CI runs, driven off
 
 ```bash
 python3 scripts/ci-manifest.py check             # manifest vs. tree (seconds)
-bash scripts/ci-build-all.sh                     # build every program (all rungs + legacy)
-bash scripts/ci-run-all.sh                       # run the small rung of each tool once
+bash scripts/ci-build-all.sh                     # build every program (all steps + legacy)
+bash scripts/ci-run-all.sh                       # run the small step of each tool once
 ONLY="jsoo_small goblint_gen_small" bash scripts/ci-run-all.sh  # or just a few
 ```
 
-CI builds all 95 programs (catching build breaks) but only *runs* the 20 small
-rungs flagged `ci_run: true` in the manifest, since the large rungs do not fit a
-hosted runner. There is a FreeBSD workflow alongside the Linux one.
-
-When you add a benchmark, add it to the manifest in the same commit as its build
-script: `check` fails if the two disagree, including when a new program is added
-to a tool that already has a build script. See [CLAUDE.md](CLAUDE.md).
+When adding a benchmark, add it to the manifest in the same commit as its build script since the CI `check` fails if the two disagree.
 
 ### Clean
 
@@ -198,18 +166,13 @@ make setup          # repopulate from the lock file
 
 1. Dependencies are locked once (`opam monorepo lock`) into
    `macro-benches.opam.locked`, which is committed.
-2. `opam monorepo pull` downloads all of them into `duniverse/`. No solver, no
-   `opam install`.
+2. `opam monorepo pull` downloads all of them into `duniverse/`.
 3. `setup-monorepo.sh` applies a set of source patches for newer compilers,
    known upstream bugs, and platform differences.
-4. The few packages that are not opam/dune (pplacer, apron, rocq) are vendored
-   and built by their own scripts.
-5. `dune build` compiles everything from local source with whichever compiler is
-   on `PATH`, into a per-runtime `_build-<runtime>/` directory so different
-   runtimes do not clobber each other.
+4. The few packages that are not opam/dune (pplacer, apron, rocq) are vendored and built by their own scripts.
+5. `dune build` compiles everything from local source with whichever compiler is on `PATH`, into a per-runtime `_build-<runtime>/` directory so different runtimes do not clobber each other.
 
-Third-party versions all come from `sources.yml`, pinned to commits. Bumping one
-is a one-line edit followed by `make setup`.
+Third-party versions all come from `sources.yml`, pinned to commits. To bump any of the sources, change that file and rerun `make setup`.
 
 ## Build-script contract
 
@@ -223,10 +186,6 @@ already activated, so its compiler and `dune` are on `PATH`. It reads:
 | `RUNNING_OCAML_RUNTIME_NAME` | runtime tag, e.g. `ocaml-5.5.0` | `runtime` |
 | `RUNNING_OCAML_SWITCH` | the active opam switch | unset |
 | `RUNNING_OCAML_SWITCH_PREFIX` | that switch's prefix path (optional; honoured if an orchestrator sets it) | resolved from `RUNNING_OCAML_SWITCH`, else the `ocamlc` on `PATH` |
-
-A script derives the monorepo root from its bench dir, builds into a per-runtime
-`_build-<runtime>/`, and copies the result out. `RUNNING_OCAML_OUTPUT` also
-*selects the program* where one script backs several; see [CLAUDE.md](CLAUDE.md).
 
 ## Layout
 
@@ -244,9 +203,8 @@ macro-benches.opam.locked   the lock file                 (committed)
 
 ## More documentation
 
-- [docs/benchmarks/](docs/benchmarks) has a page per benchmark.
+- [docs/benchmarks/](docs/benchmarks) has a (AI generated) page per benchmark.
 - [CLAUDE.md](CLAUDE.md) has the operational detail beyond the build-script
   contract above: the CI phases, the in-process iteration and ring-size
   mechanics, the vendored-source patch table, the platform notes, the
-  runtime-feature coverage matrix and known gaps, the backlog, and the gotchas
-  worth knowing before you touch the build.
+  runtime-feature coverage matrix and known gaps, the backlog, and the gotchas worth knowing (useful info for LLMs).

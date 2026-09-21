@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
-# vendor-menhir.sh — download and extract menhir sources into vendor/menhir/.
+# Download and extract menhir sources into vendor/menhir/.
 set -euo pipefail
 
-# src_field — every version, URL and checksum below comes from sources.yml,
-# which is the single source of truth for what this repo vendors.
 source "$(cd "$(dirname "$0")/.." && pwd)/scripts/lib-sources.sh"
 
 MONOREPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -25,7 +23,6 @@ trap 'rm -rf "${TMPDIR}"' EXIT
 echo "Downloading menhir ${VERSION}..."
 curl -fSL "${URL}" -o "${TMPDIR}/menhir.tar.gz"
 
-# Verify checksum.
 ACTUAL_MD5="$(checksum "${TMPDIR}/menhir.tar.gz")"
 if [ "${ACTUAL_MD5}" != "${MD5}" ]; then
   echo "MD5 mismatch: expected ${MD5}, got ${ACTUAL_MD5}" >&2
@@ -35,7 +32,7 @@ fi
 echo "Extracting..."
 tar --no-same-owner -xzf "${TMPDIR}/menhir.tar.gz" -C "${TMPDIR}"
 
-# The tarball extracts to a directory like menhir-20260209-<hash>/ or archive-<hash>/.
+# Top-level directory name varies (menhir-<date>-<hash>/ or archive-<hash>/).
 EXTRACTED="$(find "${TMPDIR}" -mindepth 1 -maxdepth 1 -type d ! -name '.*' | head -1)"
 if [ -z "${EXTRACTED}" ]; then
   echo "Failed to find extracted directory" >&2

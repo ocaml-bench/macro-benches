@@ -1,18 +1,11 @@
 #!/usr/bin/env bash
-# vendor-infer-corpus.sh — fetch the pinned Java corpus jars and merge them into
-# one classes-only jar for the infer benchmark.  Runtime-independent; run once
-# at setup.  JDK-free: only curl + unzip + zip (a .jar is a .zip).
+# Fetch the pinned Java corpus jars and merge them into one classes-only jar for
+# the infer benchmark (curl + unzip + zip only, no JDK).
 #
-# Corpus = 4 diverse, real-world libraries that all capture cleanly under the
-# vendored sawja (guava = collections, byte-buddy = bytecode gen, lucene = search,
-# bcprov = crypto): 11364 classes.  If you add jars, VET them first —
-#   infer capture --generated-classes new.jar --classpath new.jar
-# must not crash.  clojure 1.11.1 was deliberately excluded: its synthetic
-# bytecode raises an uncaught Sawja_pack.Bir.Bad_stack that aborts capture, and
-# --keep-going does not rescue it.
-#
-# The class SET here is what benchmarks/infer/roots_<rung>.idx is expressed against,
-# so keep the jar list + versions + exclusions in sync with those files.
+# Any new jar must survive `infer capture --generated-classes X --classpath X`
+# under the vendored sawja; clojure 1.11.1 is excluded because its synthetic
+# bytecode raises an uncaught Sawja_pack.Bir.Bad_stack. The class set is what
+# benchmarks/infer/roots_<rung>.idx is expressed against: keep them in sync.
 set -euo pipefail
 
 MONOREPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -40,9 +33,8 @@ J2=$(fetch net/bytebuddy/byte-buddy/1.12.21/byte-buddy-1.12.21.jar     f6f45c223
 J3=$(fetch org/apache/lucene/lucene-core/9.12.0/lucene-core-9.12.0.jar 6c7b774b75cd8f369e246f365a47caa54ae991cae6afa49c7f339e9921ca58a0)
 J4=$(fetch org/bouncycastle/bcprov-jdk18on/1.78/bcprov-jdk18on-1.78.jar 1bf721b09758b3f55f2a5c875b6178ec6c41dddad854b0dead4b27a236f1943a)
 
-# Extract .class only, dropping META-INF (multi-release variants under
-# META-INF/versions/*) and any module-info, so the class set is flat and
-# single-release — matching how the roots_<rung>.idx files were generated.
+# Classes only, flat and single-release (no META-INF/versions, no module-info),
+# matching how roots_<rung>.idx was generated.
 for j in "$J1" "$J2" "$J3" "$J4"; do
   ( cd "${DEST}/merge" && unzip -o -q "$j" '*.class' -x 'META-INF/*' )
 done

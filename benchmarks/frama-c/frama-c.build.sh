@@ -1,49 +1,18 @@
 #!/usr/bin/env bash
-# frama-c.build.sh — build the Frama-C EVA benchmark from the monorepo.
-#
-# Builds a standalone executable that statically links the Frama-C kernel
-# + the EVA (value/abstract-interpretation) plugin (see benchmarks/frama-c/dune),
-# then emits a wrapper that runs EVA on a C workload.
-#
-# The wrapper sets two things the static, uninstalled build needs:
-#   * -no-autoload-plugins : EVA is statically registered, so the dune-site
-#       plugin loader must NOT run (there is no plugin site to discover).
-#   * DUNE_DIR_LOCATIONS   : points Frama-C's dune-site "share"/"lib" sites
-#       at the vendored source tree (frama-c:share:<root> resolves to
-#       <root>/share, which holds machdeps/, libc/, ...).  Without this the
-#       uninstalled binary crashes in System_config (List.hd of empty site).
-#
-# Two workloads, selected by the wrapper's first argument:
-#   t       (default) : EVA on t.c (zlib, ~17.5k lines) — abstract-interp
-#                       focused, fast (~0.4s on 5.5.0). Small/simple: EVA never
-#                       accumulates enough abstract states for slevel/precision
-#                       to matter, so this is a fixed fast standalone, NOT a
-#                       input-size ladder rung.
-#   sqlite [PREC]     : EVA on the SQLite amalgamation (sqlite3.c, ~258k
-#                       lines) via a small driver — stresses the weak/
-#                       ephemeron hashconsing of a huge CIL AST + EVA state
-#                       (the OCaml-5 regression of ocaml#11733).  The optional
-#                       second arg PREC is the EVA precision level (-eva-precision
-#                       0..11; default 0 ≈ the legacy -eva-slevel 0 run, ~7s /
-#                       460MB).  Precision is the input-size axis: raising it keeps
-#                       more abstract states → bigger live heap + more
-#                       hash-consing (P0 7s/457MB → P2 18s/641MB → P3+ minutes).
-#                       NOTE: -eva-slevel does NOT scale this workload (measured
-#                       flat 0→500); -eva-precision does.
-# Any other arguments are passed straight through to the EVA executable.
-#
-# assigns:missing is downgraded from error→feedback for the sqlite run:
-# the amalgamation calls spec-less libc/OS functions that would otherwise
-# abort EVA; we want it to keep analysing, not prove soundness.
+# frama-c.build.sh: statically linked Frama-C kernel + EVA (see benchmarks/frama-c/dune)
+# plus a wrapper. Wrapper argv.1: `t` (zlib t.c, fixed fast run, not a rung);
+# `sqlite [PREC]` (sqlite3.c amalgamation, the ocaml#11733 hashconsing stress;
+# PREC is -eva-precision 0..11, the input-size axis, since -eva-slevel measured
+# flat 0..500); anything else is passed straight to EVA.
+# The uninstalled binary needs -no-autoload-plugins (EVA is statically
+# registered) and DUNE_DIR_LOCATIONS for the frama-c share site, or it crashes
+# in System_config (List.hd of empty site). assigns:missing is downgraded to
+# feedback so sqlite's spec-less libc calls don't abort the analysis.
 set -euo pipefail
 
-# running-ng invokes this script DIRECTLY at run time, so it does NOT inherit
-# the environment setup-monorepo.sh builds up. Source the portability library
-# for its LOCALBASE exports: on FreeBSD, pkg puts headers in
-# /usr/local/include, which the base clang does not search, so a vendored C
-# stub that includes one fails with "'event.h' file not found" even though the
-# package is installed. FreeBSD-gated and idempotent, so this is a no-op on
-# Linux. scripts/tests/test-build-scripts-portable.sh enforces this line.
+# running-ng runs this script directly, without setup-monorepo.sh's environment;
+# lib-portable.sh supplies the FreeBSD LOCALBASE exports (else a vendored C stub
+# fails with "'event.h' file not found"). scripts/tests/test-build-scripts-portable.sh enforces this.
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/scripts/lib-portable.sh"
 
 BENCH_DIR="${RUNNING_OCAML_BENCH_DIR:-$(cd "$(dirname "$0")" && pwd)}"

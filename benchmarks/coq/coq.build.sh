@@ -1,20 +1,13 @@
 #!/usr/bin/env bash
-# coq.build.sh — build coqc from the macro-benches monorepo.
-#
-# Prerequisites:
-#   - Config fallback files in duniverse/rocq/config/
-#   - Dunestrap files in duniverse/rocq/theories/{Corelib,Ltac2}/dune
-#   - Rocq installed into _rocq_prefix/ (done by setup-monorepo.sh)
-#   - ~/install/default/lib/rocq-runtime symlink (for .vo compilation)
+# coq.build.sh: build coqc from the vendored rocq. Needs duniverse/rocq/config/,
+# the dunestrap files in duniverse/rocq/theories/{Corelib,Ltac2}/dune, Rocq
+# installed into _rocq_prefix/ (all from setup-monorepo.sh) and a
+# ~/install/default/lib/rocq-runtime symlink for .vo compilation.
 set -euo pipefail
 
-# running-ng invokes this script DIRECTLY at run time, so it does NOT inherit
-# the environment setup-monorepo.sh builds up. Source the portability library
-# for its LOCALBASE exports: on FreeBSD, pkg puts headers in
-# /usr/local/include, which the base clang does not search, so a vendored C
-# stub that includes one fails with "'event.h' file not found" even though the
-# package is installed. FreeBSD-gated and idempotent, so this is a no-op on
-# Linux. scripts/tests/test-build-scripts-portable.sh enforces this line.
+# running-ng runs this script directly, without setup-monorepo.sh's environment;
+# lib-portable.sh supplies the FreeBSD LOCALBASE exports (else a vendored C stub
+# fails with "'event.h' file not found"). scripts/tests/test-build-scripts-portable.sh enforces this.
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/scripts/lib-portable.sh"
 
 BENCH_DIR="${RUNNING_OCAML_BENCH_DIR:-$(cd "$(dirname "$0")" && pwd)}"
@@ -26,25 +19,21 @@ ROCQ_PREFIX="${MONOREPO_DIR}/_rocq_prefix/rocq"
 
 echo "Building coqc (monorepo) for runtime: ${RUNTIME_TAG}"
 
-# Sanitize environment
 unset OPAM_SWITCH_PREFIX
 unset OCAMLTOP_INCLUDE_PATH
 unset CAML_LD_LIBRARY_PATH
 unset OCAMLLIB
 export OCAMLPATH=""
 
-# Verify prerequisites
 if [ ! -f "${MONOREPO_DIR}/duniverse/rocq/config/coq_config.ml" ]; then
   echo "ERROR: coq_config.ml missing. Run setup-monorepo.sh first." >&2
   exit 1
 fi
 
-# Build coqc binary
 dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
   --profile release \
   duniverse/rocq/topbin/coqc_bin.exe
 
-# Create a wrapper script that sets up the Rocq environment
 mkdir -p "$(dirname "${OUT}")"
 cat > "${OUT}" << WRAPPER
 #!/usr/bin/env bash

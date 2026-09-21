@@ -1,6 +1,4 @@
-(* Sedlex benchmark: Unicode-aware lexer processing a large input.
-   Exercises lexer table lookup, string allocation, and GC via
-   repeated tokenization of a generated input stream. *)
+(* Sedlex benchmark: Unicode-aware lexer tokenizing a large generated input. *)
 
 let digit = [%sedlex.regexp? '0'..'9']
 let letter = [%sedlex.regexp? 'a'..'z' | 'A'..'Z' | '_']
@@ -37,7 +35,6 @@ let rec tokenize buf acc =
   | any -> tokenize buf (UNKNOWN (Sedlexing.Utf8.lexeme buf) :: acc)
   | _ -> assert false
 
-(* Generate a large pseudo-code input *)
 let generate_input n =
   let buf = Buffer.create (n * 80) in
   for i = 0 to n - 1 do
@@ -59,7 +56,6 @@ let () =
   let tokens = tokenize buf [] in
   Printf.printf "Tokens: %d\n%!" (List.length tokens);
 
-  (* Count token types *)
   let n_ident = ref 0 and n_num = ref 0 and n_str = ref 0 in
   List.iter (function
     | IDENT _ -> incr n_ident

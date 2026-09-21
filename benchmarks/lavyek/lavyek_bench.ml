@@ -1,17 +1,7 @@
-(* Lavyek key-value-store benchmark.
-   Adapted from upstream test.ml (https://github.com/tarides/lavyek), with
-   the rocksdb/lmdb comparison modules stripped — we only run lavyek.
-
-   Stresses the OCaml 5 multicore runtime with:
-   - N parallel domains driving a key-value workload via Eio
-   - Per-domain fibers issuing concurrent put/get on a shared store
-   - kcas + Eio + io_uring under the hood (significant atomic + GC traffic)
-
-   Args (positional):
-     nb_domains   number of parallel domains    (default 4)
-     max_fibers   fibers per domain             (default 100)
-     nb           number of key-value pairs     (default 10_000_000)
-     dbpath       on-disk path for the WAL      (default /tmp/lavyek_wal_<nb_domains>) *)
+(* Lavyek key-value-store benchmark, adapted from upstream test.ml
+   (https://github.com/tarides/lavyek) without the rocksdb/lmdb comparisons:
+   nb_domains domains each run max_fibers Eio fibers doing put/get on a shared store.
+   Args: nb_domains (4) max_fibers (100) nb (10_000_000) dbpath (/tmp/lavyek_wal_<nb_domains>) *)
 
 open Eio
 
@@ -34,12 +24,8 @@ let key_len = String.length key_prefix + dynamic_key_len
 
 let redundancy = 1
 
-(* Build a stable, deterministic list of physical CPUs (one logical CPU
-   per physical core, picking the smt=0 thread) sorted by core id, so
-   that domain i always lands on the same core across runs. Pinning is
-   what makes 1d/2d/4d/8d wall times comparable run-to-run on noisy
-   machines — without it the kernel migrates domains within whatever
-   mask the parent (taskset/numactl) provided. *)
+(* Pin domain i to the same physical core (smt=0 thread, sorted by core id) on
+   every run; otherwise the kernel migrates domains and wall times don't compare. *)
 let physical_cpus =
   Processor.Topology.t
   |> List.filter (fun c -> c.Processor.Cpu.smt = 0)

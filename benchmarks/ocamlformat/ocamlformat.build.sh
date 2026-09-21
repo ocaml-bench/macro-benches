@@ -1,17 +1,10 @@
 #!/usr/bin/env bash
-# ocamlformat.build.sh — build ocamlformat from the macro-benches monorepo.
-#
-# Workload: format a large OCaml source file. The benchmark binary is
-# the ocamlformat executable itself.
+# ocamlformat.build.sh: build ocamlformat (the benchmark binary is ocamlformat itself).
 set -euo pipefail
 
-# running-ng invokes this script DIRECTLY at run time, so it does NOT inherit
-# the environment setup-monorepo.sh builds up. Source the portability library
-# for its LOCALBASE exports: on FreeBSD, pkg puts headers in
-# /usr/local/include, which the base clang does not search, so a vendored C
-# stub that includes one fails with "'event.h' file not found" even though the
-# package is installed. FreeBSD-gated and idempotent, so this is a no-op on
-# Linux. scripts/tests/test-build-scripts-portable.sh enforces this line.
+# running-ng runs this script directly, without setup-monorepo.sh's environment;
+# lib-portable.sh supplies the FreeBSD LOCALBASE exports (else a vendored C stub
+# fails with "'event.h' file not found"). scripts/tests/test-build-scripts-portable.sh enforces this.
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/scripts/lib-portable.sh"
 
 BENCH_DIR="${RUNNING_OCAML_BENCH_DIR:-$(cd "$(dirname "$0")" && pwd)}"
@@ -25,20 +18,10 @@ echo "Building ocamlformat (monorepo) for runtime: ${RUNTIME_TAG}"
 unset OPAM_SWITCH_PREFIX OCAMLTOP_INCLUDE_PATH CAML_LD_LIBRARY_PATH OCAMLLIB
 export OCAMLPATH=""
 
-# input-size ladder inputs: the axis is source SIZE (# lines). Generate the rung
-# files by concatenating workload.ml (real ~3.3k-line Rocq source) N times —
-# ocamlformat only parses+reprints syntax, so duplicate definitions are fine,
-# and it holds the whole AST + output document in memory, so RSS/live-heap grow
-# with N (a genuine footprint+throughput ladder, unlike the compiler benches).
-# Generated (not vendored — big) and gitignored; regenerated here if missing.
-# Done before the build so it runs even when the output binary already exists
-# (a read-only copy would make the cp below fail under `set -e`).
-# N -> {lines, wall, RSS} on 5.5.0/Ryzen 9950X:
-#   12x  40k   ~5s   0.6GB   (small)
-#   30x  100k  ~13s  1.7GB   (default)
-#   150x 500k  ~90s  8.8GB   (large)
-# (A huge band ~450x / ~26 GB RSS is deferred — tracked separately.)
-# These files must live beside .ocamlformat, else ocamlformat disables itself
+# Ladder inputs: workload.ml concatenated N times (ocamlformat only reprints
+# syntax, so duplicate definitions are fine; it holds the whole AST, so RSS grows
+# with N: 12x ~5s/0.6GB, 30x ~13s/1.7GB, 150x ~90s/8.8GB on 5.5.0). Gitignored.
+# They must live beside .ocamlformat, else ocamlformat disables itself
 # ("no project root found") and skips formatting.
 for n in 12 30 150; do
   wl="${BENCH_DIR}/wl_${n}x.ml"
