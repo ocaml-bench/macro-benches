@@ -131,14 +131,31 @@ orchestrator to manage the per-runtime switches. [running-ng](https://github.com
 in combination with the macro-benchmarks by checking it out and defining `export RUNNING_MACRO_BENCH_DIR=~/macro-benches`. 
 The set of scripts helps drive the benchmark runs. To know more about how to use running-ng see its own docs.
 
-Benchmarks can be selected by `RUNNING_TAG`:
+Benchmarks can be selected by setting `RUNNING_TAG`. This variable can be used to select each benchmark on a particular step of the input-size ladder,
+or to select a set of benchmarks that exercise a particular runtime feature. Tags can be combined
+with commas to indicate their union.
 
-| `RUNNING_TAG` | runs |
+| ladder tag | runs |
 |---|---|
-| *(unset)* / `default_run` | the `default` step of every tool, the standard suite |
+| *(unset)* / `default_run` | the `default` step of every tool, the standard suite (21) |
 | `small_run` / `large_run` / `huge_run` | that size across every tool (`huge_run` exists only for zarith and owl) |
-| `legacy` | the pre-ladder anchors, extra workloads, and frozen repros |
-| `all_benches` | everything at once |
+| `legacy` | the pre-ladder anchors, extra workloads, and frozen repros (30) |
+| `all_benches` | everything at once (95) |
+
+| feature tag | the mechanism, and which tools carry it |
+|---|---|
+| `weak_refs` | `Weak.Make` hash-consing: alt-ergo (theory terms), frama-c (EVA's state maps) |
+| `ephemerons` | the ephemeron *data* field (`Ephemeron.K1` with a value), which `weak_refs` does not reach: coq, through rocq's `CEphemeron` on the bytecode VM's global-slot path |
+| `effects` | `Effect.perform` and fiber switching: eio |
+| `domains` | `Domain.spawn` / `join` / `DLS`: infer |
+| `marshal` | `caml_output_value` / `caml_input_value`: ocamlc (writes .cmi/.cmo), jsoo (reads a whole DATA section), coq (both, for .vo), infer (summary blobs, with closures) |
+| `compare_hash` | `compare_val` and `caml_hash` (`runtime/compare.c`, `runtime/hash.c`) under Map, Set and Hashtbl: cpdf, menhir, frama-c, goblint, ocamlformat, `devkit_network`, ocamlc |
+| `c_side_allocation` | C allocating in the OCaml heap (`Alloc_small`, `caml_alloc_shr`, `caml_modify`): coq's VM, cpdf's flate stubs |
+| `custom_blocks` | `caml_alloc_custom[_mem]` and its custom ops, *including* the `finalize` op (for a Bigarray, the runtime's `caml_ba_finalize`, which is what frees the off-heap data): zarith, owl, liq-video-frames, decompress, `devkit_gzip`, pplacer, infer |
+| `bigarrays` | `caml_ba_alloc` and Bigarray access, a subset of `custom_blocks`: owl, liq-video-frames, decompress, pplacer, ocamlc |
+| `ffi_bulk` | hot C kernels behind a thin OCaml driver: pplacer, zarith, irmin, owl, cpdf, `devkit_gzip`, `alt_ergo_unsat_smt2`, infer |
+| `off_heap_accounting` | the `mem` argument of `caml_alloc_custom_mem` against the major-GC pacer: liq-video-frames |
+| `lwt` | Lwt bind chains: irmin (coverage of the pattern; its hot path is hashing) |
 
 ### Build and run everything locally
 
