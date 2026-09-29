@@ -17,10 +17,13 @@ dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" --profile release
 REAL_EXE="${BUILD_DIR}/default/benchmarks/owl/owl_gc.exe"
 # argv.1 = in-process loop count; argv.2 = matrix dimension -> OWL_MATRIX_DIM
 # (off-heap live set is 100 * dim^2 * 8 bytes; default 100).
+# OpenBLAS starts one thread per core, which makes wall time depend on the
+# machine and on CPU pinning rather than on the OCaml runtime; keep it to one.
 cat > "${OUT}" << WRAPPER
 #!/usr/bin/env bash
 set -euo pipefail
 export OWL_MATRIX_DIM="\${2:-\${OWL_MATRIX_DIM:-100}}"
+export OPENBLAS_NUM_THREADS="\${OPENBLAS_NUM_THREADS:-1}"
 exec "${REAL_EXE}" "\${1:-1}"
 WRAPPER
 chmod +x "${OUT}"
