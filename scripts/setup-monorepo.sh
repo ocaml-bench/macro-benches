@@ -1023,6 +1023,42 @@ else
 fi
 echo ""
 
+# Patch 32: OCaml trunk (ocaml/ocaml#15018) added caml_int_clz/caml_int_ctz to
+# the runtime, and ocaml_intrinsics_kernel's bytecode stubs share those names,
+# so any native executable pulling in int_stubs.o fails to link. Rename the
+# stubs; native code calls the *_untagged_to_untagged variants, so it is
+# unchanged. Temporary: revisit once upstream resolves the clash.
+IK_SRC="duniverse/ocaml_intrinsics_kernel/src"
+if [ -f "$IK_SRC/int_stubs.c" ]; then
+  if grep -q 'ocaml_intrinsics_kernel_int_clz' "$IK_SRC/int_stubs.c"; then
+    echo "  [32] ocaml_intrinsics_kernel clz/ctz stubs: already patched."
+  else
+    python3 - "$IK_SRC" <<'PYEOF'
+import sys
+
+d = sys.argv[1]
+edits = {
+    "int_stubs.c": [("value caml_int_clz(value", "value ocaml_intrinsics_kernel_int_clz(value", 1),
+                    ("value caml_int_ctz(value", "value ocaml_intrinsics_kernel_int_ctz(value", 1)],
+    "int.ml": [('"caml_int_clz" "', '"ocaml_intrinsics_kernel_int_clz" "', 2),
+               ('"caml_int_ctz" "', '"ocaml_intrinsics_kernel_int_ctz" "', 1)],
+}
+for f, reps in edits.items():
+    p = f"{d}/{f}"
+    s = open(p).read()
+    for old, new, n in reps:
+        if s.count(old) != n:
+            sys.exit(f"  [32] ocaml_intrinsics_kernel {f}: not in the expected shape")
+        s = s.replace(old, new)
+    open(p, "w").write(s)
+print("  [32] ocaml_intrinsics_kernel clz/ctz stubs: renamed (clash with OCaml trunk runtime).")
+PYEOF
+  fi
+else
+  echo "  [32] ocaml_intrinsics_kernel: not vendored. Skipping."
+fi
+echo ""
+
 # [22] sedlex's `(mode promote)` rule regenerates the shipped unicode.ml from
 # tables downloaded from www.unicode.org on every clean build, which fails
 # intermittently. Drop the rule; guarded on the shipped generated file being

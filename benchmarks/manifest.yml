@@ -310,20 +310,16 @@ programs:
   owl_gc_small:
     tool: owl
     build_script: owl.build.sh
-    args: "1 300"
+    args: "1 250"
     ci_run: true
   owl_gc_default:
     tool: owl
     build_script: owl.build.sh
-    args: "1 500"
+    args: "1 400"
   owl_gc_large:
     tool: owl
     build_script: owl.build.sh
-    args: "1 1500"
-  owl_gc_huge:
-    tool: owl
-    build_script: owl.build.sh
-    args: "1 2400"
+    args: "1 800"
   ocamlc_self_compile:
     tool: ocamlc-self-compile
     build_script: ocamlc-self-compile.build.sh
