@@ -26,9 +26,9 @@ jobs:
     name: build + run once (${{ matrix.label }})
     runs-on: ubuntu-latest
     timeout-minutes: 240
-    # The trunk leg tracks a moving compiler and ppxlib/lwt git main, so it can
-    # go red for unrelated reasons; it reports, it does not gate.
-    continue-on-error: ${{ matrix.required == false }}
+    # Only the stable leg is a required check. The trunk leg tracks a moving
+    # compiler and ppxlib/lwt git main, so it can go red for unrelated reasons;
+    # it fails the run (so breakage is visible) without blocking merges.
     strategy:
       fail-fast: false
       matrix:
@@ -37,12 +37,10 @@ jobs:
           # numbers out of it.
           - label: "stable"
             ocaml: "5.5.0"
-            required: true
             # Released dune >= 3.24 breaks the vendored rocq build.
             dune: "3.22.1"
           - label: "trunk"
             ocaml: "ocaml-variants.5.6.0+trunk"
-            required: false
             # Released dune can't bootstrap against 5.6 trunk; use git main.
             dune: "dev"
 
