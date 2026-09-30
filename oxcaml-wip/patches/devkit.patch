@@ -1,0 +1,38 @@
+diff -ruN -x _build -x '*.orig' a/duniverse/devkit/action.ml b/duniverse/devkit/action.ml
+--- a/duniverse/devkit/action.ml	2026-09-30 01:09:48.536493450 +0000
++++ b/duniverse/devkit/action.ml	2026-09-30 03:37:38.427173106 +0000
+@@ -57,8 +57,8 @@
+ 
+ let random_int state =
+   match state with
+-  | None -> Random.int
+-  | Some t -> Random.State.int t
++  | None -> (fun n -> Random.int n)
++  | Some t -> (fun n -> Random.State.int t n)
+ 
+ let list_random_exn ?state l = List.nth l (random_int state (List.length l))
+ 
+diff -ruN -x _build -x '*.orig' a/duniverse/devkit/httpev.ml b/duniverse/devkit/httpev.ml
+--- a/duniverse/devkit/httpev.ml	2026-09-30 01:09:48.537157024 +0000
++++ b/duniverse/devkit/httpev.ml	2026-09-30 03:37:38.427286817 +0000
+@@ -653,7 +653,7 @@
+ 
+ let reap_orphans srv =
+   let rec loop () =
+-    match Exn.catch (Unix.waitpid [Unix.WNOHANG]) 0 with
++    match Exn.catch (fun pid -> Unix.waitpid [Unix.WNOHANG] pid) 0 with
+     | None | Some (0,_) -> ()
+     | Some (pid,st) -> log #info "reaped orphan %d %S" pid (Std.dump st); finish_child srv pid; loop ()
+   in loop ()
+diff -ruN -x _build -x '*.orig' a/duniverse/devkit/parallel.ml b/duniverse/devkit/parallel.ml
+--- a/duniverse/devkit/parallel.ml	2026-09-30 01:09:48.537716948 +0000
++++ b/duniverse/devkit/parallel.ml	2026-09-30 03:43:31.917446623 +0000
+@@ -197,7 +197,7 @@
+       Unix.close output;
+       let input = Unix.in_channel_of_descr input in fun () ->
+         let v = Marshal.from_channel input in
+-        ignore (Nix.restart (Unix.waitpid []) pid);
++        ignore (Nix.restart (fun pid -> Unix.waitpid [] pid) pid);
+         close_in input;
+         match v with `Res x -> x | `Exn e -> raise e
+ 
