@@ -18,7 +18,7 @@ MONOREPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$MONOREPO_DIR"
 
 # replace <num> <label> <file> <old> <new> [all]: exact replacement, idempotent
-# (a no-op once <new> is present). Without "all", <old> must occur
+# (a no-op once applied). Without "all", <old> must occur
 # exactly once; a source in any other shape is an error, not a silent skip.
 replace() {
   OX_OLD="$4" OX_NEW="$5" OX_ALL="${6:-}" python3 - "$1" "$2" "$3" <<'PYEOF'
@@ -26,10 +26,11 @@ import os, sys
 num, label, path = sys.argv[1:]
 old, new, every = os.environ["OX_OLD"], os.environ["OX_NEW"], os.environ["OX_ALL"] == "all"
 s = open(path).read()
-if new in s:
+n = s.count(old)
+# Applied when <new> is there and <old> is either gone or part of <new> (an insertion).
+if new in s and (n == 0 or old in new):
     print(f"  [{num}] {label}: already applied.")
     sys.exit(0)
-n = s.count(old)
 if n == 0 or (n > 1 and not every):
     sys.exit(f"  [{num}] {label}: {path} not in the expected shape ({n} matches)")
 open(path, "w").write(s.replace(old, new))
@@ -198,6 +199,33 @@ module LargeFile = struct
 end
 BATUNIX
 )"$'\n'
+  fi
+
+  # These intrinsics are unknown to OxCaml, which rejects an unrecognised
+  # [@@builtin]; stock ignores the attribute, and both call the C stub.
+  if vendored duniverse/ocaml_intrinsics_kernel/src 45 ocaml_intrinsics_kernel; then
+    local I=duniverse/ocaml_intrinsics_kernel/src m f
+    for m in int32 int64 nativeint; do
+      for f in clz ctz; do
+        replace 45 "intrinsics ${m}_${f}_nonzero" "$I/$m.ml" \
+          "\"caml_${m}_${f}_nonzero_unboxed_to_untagged\""$'\n    [@@noalloc] [@@builtin]' \
+          "\"caml_${m}_${f}_nonzero_unboxed_to_untagged\""$'\n    [@@noalloc]'
+      done
+    done
+    for f in float.ml float.mli; do
+      for m in min max; do
+        replace 45 "intrinsics $f float64_$m" "$I/$f" \
+          "\"caml_sse2_float64_$m\""$'\n  [@@noalloc] [@@builtin]' "\"caml_sse2_float64_$m\""$'\n  [@@noalloc]'
+      done
+    done
+  fi
+
+  if vendored duniverse/ocaml-ctypes/src/ctypes/ctypes_memory.ml 46 ctypes; then
+    local k
+    for k in Genarray Array1 Array2 Array3; do
+      replace 46 "ctypes bigarray_kind $k" duniverse/ocaml-ctypes/src/ctypes/ctypes_memory.ml \
+        "  | $k -> $k.kind" "  | $k -> fun ba -> $k.kind ba"
+    done
   fi
 }
 

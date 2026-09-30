@@ -789,7 +789,7 @@ Applied automatically by `scripts/setup-monorepo.sh`.
 | 29 | `duniverse/cil/bin/realGccConfigure.ml` | Also try unhyphenated versioned GCC names (`gcc14`, `gcc13`, …), after plain `gcc` | FreeBSD. goblint dies at configure time with `couldn't find real gcc`: CIL only tries `gcc` and hyphenated `gcc-7`..`gcc-16`, and FreeBSD's pkg installs `gcc14`. It has to be a real GCC (CIL's `is_bad_gcc_version` correctly rejects anything whose `--version` mentions clang, and `cc` on FreeBSD is clang). Plain `gcc` stays first, so Linux picks what it picked before |
 | 30 | `duniverse/analyzer/src/util/preprocessor.ml` | Also search the unhyphenated `cpp` prefix (`cpp14`, …) when the hyphenated one yields nothing | FreeBSD, and the same problem as 29 one layer up. `/usr/bin/cpp` on FreeBSD is clang, which goblint correctly rejects, and the `compgen -c cpp-` fallback only finds Debian-style `cpp-14`. Symptom is at **run** time, long after a clean build: `No good preprocessor (cpp) found`. `"cpp-"` is kept first and every candidate still goes through `is_good`, so Linux is unchanged. Requires a real GCC to be installed (see README's FreeBSD prerequisites) |
 | 31 | `duniverse/Zarith/dune` | `grep "version" META \| head -1` becomes `grep -m1 "version" META` | dune runs every `(bash ...)` action as `bash -e -u -o pipefail -c`. zarith's META has **two** lines matching `version` (its own 1.14 and zarith_top's 1.13), so `head -1` exits while grep still has the second to write; grep takes SIGPIPE and `pipefail` promotes its **141** to the pipeline, failing the rule and with it the whole rocq bootstrap (step [8/9]). Whether it fires is a buffering race: GNU grep block-buffers to a pipe so both lines usually land in one `write()` that beats `head`'s exit, while FreeBSD's grep is line-buffered and loses the race far more often. It is latent on every platform, not a FreeBSD bug. `-m1` stops after the first match, so there is no second write and no pipe; output is byte-identical and `-m` is in both GNU and BSD grep |
-| 32 | `duniverse/yojson/lib/write.ml` | Eta-expand `write_{int,float,string}lit` | OxCaml: stdlib functions take local arguments, so a curried re-export (`let f = Buffer.add_string`) is a local closure that no longer matches a global signature. This and 33-44 come from `scripts/setup-oxcaml.sh`, are behaviour-preserving on stock OCaml, and are reproduced by `scripts/tests/oxcaml-repros.sh` (see §OxCaml) |
+| 32 | `duniverse/yojson/lib/write.ml` | Eta-expand `write_{int,float,string}lit` | OxCaml: stdlib functions take local arguments, so a curried re-export (`let f = Buffer.add_string`) is a local closure that no longer matches a global signature. This and 33-44 come from `scripts/setup-oxcaml.sh` (so do 45-46), are behaviour-preserving on stock OCaml, and are reproduced by `scripts/tests/oxcaml-repros.sh` (see §OxCaml) |
 | 33 | `duniverse/ocaml-extlib/src/ext{List,String}.ml` | Eta-expand `mem`, `memq`, `blit`, `(r)index_from(_opt)` after `include` | OxCaml, same as 32 (re-export through `include`). Same change as oxcaml/opam-repository's `extlib.1.8.0+ox` minus its cppo gate |
 | 34 | `vendor/camlpdf/pdf{util,ops}.ml` | Eta-expand `mem`; pass `fun s -> Buffer.add_string b s` instead of a partial application | OxCaml, same as 32 |
 | 35 | `vendor/cpdf-source/cpdfyojson.ml` | Eta-expand the four copies of `write_*lit` | OxCaml, same as 32 (cpdf bundles its own yojson) |
@@ -802,32 +802,41 @@ Applied automatically by `scripts/setup-monorepo.sh`.
 | 42 | `duniverse/batteries-included/src/bat*.ml` | Eta-expand ~70 re-exported stdlib functions (Bytes, Buffer, Queue, String, List, Unix incl. `LargeFile`, `Random.State`, `Bigarray.Array0`, `File.chmod`, UTF8 `Buf`); define `Gc.eventlog_pause`/`resume` as `()` | OxCaml, same as 32; OxCaml removed the two deprecated `Gc` functions, which stock 5.x implements as no-ops |
 | 43 | infer's `extlib` checkout (`vendor/.infer-js-src`) | Same as 33 | Applied by `vendor-javalib-sawja.sh` after it resets the checkout, i.e. on every infer build |
 | 44 | infer's `javalib`/`sawja` Makefiles | Compile `.mli` and bytecode with `$(FOR_PACK)` too | OxCaml records the pack prefix in the `.cmi`, so an interface compiled without `-for-pack` breaks the pack (`a.cmx contains the description for unit A when P.A was expected`); stock accepts either |
+| 45 | `duniverse/ocaml_intrinsics_kernel/src/{int32,int64,nativeint,float}.ml`, `float.mli` | Drop `[@@builtin]` from the 8 externals naming intrinsics this OxCaml lacks (`*_c{l,t}z_nonzero_unboxed_to_untagged`, `caml_sse2_float64_{min,max}`) | OxCaml rejects an unrecognised `[@@builtin]`; stock ignores the attribute, and both then call the same C stub. OxCaml's `-disable-builtin-check` does the same, but stock rejects the flag |
+| 46 | `duniverse/ocaml-ctypes/src/ctypes/ctypes_memory.ml` | Eta-expand the four `bigarray_kind` branches | OxCaml: `Bigarray.*.kind` takes an `@ immutable` argument, so returning it unapplied into a GADT-refined function type fails. oxcaml's `ctypes.0.24.0+ox` uses OxCaml-only syntax instead |
 
 ## OxCaml compatibility
 
-Status at oxcaml/oxcaml `be90cb46` (5.4.0+ox, 2026-09-26): 45/95 programs build
-(22 before patches 32-44). The same tree builds 95/95 on stock 5.4.1 and 5.5.0.
+Status at oxcaml/oxcaml `be90cb46` (5.4.0+ox, 2026-09-26): 50/95 programs build
+(22 before patches 32-46). The same tree builds 95/95 on stock 5.4.1 and 5.5.0.
 
 OxCaml does not compile all stock OCaml. Its stdlib gives many functions local
 (stack) parameters, which is invisible to callers that apply them fully but breaks
 curried re-exports, partial applications passed where a global function is
 expected, and signatures inferred from those. `scripts/setup-oxcaml.sh` fixes each
 occurrence with an eta-expansion that is behaviour-preserving on stock OCaml, plus
-two non-mode changes (patches 42 and 44). `scripts/tests/oxcaml-repros.sh [bin dir...]`
+three non-mode changes (patches 42, 44 and 45). `scripts/tests/oxcaml-repros.sh [bin dir...]`
 compiles one minimal case per class (`scripts/tests/oxcaml-repros/`), original and
 fixed, on each compiler: stock compiles both, OxCaml fails every original.
 
-Still blocking on OxCaml (every other failure sits behind one of these):
+Still blocking on OxCaml (every other failure sits behind one of these). Each is
+compiler-specific: it depends on compiler internals, not on the OCaml language.
 
-| Package | Programs | Error | Known OxCaml-side fix |
+| Package | Programs | Why | Known OxCaml-side fix |
 |---|---|---|---|
-| `ocaml-compiler-libs` (`read_cma`) | 37 | `Cmo_format.compunit` is `Compilation_unit.t` | `v0.17.0+ox` (uses OxCaml's compiler-libs API) |
-| `ocaml_intrinsics_kernel` | 16 | `[@@builtin]` names this OxCaml does not recognise | `v0.18~preview` |
-| `base` (`shadow-stdlib/gen`) | 16 | `Cmi_format.cmi_sign` carries a mode | `v0.18~preview` |
-| `ctypes` | 10 | `Bigarray.Genarray.kind` takes an `@ immutable` argument | `0.24.0+ox` |
+| `ocaml-compiler-libs` (`read_cma`), then `ppxlib` | 37 | `Cmo_format.compunit` is `Compilation_unit.t`; past that, ppxlib's `astlib` mirrors the compiler `Parsetree`, which OxCaml extends (`Parsetree.signature` is a record, modes, kinds) | `v0.17.0+ox`, ppxlib `+ox`, and OxCaml-aware ppx rewriters |
+| `base` v0.17 (`shadow-stdlib/gen`) | 16 | reads the stdlib `.cmi` through compiler-libs and parses `Printtyp` output, which on OxCaml carries kinds and modalities | `v0.18~preview` |
 
-TODO: reproducers for these four once each is confirmed to have no portable fix,
-and for the ppx/Parsetree layer that compiler-libs currently hides.
+Both can be selected per compiler inside this tree: OxCaml ships findlib libraries stock
+does not (`compiler-libs.frontend`, `stdlib_stable`, ...), so a dune `(select ... from
+(compiler-libs.frontend -> x.oxcaml.ml) (-> x.stock.ml))` picks OxCaml-only source at
+build time; tried for `read_cma` and base's generator, stock unaffected. Note OxCaml
+moved the typing modules (`Printtyp`, `Cmi_format`, ...) from `compiler-libs.common` to
+`compiler-libs.frontend`, so stock code using them through `compiler-libs.common` fails
+to link.
+
+TODO: reproducers for the compiler-libs split and the Parsetree difference, once the
+per-compiler selection is settled.
 
 ## Known limitations
 
