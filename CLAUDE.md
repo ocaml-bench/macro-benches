@@ -153,8 +153,11 @@ leave the merge that triggered it unverified.
 
 Two matrix legs: the
 **latest stable release**, which gates, and the **`ocaml/ocaml` trunk tip**, which
-is `continue-on-error` because it tracks a moving compiler and needs ppxlib/lwt
-git `main` (patches 4+5 below). The trunk leg resolves the tip commit *before*
+is not a required check because it tracks a moving compiler and needs ppxlib/lwt
+git `main` (patches 4+5 below). It is deliberately **not** `continue-on-error`:
+that marked the whole run green while trunk failed, which hid a trunk link
+break on master for days (patch 32). A red trunk leg now fails the run but, not
+being required, does not block merges. The trunk leg resolves the tip commit *before*
 creating the switch and folds the SHA into every cache key — otherwise a restored
 opam-root cache silently tests a stale trunk.
 
@@ -267,7 +270,8 @@ can be read side by side and drift is visible. What differs, and why:
   around *each* step.
 
 **It gates**, on the same terms as `ci.yml`: the stable leg is required, the
-trunk leg is `continue-on-error` because it tracks a moving compiler. Triggers
+trunk leg is not required (and not `continue-on-error`, see above) because it
+tracks a moving compiler. Triggers
 match too (PR, push to master, weekly cron staggered an hour after ci.yml's).
 Measured at **26.9 min stable / 31.2 min trunk**, against ~35 for Linux, with
 `Build every benchmark` at 16.2 min being the bulk.
