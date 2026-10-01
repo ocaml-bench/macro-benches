@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Source patches that let the vendored tree compile with OxCaml as well as stock
 # OCaml. Each one is plain OCaml that behaves identically on stock OCaml, so they
-# are applied for every compiler. Called by setup-monorepo.sh ([35]-[45], [48]-[53]) and, for
+# are applied for every compiler. Called by setup-monorepo.sh ([35]-[45], [48]-[53], [55]-[57]) and, for
 # infer's own checkouts that vendor-javalib-sawja.sh resets on every build, by
 # vendor-javalib-sawja.sh ([46]-[47]). scripts/tests/oxcaml-repros.sh reproduces
 # each class of incompatibility on its own.
@@ -42,6 +42,34 @@ PYEOF
 # occurrence of <anchor>; a no-op if it is already there.
 after() {
   replace "$1" "$2" "$3" "$4" "$4$5"
+}
+
+# variant <num> <label> <file> <old> <new>: for code against compiler-libs,
+# whose API differs on OxCaml, so no one source compiles on both. Keeps <file>
+# as <stem>.upstream.ml, writes <stem>.oxcaml.ml with <old> replaced by <new>,
+# and adds the rule OxCaml's own vendored libraries use to pick one (it works
+# from dune lang 1.0, which some of these projects declare).
+variant() {
+  local num=$1 label=$2 f=$3 d stem
+  d=$(dirname "$f"); stem=$(basename "$f" .ml)
+  if [ -f "$d/$stem.oxcaml.ml" ]; then
+    echo "  [$num] $label: already applied."
+    return
+  fi
+  mv "$f" "$d/$stem.upstream.ml"
+  cp "$d/$stem.upstream.ml" "$d/$stem.oxcaml.ml"
+  replace "$num" "$label" "$d/$stem.oxcaml.ml" "$4" "$5"
+  cat >> "$d/dune" <<EOF
+
+(rule
+ (targets $stem.ml)
+ (deps $stem.upstream.ml $stem.oxcaml.ml)
+ (action
+  (with-stdout-to
+   %{targets}
+   (system
+    "case '%{ocaml_version}' in *+ox*) cat $stem.oxcaml.ml ;; *) cat $stem.upstream.ml ;; esac"))))
+EOF
 }
 
 vendored() { [ -e "$1" ] || { echo "  [$2] $3: not vendored. Skipping."; return 1; }; }
@@ -253,6 +281,27 @@ BATUNIX
     replace 52 "goblint GobRef.wrap" duniverse/analyzer/src/util/std/gobRef.ml \
       $'let wrap r x =\n  let x0 = !r in\n  r := x;\n  Fun.protect ~finally:(fun () -> r := x0)\n' \
       $'let wrap r x f =\n  let x0 = !r in\n  r := x;\n  Fun.protect ~finally:(fun () -> r := x0) f\n'
+  fi
+
+  # OxCaml's compilation unit names are Compilation_unit.t (as in OxCaml's own
+  # vendored copy of this library).
+  local RC=duniverse/ocaml-compiler-libs/src/read_cma/read_cma.ml
+  if [ -e "$RC" ] || [ -e "${RC%.ml}.oxcaml.ml" ]; then
+    variant 55 "ocaml-compiler-libs read_cma compunit_name" "$RC" \
+      "let compunit_name Cmo_format.{ cu_name = Compunit name ; _ } = name" \
+      "let compunit_name (cu : Cmo_format.compilation_unit_descr) = Compilation_unit.name_as_string cu.cu_name"
+  fi
+
+  # OxCaml's cmi_sign pairs the signature with a mode.
+  local GEN=duniverse/base/shadow-stdlib/gen/gen.ml
+  if [ -e "$GEN" ] || [ -e "${GEN%.ml}.oxcaml.ml" ]; then
+    variant 56 "base shadow-stdlib gen cmi_sign" "$GEN" \
+      "Printtyp.signature cmi.Cmi_format.cmi_sign" "Printtyp.signature (fst cmi.Cmi_format.cmi_sign)"
+    # OxCaml moved Printtyp, Cmi_format and Subst out of compiler-libs.common
+    # into compiler-libs.frontend, which stock lacks; bytecomp brings in the
+    # right one on both.
+    replace 57 "base shadow-stdlib gen compiler-libs" "${GEN%/*}/dune" \
+      "(libraries str compiler-libs.common)" "(libraries str compiler-libs.common compiler-libs.bytecomp)"
   fi
 
   # base re-exports the stdlib's types from its .cmi; OxCaml's carry a kind

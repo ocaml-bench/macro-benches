@@ -873,6 +873,9 @@ Applied automatically by `scripts/setup-monorepo.sh` (33 by `scripts/ppx-expand.
 | 52 | `duniverse/analyzer/src/util/std/gobRef.ml` | Eta-expand `wrap` | OxCaml, same as 35 (its one caller applies it fully) |
 | 53 | `duniverse/base/shadow-stdlib/gen/mapper.mll` | Handle kind-annotated types (`type t : k`) in the stdlib `.cmi` dump | OxCaml: the manifest must come after the kind; the rule never fires on stock |
 | 54 | apron's `ap_config.h` and `mlapronidl/Makefile` (in `scripts/vendor-apron.sh`) | Undefine `bool`/`true`/`false` before `typedef char bool`; compile `.cmi`/`.cmo` with `-for-pack Apron` | OxCaml: its `caml/misc.h` includes `<stdbool.h>`, and it records the pack prefix in the `.cmi` (as 47) |
+| 55 | `duniverse/ocaml-compiler-libs/src/read_cma/read_cma.ml` | Split into `read_cma.{upstream,oxcaml}.ml` plus a rule choosing by `%{ocaml_version}` | OxCaml: `cu_name` is a `Compilation_unit.t`. No one source compiles on both compiler-libs; the rule and the OxCaml side are what OxCaml's own vendored copy uses |
+| 56 | `duniverse/base/shadow-stdlib/gen/gen.ml` | Split as 55, the OxCaml side printing `fst cmi.cmi_sign` | OxCaml: `cmi_sign` pairs the signature with a mode |
+| 57 | `duniverse/base/shadow-stdlib/gen/dune` | Also link `compiler-libs.bytecomp` | OxCaml moved `Printtyp`/`Cmi_format`/`Subst` from `compiler-libs.common` to `compiler-libs.frontend` (absent on stock); `bytecomp` pulls in the right one on both |
 
 ## OxCaml compatibility
 
