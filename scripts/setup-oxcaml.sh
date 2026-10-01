@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Source patches that let the vendored tree compile with OxCaml as well as stock
 # OCaml. Each one is plain OCaml that behaves identically on stock OCaml, so they
-# are applied for every compiler. Called by setup-monorepo.sh ([35]-[45]) and, for
+# are applied for every compiler. Called by setup-monorepo.sh ([35]-[45], [48]-[53]) and, for
 # infer's own checkouts that vendor-javalib-sawja.sh resets on every build, by
 # vendor-javalib-sawja.sh ([46]-[47]). scripts/tests/oxcaml-repros.sh reproduces
 # each class of incompatibility on its own.
@@ -226,6 +226,42 @@ BATUNIX
       replace 49 "ctypes bigarray_kind $k" duniverse/ocaml-ctypes/src/ctypes/ctypes_memory.ml \
         "  | $k -> $k.kind" "  | $k -> fun ba -> $k.kind ba"
     done
+  fi
+
+  # Only in jsoo's [@@if oxcaml] code: OxCaml's Const_untagged_char carries an int.
+  local J=duniverse/js_of_ocaml/compiler/lib/ocaml_compiler.ml
+  if vendored "$J" 50 js_of_ocaml; then
+    replace 50 "jsoo Const_untagged_char" "$J" \
+      $'  | Const_base\n      ( Const_int8 i\n' $'  | Const_base\n      ( Const_untagged_char i\n      | Const_int8 i\n'
+    replace 50 "jsoo Const_char" "$J" \
+      $'  | Const_base (Const_char c) | Const_base (Const_untagged_char c) ->\n      Int (Targetint.of_int_exn (Char.code c))' \
+      $'  | Const_base (Const_char c) -> Int (Targetint.of_int_exn (Char.code c))'
+  fi
+
+  if vendored duniverse/devkit/action.ml 51 devkit; then
+    replace 51 "devkit random_int" duniverse/devkit/action.ml \
+      $'  | None -> Random.int\n  | Some t -> Random.State.int t' \
+      $'  | None -> (fun n -> Random.int n)\n  | Some t -> (fun n -> Random.State.int t n)'
+    replace 51 "devkit reap_orphans" duniverse/devkit/httpev.ml \
+      "Exn.catch (Unix.waitpid [Unix.WNOHANG]) 0" "Exn.catch (fun pid -> Unix.waitpid [Unix.WNOHANG] pid) 0"
+    replace 51 "devkit Parallel waitpid" duniverse/devkit/parallel.ml \
+      "Nix.restart (Unix.waitpid []) pid" "Nix.restart (fun pid -> Unix.waitpid [] pid) pid"
+  fi
+
+  # Its one caller applies it fully.
+  if vendored duniverse/analyzer/src/util/std/gobRef.ml 52 goblint; then
+    replace 52 "goblint GobRef.wrap" duniverse/analyzer/src/util/std/gobRef.ml \
+      $'let wrap r x =\n  let x0 = !r in\n  r := x;\n  Fun.protect ~finally:(fun () -> r := x0)\n' \
+      $'let wrap r x f =\n  let x0 = !r in\n  r := x;\n  Fun.protect ~finally:(fun () -> r := x0) f\n'
+  fi
+
+  # base re-exports the stdlib's types from its .cmi; OxCaml's carry a kind
+  # (`type t : k`), whose manifest must come after it. Never fires on stock.
+  local MAP=duniverse/base/shadow-stdlib/gen/mapper.mll
+  if vendored "$MAP" 53 base; then
+    after 53 "base mapper kinded types" "$MAP" \
+      $'  | "module Bigarray" _* { "" (* Don\'t deprecate it yet *) }\n' \
+      $'  | "type " (params? as params) (id as id) " : " ([^ \'=\']* as kind) (_* as def)\n      { sprintf "type nonrec %s%s : %s = %sStdlib.%s%s\\n%s"\n          params id (String.trim kind)\n          params id\n          (if is_alias id || def = "" then "" else " " ^ def)\n          (match type_replacement id with\n           | Some replacement -> replace ~is_exn:false id replacement\n           | None -> deprecated_msg ~is_exn:false id) }\n\n'
   fi
 }
 

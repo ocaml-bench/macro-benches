@@ -590,6 +590,11 @@ let buckets text =
   in
   List.sort_uniq compare (min_ocaml :: go 0 [])
 
+(* OxCaml's %{ocaml_version}. A file with conditionals on oxcaml or
+   flambda_backend also gets an expansion for it. *)
+let oxcaml_version = "5.4.0+ox"
+let oxcaml_test = Str.regexp {|\boxcaml\b\|\bflambda_backend\b|}
+
 let pp_target src = Filename.remove_extension src ^ ".pp" ^ Filename.extension src
 let version_string (a, b, c) = Printf.sprintf "%d.%d.%d" a b c
 let version_name (a, b, c) = Printf.sprintf "v%d_%d_%d" a b c
@@ -623,8 +628,8 @@ let optcomp_init_env ctx argv tmp =
   ignore (run_ok ~cwd:ctx argv);
   cookie out "ppx_optcomp.env"
 
-(* Re-run the driver as if the compiler were version v. *)
-let expand_as ctx argv init_env v out =
+(* Re-run the driver as if the compiler were version v (OxCaml if ox). *)
+let expand_as ?(ox = false) ctx argv init_env v out =
   let argv = with_output argv out in
   let argv =
     match init_env with
@@ -635,23 +640,39 @@ let expand_as ctx argv init_env v out =
           Str.global_replace (Str.regexp {|~ocaml_version:(Defined ([^)]*))|})
             (Printf.sprintf "~ocaml_version:(Defined (%d, %d, %d))" a b c) env
         in
+        let env =
+          if not ox then env
+          else
+            List.fold_left
+              (fun env flag ->
+                Str.global_replace (Str.regexp_string ("~" ^ flag ^ ":(Defined false)")) ("~" ^ flag ^ ":(Defined true)") env)
+              env [ "flambda_backend"; "flambda2" ]
+        in
         List.hd argv :: "--cookie" :: ("ppx_optcomp.env=" ^ env) :: List.tl argv
   in
-  ignore (run_ok ~cwd:ctx ~env:[ ("PPX_EXPAND_OCAML_VERSION", version_string v) ] argv)
+  let version = if ox then oxcaml_version else version_string v in
+  ignore (run_ok ~cwd:ctx ~env:[ ("PPX_EXPAND_OCAML_VERSION", version) ] argv)
 
-(* dune rules picking src's per-version expansion; ranges are (lo, hi, file). *)
-let variant_rules src ranges =
+(* dune rules picking src's expansion: (version range, file) pairs, plus an
+   OxCaml file, which the ranges then exclude. *)
+let variant_rules src ranges ox_file =
   let base = Filename.basename src in
+  let ox = "%{ocaml_version} " ^ oxcaml_version in
+  let rule conds v =
+    let cond = match conds with [ c ] -> c | cs -> "(and " ^ String.concat " " cs ^ ")" in
+    Printf.sprintf "\n(rule\n (targets %s)\n (deps %s)\n (enabled_if %s)\n (action (copy %s %s)))\n" base v cond v base
+  in
   String.concat ""
     (List.map
        (fun (lo, hi, v) ->
          let conds =
            Option.to_list (Option.map (fun lo -> "(>= %{ocaml_version} " ^ version_string lo ^ ")") lo)
            @ Option.to_list (Option.map (fun hi -> "(< %{ocaml_version} " ^ version_string hi ^ ")") hi)
+           @ if ox_file = None then [] else [ "(<> " ^ ox ^ ")" ]
          in
-         let cond = match conds with [ c ] -> c | cs -> "(and " ^ String.concat " " cs ^ ")" in
-         Printf.sprintf "\n(rule\n (targets %s)\n (deps %s)\n (enabled_if %s)\n (action (copy %s %s)))\n" base v cond v base)
-       ranges)
+         rule (if conds = [] then [ "true" ] else conds) v)
+       ranges
+    @ match ox_file with Some f -> [ rule [ "(= " ^ ox ^ ")" ] f ] | None -> [])
 
 (* ------------------------------------------------------------- manifest *)
 
@@ -793,7 +814,9 @@ let () =
               match expand ~reference pp with
               | None -> ([], None, None)
               | Some e when not in_tree -> ([ (src, header ^ e) ], None, Some src)
-              | Some e when (not (contains conditional (read_file src))) || buckets (read_file src) = [ min_ocaml ] ->
+              | Some e
+                when (not (contains conditional (read_file src)))
+                     || (buckets (read_file src) = [ min_ocaml ] && not (contains oxcaml_test (read_file src))) ->
                   ([ (dest, header ^ e) ], None, None)
               | Some _ ->
                   let reps = buckets (read_file src) in
@@ -808,10 +831,20 @@ let () =
                          (fun acc (v, e) -> match acc with (_, e') :: _ when e' = e -> acc | _ -> (v, e) :: acc)
                          [] exps)
                   in
-                  if List.length groups = 1 then ([ (dest, header ^ snd (List.hd groups)) ], None, None)
+                  (* OxCaml's expansion, unless it is the same as 5.4's. *)
+                  let ox =
+                    if not (contains oxcaml_test (read_file src)) then None
+                    else begin
+                      expand_as ~ox:true ctx argv init_env min_ocaml vpp;
+                      let e = Option.get (expand vpp) in
+                      if e = snd (List.hd groups) then None else Some e
+                    end
+                  in
+                  if List.length groups = 1 && ox = None then ([ (dest, header ^ snd (List.hd groups)) ], None, None)
                   else begin
                     if in_repo src then die "%s: per-version expansions are not supported for in-repo sources" src;
                     let stem = Filename.remove_extension src and ext = Filename.extension src in
+                    let ox_file = Printf.sprintf "%s.oxcaml%s" stem ext in
                     let vfile v = Printf.sprintf "%s.%s%s" stem (version_name v) ext in
                     let rec ranges = function
                       | (lo, _) :: ((hi, _) :: _ as rest) -> (lo, Some hi) :: ranges rest
@@ -821,7 +854,10 @@ let () =
                     let ranges =
                       List.mapi (fun i (lo, hi) -> ((if i = 0 then None else Some lo), hi, Filename.basename (vfile lo))) (ranges groups)
                     in
-                    (List.map (fun (v, e) -> (vfile v, header ^ e)) groups, Some (src, variant_rules src ranges), None)
+                    let ox_writes = match ox with Some e -> [ (ox_file, header ^ e) ] | None -> [] in
+                    ( List.map (fun (v, e) -> (vfile v, header ^ e)) groups @ ox_writes,
+                      Some (src, variant_rules src ranges (Option.map (fun _ -> Filename.basename ox_file) ox)),
+                      None )
                   end))
         owned
     in

@@ -868,6 +868,11 @@ Applied automatically by `scripts/setup-monorepo.sh` (33 by `scripts/ppx-expand.
 | 47 | infer's `javalib`/`sawja` Makefiles | Compile `.mli` and bytecode with `$(FOR_PACK)` too | OxCaml records the pack prefix in the `.cmi`, so an interface compiled without `-for-pack` breaks the pack (`a.cmx contains the description for unit A when P.A was expected`); stock accepts either |
 | 48 | `duniverse/ocaml_intrinsics_kernel/src/{int32,int64,nativeint,float}.ml`, `float.mli` | Drop `[@@builtin]` from the 8 externals naming intrinsics this OxCaml lacks (`*_c{l,t}z_nonzero_unboxed_to_untagged`, `caml_sse2_float64_{min,max}`) | OxCaml rejects an unrecognised `[@@builtin]`; stock ignores the attribute, and both then call the same C stub. OxCaml's `-disable-builtin-check` does the same, but stock rejects the flag |
 | 49 | `duniverse/ocaml-ctypes/src/ctypes/ctypes_memory.ml` | Eta-expand the four `bigarray_kind` branches | OxCaml: `Bigarray.*.kind` takes an `@ immutable` argument, so returning it unapplied into a GADT-refined function type fails. oxcaml's `ctypes.0.24.0+ox` uses OxCaml-only syntax instead |
+| 50 | `duniverse/js_of_ocaml/compiler/lib/ocaml_compiler.ml` | Move `Const_untagged_char` to the integer constants | OxCaml: inside jsoo's `[@@if oxcaml]` code only, where OxCaml's `Const_untagged_char` now carries an int; stock never compiles that branch |
+| 51 | `duniverse/devkit/{action,httpev,parallel}.ml` | Eta-expand `Random.int`, `Random.State.int` and two `Unix.waitpid` partial applications | OxCaml, same as 35 |
+| 52 | `duniverse/analyzer/src/util/std/gobRef.ml` | Eta-expand `wrap` | OxCaml, same as 35 (its one caller applies it fully) |
+| 53 | `duniverse/base/shadow-stdlib/gen/mapper.mll` | Handle kind-annotated types (`type t : k`) in the stdlib `.cmi` dump | OxCaml: the manifest must come after the kind; the rule never fires on stock |
+| 54 | apron's `ap_config.h` and `mlapronidl/Makefile` (in `scripts/vendor-apron.sh`) | Undefine `bool`/`true`/`false` before `typedef char bool`; compile `.cmi`/`.cmo` with `-for-pack Apron` | OxCaml: its `caml/misc.h` includes `<stdbool.h>`, and it records the pack prefix in the `.cmi` (as 47) |
 
 ## OxCaml compatibility
 
