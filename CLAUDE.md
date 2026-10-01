@@ -433,17 +433,21 @@ same source and none needs ppxlib (which trunk and OxCaml can't always build).
   (patch 33). flambda conditionals abort: there is no bucket for them.
 - **Manifest.** `scripts/ppx-expand/manifest` lists a BLAKE2b-256 of every file
   written (dashes for a deleted one); setup fails if the expansion differs. The
-  same list is written to `duniverse/.ppx-expanded`, which marks the tree as
-  expanded: a re-run (or a restored CI cache) only compares it with the manifest.
-  After a bump: `bash scripts/ppx-expand.sh --update` on a fresh duniverse/vendor,
-  and commit the manifest.
+  tool writes the same list to `duniverse/.ppx-expanded`, which also marks the
+  tree as expanded: a re-run (or a restored CI cache) only compares it with the
+  manifest, without the switch. After a bump: `bash scripts/ppx-expand.sh --update`
+  on a fresh duniverse/vendor, and commit the manifest. Paths in
+  `scripts/ppx-expand/per-os` have one line per OS (third column, `uname -s`);
+  `--update` on an OS rewrites only its own lines, and a check reads only the
+  untagged lines and its own. Linux and FreeBSD expansions were otherwise
+  identical (checked 2026-10-01 against a FreeBSD 15.1 run).
 - **In-repo sources**: a benchmark's own `.ml` that uses a ppx lives in
   `benchmarks/<tool>/ppx-src/`; its expansion is committed one level up and is
   what the benchmark builds (today `benchmarks/sedlex`).
 - **Check**: on an expanded tree `ci-build-all.sh` fails if it built any ppx
   driver, which is how a missed file shows up.
 - **Platform**: extunix's `ppx_have` expands by the features configure found, so
-  its two files can differ by OS. <!-- TODO: per-OS manifest entries if FreeBSD differs -->
+  its two files differ between Linux and FreeBSD; they are the per-os entries.
 
 ## Gotchas (hard-won — don't rediscover)
 

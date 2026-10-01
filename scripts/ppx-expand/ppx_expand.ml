@@ -3,14 +3,13 @@
    has built every benchmark into DIR: every ppx output in that build is
    expanded, except for the ppxs' own code.
 
-     ppx_expand --build-dir DIR [--update]
+     ppx_expand --build-dir DIR [--ppx-src-only]
 
-   Without --update, fails if the files it wrote differ from the committed
-   manifest (scripts/ppx-expand/manifest). *)
+   Writes the list of files it wrote, with their hashes, to the marker; the
+   script checks that against scripts/ppx-expand/manifest. *)
 
 open Parsetree
 
-let manifest_file = "scripts/ppx-expand/manifest"
 (* Inside duniverse/ so it travels with a cached duniverse/ and vendor/. *)
 let marker = "duniverse/.ppx-expanded"
 
@@ -659,32 +658,13 @@ let variant_rules src ranges =
 let deleted_hash = String.make 64 '-'
 let hash path = Digest.BLAKE256.to_hex (Digest.BLAKE256.file path)
 
+(* "hash  path" for every file written; ppx-expand.sh compares this with the
+   committed manifest. *)
 let manifest_text written deleted =
   let paths = List.sort_uniq compare (written @ deleted) in
-  "# BLAKE2b-256 of every file scripts/ppx-expand.sh writes; dashes = deleted.\n"
-  ^ "# Regenerate with: bash scripts/ppx-expand.sh --update\n"
+  "# BLAKE2b-256 of every file scripts/ppx-expand.sh wrote (dashes: deleted).\n"
   ^ String.concat ""
       (List.map (fun p -> (if List.mem p deleted then deleted_hash else hash p) ^ "  " ^ p ^ "\n") paths)
-
-let entries text =
-  List.filter_map
-    (fun l ->
-      if l = "" || l.[0] = '#' then None
-      else match String.index_opt l ' ' with Some i -> Some (String.sub l (i + 2) (String.length l - i - 2), l) | None -> None)
-    (String.split_on_char '\n' text)
-
-let check_manifest text update =
-  if update then (write_file manifest_file text; print_endline ("ppx-expand: wrote " ^ manifest_file))
-  else if not (Sys.file_exists manifest_file) then die "no committed manifest; run with --update to create it"
-  else
-    let want = read_file manifest_file in
-    if want <> text then begin
-      let a = entries want and b = entries text in
-      let paths = List.sort_uniq compare (List.map fst a @ List.map fst b) in
-      let diff = List.filter (fun p -> List.assoc_opt p a <> List.assoc_opt p b) paths in
-      List.iteri (fun i p -> if i < 50 then prerr_endline ("  differs: " ^ p)) diff;
-      die "%d expanded files differ from %s" (List.length diff) manifest_file
-    end
 
 (* ------------------------------------------------------------- main *)
 
@@ -693,13 +673,12 @@ let is_binary_ast path =
       match really_input_string ic 9 with s -> s = "Caml1999M" || s = "Caml1999N" | exception End_of_file -> false)
 
 let () =
-  let build_dir = ref "" and update = ref false and ppx_src_only = ref false in
+  let build_dir = ref "" and ppx_src_only = ref false in
   Arg.parse
     [ ("--build-dir", Arg.Set_string build_dir, "DIR build of every benchmark, on this switch");
-      ("--update", Arg.Set update, " rewrite the manifest instead of checking it");
       ("--ppx-src-only", Arg.Set ppx_src_only, " only expand the in-repo ppx-src/ sources (before the build)") ]
     (fun a -> die "unexpected argument %s" a)
-    "ppx_expand --build-dir DIR [--update]";
+    "ppx_expand --build-dir DIR [--ppx-src-only]";
   let bd = !build_dir in
   if bd = "" then die "--build-dir is required";
   if Sys.file_exists marker then die "%s exists: the tree is already expanded" marker
@@ -885,6 +864,5 @@ let () =
     let text = manifest_text !written !deleted in
     write_file marker text;
     Printf.printf "ppx-expand: expanded %d files (%d split per OCaml version)\n" (List.length (List.sort_uniq compare !written))
-      (List.length !deleted);
-    check_manifest text !update
+      (List.length !deleted)
   end

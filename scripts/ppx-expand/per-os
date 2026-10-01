@@ -1,0 +1,5 @@
+# Files whose expansion depends on the OS: the manifest has a line per OS for
+# each (scripts/ppx-expand.sh --update on that OS adds it).
+# extunix's ppx_have expands by the features its configure step found.
+duniverse/extunix/src/all.ml
+duniverse/extunix/src/specific.ml

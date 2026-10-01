@@ -8,7 +8,8 @@
 # its expansion is committed one level up.
 #
 # Usage: bash scripts/ppx-expand.sh [--update]
-#   --update  rewrite the manifest instead of checking against it (after a bump)
+#   --update  record this expansion in the manifest instead of checking it
+#             (after a bump; once per OS for the paths in scripts/ppx-expand/per-os)
 # Env:   TOOLS_SWITCH (default macro-benches-tools): see scripts/lib-switch.sh.
 #        The caller's current switch is not changed.
 set -euo pipefail
@@ -21,6 +22,48 @@ TAG=ppx-expand
 BUILD_DIR="_build-$TAG"
 TOOL_DIR=_build-ppx-expand-tool
 MARKER=duniverse/.ppx-expanded
+MANIFEST=scripts/ppx-expand/manifest
+PER_OS=scripts/ppx-expand/per-os
+OS="$(uname -s)"
+UPDATE=0
+[ "${1:-}" = "--update" ] && UPDATE=1
+
+# This OS's entries of a manifest: "hash  path", sorted. A path in per-os has
+# one line per OS, with the OS (uname -s) as a third column.
+manifest_view() {
+  awk -v os="$OS" '!/^#/ && NF && (NF == 2 || $3 == os) { print $1 "  " $2 }' "$1" | LC_ALL=C sort
+}
+
+# Record the marker in the manifest, keeping the other OSes' lines.
+update_manifest() {
+  [ -f "$MANIFEST" ] || : > "$MANIFEST"
+  {
+    echo "# BLAKE2b-256 of every file scripts/ppx-expand.sh writes (dashes: deleted)."
+    echo "# A third column is the OS (uname -s) a line is for: paths in per-os."
+    echo "# Regenerate with: bash scripts/ppx-expand.sh --update"
+    awk -v os="$OS" '
+      FILENAME == ARGV[1] { if (!/^#/ && NF) per[$1] = 1; next }
+      FILENAME == ARGV[2] { if (!/^#/ && NF == 3 && $3 != os) print; next }
+      !/^#/ && NF { if ($2 in per) print $1 "  " $2 "  " os; else print $1 "  " $2 }
+    ' "$PER_OS" "$MANIFEST" "$MARKER" | LC_ALL=C sort -k2,2 -k3,3
+  } > "$MANIFEST.tmp"
+  mv "$MANIFEST.tmp" "$MANIFEST"
+  echo "ppx-expand: recorded the expansion in $MANIFEST ($OS)."
+}
+
+check_manifest() {
+  local want have
+  want="$(manifest_view "$MANIFEST")"
+  have="$(manifest_view "$MARKER")"
+  if [ "$want" = "$have" ]; then
+    echo "ppx-expand: the expansion matches $MANIFEST."
+    return 0
+  fi
+  diff <(echo "$want") <(echo "$have") | awk '/^[<>]/ { print "  differs: " $3 }' | LC_ALL=C sort -u | head -50 >&2
+  echo "ERROR: the expansion differs from $MANIFEST. After a bump, run with --update;" >&2
+  echo "       a path in per-os needs an --update on each OS." >&2
+  return 1
+}
 
 if [[ -x /usr/local/bin/opam ]]; then
   _OPAM=/usr/local/bin/opam
@@ -32,16 +75,8 @@ fi
 # Already expanded (e.g. a restored CI cache): only check it is the expansion
 # the manifest describes, which needs no switch.
 if [ -f "$MARKER" ]; then
-  if [ "${1:-}" = "--update" ]; then
-    cp "$MARKER" scripts/ppx-expand/manifest
-    echo "ppx-expand: tree already expanded; copied its manifest."
-  elif cmp -s "$MARKER" scripts/ppx-expand/manifest; then
-    echo "ppx-expand: tree already expanded and matches the manifest."
-  else
-    echo "ERROR: duniverse/ was expanded for a different manifest; re-run setup from a fresh duniverse/ and vendor/." >&2
-    exit 1
-  fi
-  exit 0
+  if [ "$UPDATE" = 1 ]; then update_manifest; else check_manifest; fi
+  exit
 fi
 
 ensure_tools_switch "$_OPAM"
@@ -108,5 +143,6 @@ fi
   fi
   find benchmarks -type f -name "*-$TAG*" -delete
 
-  "$TOOL_DIR/ppx_expand" --build-dir "$BUILD_DIR" "$@"
+  "$TOOL_DIR/ppx_expand" --build-dir "$BUILD_DIR"
 )
+if [ "$UPDATE" = 1 ]; then update_manifest; else check_manifest; fi
