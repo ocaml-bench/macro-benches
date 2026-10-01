@@ -146,14 +146,14 @@ trunk (5.6) and `ocaml-mmtk` are not yet exercised. The pieces:
 deps for the lock. `javalib`/`sawja` are deliberately **not** declared there — they come from the
 prefix. All of Infer's other deps (`core`, `atdgen`, `parmap`, …) come from the in-tree `duniverse/`.
 
-**Prerequisites.** A tools switch with `opam-monorepo`; system packages `libsqlite3-dev`,
+**Prerequisites.** System packages `libsqlite3-dev`,
 `zlib1g-dev`, `unzip`, `zip`, `curl` (Infer links sqlite3 + zlib; capture is JVM-free, so no JDK).
 No per-switch `cppo` is needed — `vendor-javalib-sawja.sh` builds the pinned cppo into the prefix,
 so the whole chain is opam-free.
 
 **One-time lock (Linux tools-switch only).** Infer's deps must be in the lock:
-`OPAMSWITCH=running-ng-tools opam monorepo lock` then `make clean-all && make setup`, and commit
-<!-- TODO(docs): the tools switch is now macro-benches-tools, created by setup (scripts/lib-switch.sh); lock with OPAMSWITCH=macro-benches-tools. -->
+`OPAMSWITCH=macro-benches-tools opam monorepo lock` (the tools switch setup creates, which has
+`opam-monorepo`) then `make clean-all && make setup`, and commit
 `macro-benches.opam.locked` + `dune-project` + `*.opam`.
 
 **Standalone sanity (one runtime).** The rung is selected from the output basename

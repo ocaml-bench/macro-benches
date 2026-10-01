@@ -89,10 +89,8 @@ cd ~/macro-benches
 make setup          # or: bash scripts/setup-monorepo.sh
 ```
 
-<!-- TODO(docs): setup no longer needs an existing switch: it creates its own pinned one, macro-benches-tools (OCaml 5.4.1, dune 3.22.1, ocamlfind 1.9.8, opam-monorepo 0.4.3, zarith 1.14; scripts/lib-switch.sh), without changing your active switch. TOOLS_SWITCH picks another name. -->
 This pulls the vendored packages, applies the source patches, builds the few
-non-dune dependencies (pplacer, apron, rocq), and test-builds every binary. 
-<!-- TODO(docs): setup now also replaces ppx preprocessing with its expanded source (scripts/ppx-expand.sh): it builds every benchmark once on the tools switch, and expands every ppx output in place, so benchmark builds on any compiler never build a ppx. The caller's switch is not changed. The result is checked against scripts/ppx-expand/manifest. -->
+non-dune dependencies (pplacer, apron, rocq), replaces ppx preprocessing with its expanded source, and test-builds every binary.
 
 Verified with dune **3.22.1** and **3.24.0**. If you already have a populated
 `duniverse/` and are moving to dune 3.24+, rerun `make setup`.
@@ -184,16 +182,17 @@ make setup          # repopulate from the lock file
 ## How it works
 
 1. Dependencies are locked once (`opam monorepo lock`) into
-   `macro-benches.opam.locked`, which is committed.
+   `macro-benches.opam.locked`.
 2. `opam monorepo pull` downloads all of them into `duniverse/`.
 3. `setup-monorepo.sh` applies a set of source patches for newer compilers,
    known upstream bugs, and platform differences.
 4. The few packages that are not opam/dune (pplacer, apron, rocq) are vendored and built by their own scripts.
-<!-- TODO(docs): new step between 4 and 5: ppx preprocessing is replaced by its expanded source, generated once on a pinned switch (scripts/ppx-expand.sh), so every compiler builds the same source with no ppx; a handful of files have one expansion per OCaml version range, picked by dune. -->
-5. `dune build` compiles everything from local source with whichever compiler is on `PATH`, into a per-runtime `_build-<runtime>/` directory so different runtimes do not clobber each other.
+5. ppx preprocessing is replaced by its expanded source depending on the OCaml version.
+6. `dune build` compiles everything from local source with whichever compiler is on `PATH`, into a per-runtime `_build-<runtime>/` directory so different runtimes do not contaminate each other.
 
 Third-party versions all come from `sources.yml`, pinned to commits. To bump any of the sources, change that file and rerun `make setup`.
-<!-- TODO(docs): after a bump, regenerate the expansion manifest with `bash scripts/ppx-expand.sh --update` (on a fresh duniverse/ and vendor/) and commit scripts/ppx-expand/manifest; setup fails while it is stale. -->
+Make sure that if the bump changes any expanded file, run
+`bash scripts/ppx-expand.sh --update` and commit `scripts/ppx-expand/manifest`. A few files expand differently per OS (listed in `scripts/ppx-expand/per-os`): their lines are updated by running `--update` on each OS.
 
 ## Build-script contract
 
