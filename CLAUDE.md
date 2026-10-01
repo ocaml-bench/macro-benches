@@ -157,7 +157,7 @@ Two matrix legs: the
 is not a required check because it tracks a moving compiler and needs ppxlib/lwt
 git `main` (patches 4+5 below). It is deliberately **not** `continue-on-error`:
 that marked the whole run green while trunk failed, which hid a trunk link
-break on master for days (patch 33). A red trunk leg now fails the run but, not
+break on master for days (patch 32). A red trunk leg now fails the run but, not
 being required, does not block merges. The trunk leg resolves the tip commit *before*
 creating the switch and folds the SHA into every cache key — otherwise a restored
 opam-root cache silently tests a stale trunk.
