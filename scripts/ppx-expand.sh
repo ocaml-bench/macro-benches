@@ -59,7 +59,9 @@ check_manifest() {
     echo "ppx-expand: the expansion matches $MANIFEST."
     return 0
   fi
-  diff <(echo "$want") <(echo "$have") | awk '/^[<>]/ { print "  differs: " $3 }' | LC_ALL=C sort -u | head -50 >&2
+  # This OS's view of both, so per-OS tags and other OSes' lines do not show.
+  echo "Manifest (<) vs this expansion (>):" >&2
+  diff <(echo "$want") <(echo "$have") | grep '^[<>]' | head -100 >&2
   echo "ERROR: the expansion differs from $MANIFEST. After a bump, run with --update;" >&2
   echo "       a path in per-os needs an --update on each OS." >&2
   return 1
