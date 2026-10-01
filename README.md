@@ -89,9 +89,10 @@ cd ~/macro-benches
 make setup          # or: bash scripts/setup-monorepo.sh
 ```
 
+<!-- TODO(docs): setup no longer needs an existing switch: it creates its own pinned one, macro-benches-tools (OCaml 5.4.1, dune 3.22.1, ocamlfind 1.9.8, opam-monorepo 0.4.3, zarith 1.14; scripts/lib-switch.sh), without changing your active switch. TOOLS_SWITCH picks another name. -->
 This pulls the vendored packages, applies the source patches, builds the few
 non-dune dependencies (pplacer, apron, rocq), and test-builds every binary. 
-<!-- TODO(docs): setup now also replaces ppx preprocessing with its expanded source (scripts/ppx-expand.sh): it creates a dedicated opam switch, macro-benches-ppx (OCaml 5.4.1, dune 3.22.1, ocamlfind 1.9.8), builds every benchmark on it once, and expands every ppx output in place, so benchmark builds on any compiler never build a ppx. The caller's switch is not changed. The result is checked against scripts/ppx-expand/manifest. -->
+<!-- TODO(docs): setup now also replaces ppx preprocessing with its expanded source (scripts/ppx-expand.sh): it builds every benchmark once on the tools switch, and expands every ppx output in place, so benchmark builds on any compiler never build a ppx. The caller's switch is not changed. The result is checked against scripts/ppx-expand/manifest. -->
 
 Verified with dune **3.22.1** and **3.24.0**. If you already have a populated
 `duniverse/` and are moving to dune 3.24+, rerun `make setup`.

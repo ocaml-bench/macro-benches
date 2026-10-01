@@ -401,10 +401,14 @@ Benchmark builds never run a ppx. `scripts/ppx-expand.sh` (setup step [8b/9])
 replaces every ppx use with its expanded source, so every compiler builds the
 same source and none needs ppxlib (which trunk and OxCaml can't always build).
 
-- **Dedicated switch** `macro-benches-ppx` (`PPX_SWITCH`): exactly OCaml 5.4.1,
-  dune 3.22.1, ocamlfind 1.9.8, created with `--no-switch` and used only inside a
-  subshell (other switches are stripped from `PATH`), so the caller's switch never
-  changes. Pinned because the expansion and its printing depend on them.
+- **Tools switch** `macro-benches-tools` (`TOOLS_SWITCH`, `scripts/lib-switch.sh`):
+  all of setup runs on it, the expansion included. Exactly OCaml 5.4.1, dune 3.22.1,
+  ocamlfind 1.9.8, opam-monorepo 0.4.3, zarith 1.14; created with `--no-switch` on
+  first use, and an existing switch of that name at other versions is an error.
+  Scripts only read its environment in their own process (ppx-expand.sh also
+  strips other switches from `PATH`), so the caller's switch never changes. Pinned
+  because the expansion and its printing depend on it. Having setup's tools in it
+  does not change the expansion (checked: identical manifest).
 - **Scope = a real build.** It runs `ci-build-all.sh` on that switch (tag
   `ppx-expand`), so each build script's own setup (goblint's apron prefix, infer's
   javalib/sawja) applies, then expands every binary `*.pp.ml(i)` in
@@ -892,7 +896,7 @@ For the lock file itself:
 # 1. Modify dune-project if adding/removing packages
 # 2. Re-lock in a switch that has the opam-monorepo plugin
 #    (OPAMSWITCH selects it for this one command without changing your shell's switch)
-OPAMSWITCH=<tools-switch> opam monorepo lock
+OPAMSWITCH=macro-benches-tools opam monorepo lock
 # 3. Rebuild from scratch (setup fails on the stale expansion manifest)
 make clean-all && make setup
 # 4. Regenerate the manifest on the fresh tree

@@ -4,8 +4,9 @@
 # ppx preprocessing with its expansion, smoke-build.
 #
 # Usage: bash scripts/setup-monorepo.sh
-# Env:   TOOLS_SWITCH (default running-ng-tools): opam switch with dune + ocamlfind
-#        PPX_SWITCH (default macro-benches-ppx): see scripts/ppx-expand.sh
+# Env:   TOOLS_SWITCH (default macro-benches-tools): the pinned switch setup runs
+#        on, created if missing (scripts/lib-switch.sh). Your active switch is
+#        not changed.
 #        SKIP_TEST_BUILD=1: skip the [9/9] smoke build
 # Needs opam 2.3+ and libgmp-dev, libevent-dev, libcurl4-openssl-dev,
 # libpcre3-dev, zlib1g-dev.
@@ -15,6 +16,7 @@ MONOREPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$MONOREPO_DIR"
 
 source "$MONOREPO_DIR/scripts/lib-sources.sh"
+source "$MONOREPO_DIR/scripts/lib-switch.sh"
 
 if [[ -x /usr/local/bin/opam ]]; then
   _OPAM=/usr/local/bin/opam
@@ -25,7 +27,10 @@ if [ -z "${_OPAM:-}" ]; then
   echo "ERROR: opam not found (no executable /usr/local/bin/opam, none on PATH)." >&2
   exit 1
 fi
-TOOLS_SWITCH="${TOOLS_SWITCH:-running-ng-tools}"
+
+echo "[1/9] Ensuring the tools switch ($TOOLS_SWITCH)..."
+ensure_tools_switch "$_OPAM"
+echo ""
 
 # Take the tools switch's own environment rather than the caller's: bytecode
 # linking resolves C stubs through the inherited CAML_LD_LIBRARY_PATH, so a
@@ -35,9 +40,6 @@ TOOLS_SWITCH="${TOOLS_SWITCH:-running-ng-tools}"
 _tools_env="$("$_OPAM" env --switch="$TOOLS_SWITCH" --set-switch 2>/dev/null || true)"
 if [ -z "$_tools_env" ]; then
   echo "ERROR: cannot read the environment of opam switch '$TOOLS_SWITCH'." >&2
-  echo "       It must exist before setup runs. Create it, e.g.:" >&2
-  echo "         opam switch create $TOOLS_SWITCH ocaml-base-compiler.5.4.0" >&2
-  echo "       or point setup at an existing switch with TOOLS_SWITCH=<name>." >&2
   exit 1
 fi
 eval "$_tools_env"
@@ -51,9 +53,6 @@ echo "Monorepo dir: $MONOREPO_DIR"
 echo "Tools switch: $TOOLS_SWITCH ($TOOLS_BIN)"
 echo ""
 
-echo "[1/9] Ensuring tools switch has opam-monorepo + zarith..."
-"$_OPAM" install --switch "$TOOLS_SWITCH" --yes opam-monorepo zarith dune ocamlfind
-echo ""
 
 echo "[2/9] Pulling vendored sources (opam monorepo pull)..."
 if [ -d duniverse ] && [ "$(ls duniverse/ | wc -l)" -gt 0 ]; then

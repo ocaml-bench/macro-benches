@@ -153,6 +153,7 @@ so the whole chain is opam-free.
 
 **One-time lock (Linux tools-switch only).** Infer's deps must be in the lock:
 `OPAMSWITCH=running-ng-tools opam monorepo lock` then `make clean-all && make setup`, and commit
+<!-- TODO(docs): the tools switch is now macro-benches-tools, created by setup (scripts/lib-switch.sh); lock with OPAMSWITCH=macro-benches-tools. -->
 `macro-benches.opam.locked` + `dune-project` + `*.opam`.
 
 **Standalone sanity (one runtime).** The rung is selected from the output basename

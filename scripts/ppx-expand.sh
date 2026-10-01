@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Replace ppx preprocessing with its expanded source, so benchmark builds never
-# build a ppx. On a dedicated pinned switch, build every benchmark once, then
+# build a ppx. On the pinned tools switch, build every benchmark once, then
 # expand every ppx output of that build in place (except the ppxs' own code)
 # and check the result against scripts/ppx-expand/manifest.
 #
@@ -9,18 +9,14 @@
 #
 # Usage: bash scripts/ppx-expand.sh [--update]
 #   --update  rewrite the manifest instead of checking against it (after a bump)
-# Env:   PPX_SWITCH (default macro-benches-ppx): the dedicated switch, created
-#        if missing. The caller's current switch is not changed.
+# Env:   TOOLS_SWITCH (default macro-benches-tools): see scripts/lib-switch.sh.
+#        The caller's current switch is not changed.
 set -euo pipefail
 
 MONOREPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$MONOREPO_DIR"
 
-# The expansion is only reproducible if these are fixed.
-PPX_OCAML=5.4.1
-PPX_DUNE=3.22.1
-PPX_OCAMLFIND=1.9.8
-PPX_SWITCH="${PPX_SWITCH:-macro-benches-ppx}"
+source scripts/lib-switch.sh
 TAG=ppx-expand
 BUILD_DIR="_build-$TAG"
 TOOL_DIR=_build-ppx-expand-tool
@@ -48,14 +44,7 @@ if [ -f "$MARKER" ]; then
   exit 0
 fi
 
-PACKAGES="ocaml-base-compiler.$PPX_OCAML dune.$PPX_DUNE ocamlfind.$PPX_OCAMLFIND"
-if ! "$_OPAM" switch list --short 2>/dev/null | grep -qx "$PPX_SWITCH"; then
-  echo "Creating opam switch $PPX_SWITCH ($PACKAGES)..."
-  "$_OPAM" switch create "$PPX_SWITCH" --no-switch --yes --packages="${PACKAGES// /,}"
-else
-  # shellcheck disable=SC2086
-  "$_OPAM" install --switch="$PPX_SWITCH" --yes $PACKAGES >/dev/null
-fi
+ensure_tools_switch "$_OPAM"
 
 # jsoo's ppx_optcomp_light reads the compiler version from Sys.ocaml_version;
 # let the per-version expansion override it. Idempotent.
@@ -88,17 +77,14 @@ fi
     path="${path:+$path:}$e"
   done
   export PATH="$path"
-  eval "$("$_OPAM" env --switch="$PPX_SWITCH" --set-switch)"
-  prefix="$("$_OPAM" var prefix --switch="$PPX_SWITCH")"
+  eval "$("$_OPAM" env --switch="$TOOLS_SWITCH" --set-switch)"
+  prefix="$("$_OPAM" var prefix --switch="$TOOLS_SWITCH")"
   for tool in ocamlc dune ocamlfind; do
     [ "$(command -v "$tool")" = "$prefix/bin/$tool" ] \
-      || { echo "ERROR: $tool is not $PPX_SWITCH's ($(command -v "$tool"))." >&2; exit 1; }
+      || { echo "ERROR: $tool is not $TOOLS_SWITCH's ($(command -v "$tool"))." >&2; exit 1; }
   done
-  [ "$(ocamlc -version)" = "$PPX_OCAML" ] && [ "$(dune --version)" = "$PPX_DUNE" ] \
-    || { echo "ERROR: $PPX_SWITCH must have OCaml $PPX_OCAML and dune $PPX_DUNE" \
-              "(has $(ocamlc -version), $(dune --version))." >&2; exit 1; }
   [ "$(ocamlc -config-var flambda)" = "false" ] \
-    || { echo "ERROR: $PPX_SWITCH must not be an flambda switch." >&2; exit 1; }
+    || { echo "ERROR: $TOOLS_SWITCH must not be an flambda switch." >&2; exit 1; }
 
   mkdir -p "$TOOL_DIR"
   cp scripts/ppx-expand/ppx_expand.ml "$TOOL_DIR/"
@@ -111,11 +97,11 @@ fi
   # The build scripts set up what each benchmark needs (goblint's apron,
   # infer's javalib), so a real build preprocesses exactly what benchmark
   # builds do. Its outputs are not benchmark binaries: remove them.
-  echo "Building every benchmark on $PPX_SWITCH to find the ppx outputs..."
+  echo "Building every benchmark on $TOOLS_SWITCH to find the ppx outputs..."
   if ! env -u GITHUB_STEP_SUMMARY RUNNING_OCAML_RUNTIME_NAME="$TAG" \
-       RUNNING_OCAML_SWITCH="$PPX_SWITCH" LOG_DIR="$MONOREPO_DIR/ci-logs/$TAG" \
+       RUNNING_OCAML_SWITCH="$TOOLS_SWITCH" LOG_DIR="$MONOREPO_DIR/ci-logs/$TAG" \
        bash scripts/ci-build-all.sh; then
-    echo "ERROR: a benchmark failed to build on $PPX_SWITCH; see ci-logs/$TAG/." >&2
+    echo "ERROR: a benchmark failed to build on $TOOLS_SWITCH; see ci-logs/$TAG/." >&2
     exit 1
   fi
   find benchmarks -type f -name "*-$TAG*" -delete

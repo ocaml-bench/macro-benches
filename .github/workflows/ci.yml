@@ -120,18 +120,17 @@ jobs:
             duniverse
             vendor
             _rocq_prefix
-          key: vendor-${{ steps.compiler.outputs.id }}-${{ hashFiles('macro-benches.opam.locked', 'sources.yml', 'dune-project', 'scripts/setup-monorepo.sh', 'scripts/vendor-*.sh', 'scripts/lib-sources.sh', 'scripts/ppx-expand.sh', 'scripts/ppx-expand/**') }}
+          key: vendor-${{ steps.compiler.outputs.id }}-${{ hashFiles('macro-benches.opam.locked', 'sources.yml', 'dune-project', 'scripts/setup-monorepo.sh', 'scripts/vendor-*.sh', 'scripts/lib-sources.sh', 'scripts/lib-switch.sh', 'scripts/ppx-expand.sh', 'scripts/ppx-expand/**') }}
 
       - name: Set up the monorepo (vendor sources, patch, bootstrap rocq)
         run: |
-          # setup-monorepo.sh defaults to a switch named running-ng-tools; in CI
-          # the switch setup-ocaml just made is both the tools switch and the
-          # runtime under test. SKIP_TEST_BUILD avoids compiling the duniverse a
-          # second time into the default _build/ — ci-build-all.sh does that work
-          # in _build-ci/ immediately below.
+          # setup-monorepo.sh creates and uses its own pinned tools switch
+          # (scripts/lib-switch.sh); the switch setup-ocaml made is the runtime
+          # under test. SKIP_TEST_BUILD avoids compiling the duniverse a second
+          # time into the default _build/ — ci-build-all.sh does that work in
+          # _build-ci/ immediately below.
           eval "$(opam env)"
-          TOOLS_SWITCH="$(opam switch show)" SKIP_TEST_BUILD=1 \
-            bash scripts/setup-monorepo.sh
+          SKIP_TEST_BUILD=1 bash scripts/setup-monorepo.sh
 
       - name: Build every benchmark
         run: |

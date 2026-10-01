@@ -211,11 +211,10 @@ jobs:
         run: |
           cd /work
           eval "$(opam env --switch=ci --set-switch)"
-          # As on Linux: the switch just created is both the tools switch and
-          # the runtime under test, and SKIP_TEST_BUILD avoids compiling the
-          # duniverse a second time into the default _build/.
-          TOOLS_SWITCH="$(opam switch show)" SKIP_TEST_BUILD=1 \
-            bash scripts/setup-monorepo.sh
+          # As on Linux: setup creates its own pinned tools switch, the switch
+          # just created is the runtime under test, and SKIP_TEST_BUILD avoids
+          # compiling the duniverse a second time into the default _build/.
+          SKIP_TEST_BUILD=1 bash scripts/setup-monorepo.sh
 
       - name: Build every benchmark
         shell: freebsd {0}
