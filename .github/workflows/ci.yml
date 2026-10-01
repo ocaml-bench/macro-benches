@@ -108,6 +108,9 @@ jobs:
             opam install --yes dune.${{ matrix.dune }}
           fi
           dune --version
+          # goblint's apron and infer's javalib/sawja build with the runtime's
+          # ocamlfind; setup's own tools live in its own switch.
+          opam install --yes ocamlfind
 
       # duniverse/, vendor/ and _rocq_prefix/ are the setup phase's output;
       # vendor/ also holds the per-runtime apron prefix, so the compiler identity

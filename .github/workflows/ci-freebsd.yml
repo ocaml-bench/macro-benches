@@ -205,6 +205,9 @@ jobs:
             opam install --yes "dune.${{ matrix.dune }}"
           fi
           dune --version
+          # goblint's apron and infer's javalib/sawja build with the runtime's
+          # ocamlfind; setup's own tools live in its own switch.
+          opam install --yes ocamlfind
 
       - name: Set up the monorepo (vendor sources, patch, bootstrap rocq)
         shell: freebsd {0}
