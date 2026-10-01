@@ -404,7 +404,10 @@ same source and none needs ppxlib (which trunk and OxCaml can't always build).
 - **Tools switch** `macro-benches-tools` (`TOOLS_SWITCH`, `scripts/lib-switch.sh`):
   all of setup runs on it, the expansion included. Exactly OCaml 5.4.1, dune 3.22.1,
   ocamlfind 1.9.8, opam-monorepo 0.4.3, zarith 1.14; created with `--no-switch` on
-  first use, and an existing switch of that name at other versions is an error.
+  first use from opam's `default` repository only (another registered repository
+  can resolve `ocaml-base-compiler.5.4.1` to `5.4.1+relocatable`), and checked by
+  `ocamlc -version` and non-flambda. An existing switch of that name at other
+  versions is an error, and setup never changes an existing switch's compiler.
   Scripts only read its environment in their own process (ppx-expand.sh also
   strips other switches from `PATH`), so the caller's switch never changes. Pinned
   because the expansion and its printing depend on it. Having setup's tools in it

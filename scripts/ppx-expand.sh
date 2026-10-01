@@ -118,8 +118,6 @@ fi
     [ "$(command -v "$tool")" = "$prefix/bin/$tool" ] \
       || { echo "ERROR: $tool is not $TOOLS_SWITCH's ($(command -v "$tool"))." >&2; exit 1; }
   done
-  [ "$(ocamlc -config-var flambda)" = "false" ] \
-    || { echo "ERROR: $TOOLS_SWITCH must not be an flambda switch." >&2; exit 1; }
 
   mkdir -p "$TOOL_DIR"
   cp scripts/ppx-expand/ppx_expand.ml "$TOOL_DIR/"
