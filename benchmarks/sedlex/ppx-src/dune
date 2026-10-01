@@ -1,0 +1,8 @@
+; The benchmark's source. Nothing builds this: scripts/ppx-expand.sh expands it
+; into ../sedlex_bench.ml, which is what the benchmark compiles.
+(executable
+ (name sedlex_bench)
+ (modules sedlex_bench)
+ (libraries sedlex)
+ (preprocess
+  (pps sedlex.ppx)))

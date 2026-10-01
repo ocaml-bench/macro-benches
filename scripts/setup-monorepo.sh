@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Full setup of the macro-benches monorepo: populate duniverse/ and vendor/,
-# apply the source patches, generate rocq's config + dunestrap files, smoke-build.
+# apply the source patches, generate rocq's config + dunestrap files, replace
+# ppx preprocessing with its expansion, smoke-build.
 #
 # Usage: bash scripts/setup-monorepo.sh
 # Env:   TOOLS_SWITCH (default running-ng-tools): opam switch with dune + ocamlfind
+#        PPX_SWITCH (default macro-benches-ppx): see scripts/ppx-expand.sh
 #        SKIP_TEST_BUILD=1: skip the [9/9] smoke build
 # Needs opam 2.3+ and libgmp-dev, libevent-dev, libcurl4-openssl-dev,
 # libpcre3-dev, zlib1g-dev.
@@ -348,6 +350,15 @@ echo ""
 
 echo "[6c/9] Vendoring frama-c (kernel + EVA)..."
 bash scripts/vendor-frama-c.sh
+echo ""
+
+# Before the ppx expansion in [8b/9], which needs every vendored source.
+echo "[6d/9] Vendoring infer..."
+if [ -f vendor/infer/infer/src/base/Version.ml ]; then
+  echo "  vendor/infer/ already exists. Skipping."
+else
+  bash scripts/vendor-infer.sh
+fi
 echo ""
 
 echo "[7/9] Applying vendored source patches..."
@@ -1168,6 +1179,10 @@ else
 
   echo "  Rocq installed to _rocq_prefix/."
 fi
+echo ""
+
+echo "[8b/9] Expanding ppx-preprocessed sources (scripts/ppx-expand.sh)..."
+bash scripts/ppx-expand.sh
 echo ""
 
 # CI sets SKIP_TEST_BUILD=1: ci-build-all.sh runs straight after into
