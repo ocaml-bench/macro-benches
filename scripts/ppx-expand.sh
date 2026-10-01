@@ -97,7 +97,9 @@ fi
   # The build scripts set up what each benchmark needs (goblint's apron,
   # infer's javalib), so a real build preprocesses exactly what benchmark
   # builds do. Its outputs are not benchmark binaries: remove them.
+  # From an empty build dir: every ppx output found must come from this build.
   echo "Building every benchmark on $TOOLS_SWITCH to find the ppx outputs..."
+  rm -rf "$BUILD_DIR"
   if ! env -u GITHUB_STEP_SUMMARY RUNNING_OCAML_RUNTIME_NAME="$TAG" \
        RUNNING_OCAML_SWITCH="$TOOLS_SWITCH" LOG_DIR="$MONOREPO_DIR/ci-logs/$TAG" \
        bash scripts/ci-build-all.sh; then
