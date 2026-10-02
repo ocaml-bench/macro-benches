@@ -167,7 +167,9 @@ no in-tree compiler opam file, so it pins the newest `oxcaml-compiler` recipe in
 `oxcaml/opam-repository` `main` to the commit (in an `oxcaml` switch next to
 setup-ocaml's, which then only provides opam), with `dune.3.22.2+ox`. Both commits
 go into the cache keys. Not required, like trunk; it tracks main to see how often
-it breaks. Linux only: OxCaml does not support FreeBSD.
+it breaks. Linux only: OxCaml does not support FreeBSD. It adds 24 GB of swap
+before the build: OxCaml's `ocamlc` needs ~3x stock's memory, and jsoo's large
+workload peaks at 20.5 GB, over the runner's 16 GB (#36).
 
 The gate is enforced by branch protection on `master`: the required check is
 `build + run once (stable)`. The matrix `label` is deliberately version-free —

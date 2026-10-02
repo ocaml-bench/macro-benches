@@ -168,6 +168,17 @@ jobs:
           eval "$(opam env)"
           SKIP_TEST_BUILD=1 bash scripts/setup-monorepo.sh
 
+      # OxCaml's ocamlc needs ~3x stock's memory: jsoo's large workload peaks at
+      # 20.5 GB, over the runner's 16 GB (#36).
+      - name: Add swap
+        if: matrix.oxcaml
+        run: |
+          sudo fallocate -l 24G /swapfile-oxcaml
+          sudo chmod 600 /swapfile-oxcaml
+          sudo mkswap /swapfile-oxcaml
+          sudo swapon /swapfile-oxcaml
+          free -h
+
       - name: Build every benchmark
         run: |
           eval "$(opam env)"
