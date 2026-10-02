@@ -161,5 +161,26 @@ else
   exit 1
 fi
 
+# Textuallib lists the sedlex rewriter (sedlex.ppx) as a library too, which
+# links ppxlib into infer.exe although no module uses it; scripts/ppx-expand.sh
+# drops the ppx itself, so this would be the only thing still needing ppxlib.
+INFER_TEXTUAL_DUNE="${INFER_DIR}/infer/src/textual/dune"
+if grep -q 'menhirLib sedlex sedlex.ppx)' "${INFER_TEXTUAL_DUNE}" 2>/dev/null; then
+  python3 - "${INFER_TEXTUAL_DUNE}" <<'PATCH_EOF'
+import sys
+p = sys.argv[1]
+s = open(p).read()
+old = "(libraries core zarith IStdlib IBase IR menhirLib sedlex sedlex.ppx)"
+assert s.count(old) == 1, "Textuallib libraries not matched -- patch me"
+open(p, "w").write(s.replace(old, "(libraries core zarith IStdlib IBase IR menhirLib sedlex)"))
+PATCH_EOF
+  echo "  Textuallib: dropped the unused sedlex.ppx library."
+elif grep -q 'menhirLib sedlex)' "${INFER_TEXTUAL_DUNE}" 2>/dev/null; then
+  echo "  Textuallib sedlex.ppx library: already patched."
+else
+  echo "ERROR: Textuallib libraries not found in their expected shape -- patch me." >&2
+  exit 1
+fi
+
 echo "Done.  Infer ${INFER_REF} vendored to vendor/infer/ (java-only, pure-dune)."
 echo "  Build the exe with: dune build vendor/infer/infer/src/infer.exe"

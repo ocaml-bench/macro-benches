@@ -67,6 +67,17 @@ done < <(python3 "${MONOREPO_DIR}/scripts/ci-manifest.py" list | cut -f1,2,3)
 echo ""
 echo "=== ${count} programs, $((count - failed)) built, ${failed} failed ==="
 
+# On an expanded tree (scripts/ppx-expand.sh) no build may need a ppx: a driver
+# built since the expansion means something was left unexpanded.
+marker="${MONOREPO_DIR}/duniverse/.ppx-expanded"
+if [ -f "${marker}" ]; then
+  drivers="$(find "${MONOREPO_DIR}/_build-${RUNTIME_TAG}/default/.ppx" -name ppx.exe -newer "${marker}" 2>/dev/null | wc -l | tr -d ' ')"
+  if [ "${drivers}" != "0" ]; then
+    echo "ERROR: ${drivers} ppx driver(s) built on an expanded tree; see _build-${RUNTIME_TAG}/default/.ppx/." >&2
+    failed=$((failed + 1))
+  fi
+fi
+
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   {
     echo "## Build — $((count - failed))/${count} programs"
