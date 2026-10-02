@@ -186,6 +186,7 @@ make setup          # repopulate from the lock file
 2. `opam monorepo pull` downloads all of them into `duniverse/`.
 3. `setup-monorepo.sh` applies a set of source patches for newer compilers,
    known upstream bugs, and platform differences.
+   <!-- TODO(docs): the patches now also cover OxCaml (scripts/setup-oxcaml.sh, behaviour-preserving on stock OCaml); every program builds and the CI programs run on OxCaml main, and CI has a non-required oxcaml leg (Linux only). -->
 4. The few packages that are not opam/dune (pplacer, apron, rocq) are vendored and built by their own scripts.
 5. ppx preprocessing is replaced by its expanded source depending on the OCaml version.
 6. `dune build` compiles everything from local source with whichever compiler is on `PATH`, into a per-runtime `_build-<runtime>/` directory so different runtimes do not contaminate each other.

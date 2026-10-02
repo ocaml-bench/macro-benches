@@ -152,7 +152,7 @@ scope every PR can restore from. Note `cancel-in-progress` is deliberately limit
 to PR runs: superseding a PR run is right, but cancelling a `master` run would
 leave the merge that triggered it unverified.
 
-Two matrix legs: the
+Matrix legs: the
 **latest stable release**, which gates, and the **`ocaml/ocaml` trunk tip**, which
 is not a required check because it tracks a moving compiler and needs ppxlib/lwt
 git `main` (patches 4+5 below). It is deliberately **not** `continue-on-error`:
@@ -161,6 +161,13 @@ break on master for days (patch 32). A red trunk leg now fails the run but, not
 being required, does not block merges. The trunk leg resolves the tip commit *before*
 creating the switch and folds the SHA into every cache key — otherwise a restored
 opam-root cache silently tests a stale trunk.
+
+A third leg, **`oxcaml`**, builds `oxcaml/oxcaml` `main` the same way: OxCaml has
+no in-tree compiler opam file, so it pins the newest `oxcaml-compiler` recipe in
+`oxcaml/opam-repository` `main` to the commit (in an `oxcaml` switch next to
+setup-ocaml's, which then only provides opam), with `dune.3.22.2+ox`. Both commits
+go into the cache keys. Not required, like trunk; it tracks main to see how often
+it breaks. Linux only: OxCaml does not support FreeBSD.
 
 The gate is enforced by branch protection on `master`: the required check is
 `build + run once (stable)`. The matrix `label` is deliberately version-free —
