@@ -876,39 +876,37 @@ Applied automatically by `scripts/setup-monorepo.sh` (33 by `scripts/ppx-expand.
 | 55 | `duniverse/ocaml-compiler-libs/src/read_cma/read_cma.ml` | Split into `read_cma.{upstream,oxcaml}.ml` plus a rule choosing by `%{ocaml_version}` | OxCaml: `cu_name` is a `Compilation_unit.t`. No one source compiles on both compiler-libs; the rule and the OxCaml side are what OxCaml's own vendored copy uses |
 | 56 | `duniverse/base/shadow-stdlib/gen/gen.ml` | Split as 55, the OxCaml side printing `fst cmi.cmi_sign` | OxCaml: `cmi_sign` pairs the signature with a mode |
 | 57 | `duniverse/base/shadow-stdlib/gen/dune` | Also link `compiler-libs.bytecomp` | OxCaml moved `Printtyp`/`Cmi_format`/`Subst` from `compiler-libs.common` to `compiler-libs.frontend` (absent on stock); `bytecomp` pulls in the right one on both |
+| 58 | `duniverse/base/src/{import0,base,linked_queue0,buffer}.ml` | Drop `with type 'a ref := 'a ref`; drop the ascription inside four `Obj.magic (Stdlib.X.f : ty)`; eta-expand `Buffer.add_{string,bytes}` after `include Stdlib.Buffer` | OxCaml: `'a ref` takes a `value_or_null` parameter that an unannotated substitution can't restate (the later `type 'a ref` shadows the included one anyway); the ascriptions and re-exports are 35's local-parameter problem |
+| 59 | `duniverse/core/core/src/array.ml` | `Permissioned.length` becomes a `val`; drop the two anonymous modules checking `S` and `Permissioned` against each other | OxCaml rejects `%array_length` on the abstract `Permissioned.t` (Jane Street's oxcaml branch makes it a `val` too); the checks are type-only and no longer hold. Clients of `Array.Permissioned.length` call a function instead of the primitive |
+| 60 | `duniverse/liquidsoap/src/lang/base/{types/type_constraints,lang_string}.ml` | Eta-expand `mem` and the two partial applications passed to `kprint_string`'s callback | OxCaml, same as 35 |
+| 61 | `vendor/frama-c/src/` `cmdline.ml`, `parameter_builder.ml`, `dotgraph.ml`, `json.mll`, `task.ml`, eva `transfer_specification.ml` | Eta-expand six re-exports and partial applications | OxCaml, same as 35 |
+| 62 | `vendor/infer/infer/src/{istd/IStd,pulse/PulseTaintOperations}.ml` | Eta-expand `print_string`/`prerr_string`; annotate the dummy-matcher list with `Unit.procedure_matcher list` | OxCaml, same as 35; its constructors were found through the expected type, which OxCaml doesn't propagate back through `\|>` |
 
 ## OxCaml compatibility
 
-Status at oxcaml/oxcaml `be90cb46` (5.4.0+ox, 2026-09-26): 50/95 programs build
-(22 before patches 35-49). The same tree builds 95/95 on stock 5.4.1 and 5.5.0.
+Status at oxcaml/oxcaml `be90cb46` (5.4.0+ox): all 94 programs build and the 20
+CI smoke programs run (2026-10-02, fresh setup). The same tree builds 94/94 and runs
+20/20 on stock 5.4.1.
 
 OxCaml does not compile all stock OCaml. Its stdlib gives many functions local
 (stack) parameters, which is invisible to callers that apply them fully but breaks
 curried re-exports, partial applications passed where a global function is
 expected, and signatures inferred from those. `scripts/setup-oxcaml.sh` fixes each
 occurrence with an eta-expansion that is behaviour-preserving on stock OCaml, plus
-three non-mode changes (patches 45, 47 and 48). `scripts/tests/oxcaml-repros.sh [bin dir...]`
+a few non-mode changes (patches 45, 47, 48, 58, 59 and 62). `scripts/tests/oxcaml-repros.sh [bin dir...]`
 compiles one minimal case per class (`scripts/tests/oxcaml-repros/`), original and
 fixed, on each compiler: stock compiles both, OxCaml fails every original.
 
-Still blocking on OxCaml (every other failure sits behind one of these). Each is
-compiler-specific: it depends on compiler internals, not on the OCaml language.
+Code written against compiler-libs can't share one source (patches 55-56): those
+files are split into `X.upstream.ml` and `X.oxcaml.ml`, chosen by a rule on
+`%{ocaml_version}` (the rule OxCaml's own vendored libraries use). The ppx expansion
+(§ppx expansion) removed the other compiler-specific dependency, ppxlib. Note OxCaml
+moved the typing modules (`Printtyp`, `Cmi_format`, ...) from `compiler-libs.common`
+to `compiler-libs.frontend`, so stock code using them through `compiler-libs.common`
+fails to link (patch 57).
 
-| Package | Programs | Why | Known OxCaml-side fix |
-|---|---|---|---|
-| `ocaml-compiler-libs` (`read_cma`), then `ppxlib` | 37 | `Cmo_format.compunit` is `Compilation_unit.t`; past that, ppxlib's `astlib` mirrors the compiler `Parsetree`, which OxCaml extends (`Parsetree.signature` is a record, modes, kinds) | `v0.17.0+ox`, ppxlib `+ox`, and OxCaml-aware ppx rewriters |
-| `base` v0.17 (`shadow-stdlib/gen`) | 16 | reads the stdlib `.cmi` through compiler-libs and parses `Printtyp` output, which on OxCaml carries kinds and modalities | `v0.18~preview` |
-
-Both can be selected per compiler inside this tree: OxCaml ships findlib libraries stock
-does not (`compiler-libs.frontend`, `stdlib_stable`, ...), so a dune `(select ... from
-(compiler-libs.frontend -> x.oxcaml.ml) (-> x.stock.ml))` picks OxCaml-only source at
-build time; tried for `read_cma` and base's generator, stock unaffected. Note OxCaml
-moved the typing modules (`Printtyp`, `Cmi_format`, ...) from `compiler-libs.common` to
-`compiler-libs.frontend`, so stock code using them through `compiler-libs.common` fails
-to link.
-
-TODO: reproducers for the compiler-libs split and the Parsetree difference, once the
-per-compiler selection is settled.
+TODO: `oxcaml-repros.sh` has no case yet for the compiler-libs split (55-57),
+base's `'a ref` (58), core's `%array_length` (59) or the `|>` disambiguation (62).
 
 ## Known limitations
 
