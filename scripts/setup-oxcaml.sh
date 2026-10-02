@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Source patches that let the vendored tree compile with OxCaml as well as stock
 # OCaml. Each one is plain OCaml that behaves identically on stock OCaml, so they
-# are applied for every compiler. Called by setup-monorepo.sh ([35]-[45], [48]-[53], [55]-[57]) and, for
+# are applied for every compiler. Called by setup-monorepo.sh ([35]-[45], [48]-[53], [55]-[62]) and, for
 # infer's own checkouts that vendor-javalib-sawja.sh resets on every build, by
 # vendor-javalib-sawja.sh ([46]-[47]). scripts/tests/oxcaml-repros.sh reproduces
 # each class of incompatibility on its own.
@@ -311,6 +311,79 @@ BATUNIX
     after 53 "base mapper kinded types" "$MAP" \
       $'  | "module Bigarray" _* { "" (* Don\'t deprecate it yet *) }\n' \
       $'  | "type " (params? as params) (id as id) " : " ([^ \'=\']* as kind) (_* as def)\n      { sprintf "type nonrec %s%s : %s = %sStdlib.%s%s\\n%s"\n          params id (String.trim kind)\n          params id\n          (if is_alias id || def = "" then "" else " " ^ def)\n          (match type_replacement id with\n           | Some replacement -> replace ~is_exn:false id replacement\n           | None -> deprecated_msg ~is_exn:false id) }\n\n'
+  fi
+
+  # OxCaml's 'a ref takes a value_or_null parameter, which an unannotated
+  # `with type 'a ref :=` can't restate; the later `type 'a ref` shadows the
+  # included one anyway. The Obj.magic arguments drop an ascription that the
+  # stdlib's local parameters no longer satisfy.
+  if vendored duniverse/base/src 58 base; then
+    local BS=duniverse/base/src
+    for f in import0.ml base.ml; do
+      replace 58 "base $f ref" "$BS/$f" $'\n    with type \'a ref := \'a ref' ""
+    done
+    replace 58 "base Linked_queue0 iter" "$BS/linked_queue0.ml" \
+      "Stdlib.Obj.magic (Stdlib.Queue.iter : ('a -> unit) -> 'a t -> unit)" "Stdlib.Obj.magic Stdlib.Queue.iter"
+    replace 58 "base Linked_queue0 fold" "$BS/linked_queue0.ml" \
+      "Stdlib.Obj.magic (Stdlib.Queue.fold : ('b -> 'a -> 'b) -> 'b -> 'a t -> 'b)" "Stdlib.Obj.magic Stdlib.Queue.fold"
+    replace 58 "base Buffer length" "$BS/buffer.ml" \
+      "(Stdlib.Obj.magic (Stdlib.Buffer.length : t -> int) : t -> int)" "(Stdlib.Obj.magic Stdlib.Buffer.length : t -> int)"
+    replace 58 "base Buffer blit" "$BS/buffer.ml" \
+      $'(Stdlib.Obj.magic\n     (Stdlib.Buffer.blit : Stdlib.Buffer.t -> int -> Bytes.t -> int -> int -> unit)\n    :' \
+      $'(Stdlib.Obj.magic Stdlib.Buffer.blit\n    :'
+    after 58 "base Buffer add_string/add_bytes" "$BS/buffer.ml" $'include Stdlib.Buffer\n' \
+      $'\nlet add_string t s = Stdlib.Buffer.add_string t s\nlet add_bytes t b = Stdlib.Buffer.add_bytes t b\n'
+  fi
+
+  # OxCaml rejects %array_length on the abstract Permissioned.t (Jane Street's
+  # oxcaml branch makes it a val too). The two anonymous modules only
+  # type-check that S and Permissioned agree, which they no longer do.
+  if vendored duniverse/core/core/src/array.ml 59 core; then
+    local CA=duniverse/core/core/src/array.ml
+    replace 59 "core Array.Permissioned length" "$CA" \
+      "  external length : (('a, _) t[@local_opt]) -> int = \"%array_length\"" "  val length : (_, _) t -> int"
+    replace 59 "core Array S/Permissioned checks" "$CA" \
+      $'\nmodule _ (M : S) : sig\n  type (\'a, -\'perm) t_\n\n  include Permissioned with type (\'a, \'perm) t := (\'a, \'perm) t_\nend = struct\n  include M\n\n  type (\'a, -\'perm) t_ = \'a t\nend\n\nmodule _ (M : Permissioned) : sig\n  type \'a t_\n\n  include S with type \'a t := \'a t_\nend = struct\n  include M\n\n  type \'a t_ = (\'a, read_write) t\nend\n' ""
+  fi
+
+  if vendored duniverse/liquidsoap/src/lang/base 60 liquidsoap; then
+    local LQ=duniverse/liquidsoap/src/lang/base
+    replace 60 "liquidsoap Type_constraints.mem" "$LQ/types/type_constraints.ml" \
+      "let mem = List.memq" "let mem x l = List.memq x l"
+    replace 60 "liquidsoap kprint_string pager" "$LQ/lang_string.ml" \
+      "f (print_string ~pager)" "f (fun s -> print_string ~pager s)"
+    replace 60 "liquidsoap kprint_string buffer" "$LQ/lang_string.ml" \
+      "f (Buffer.add_string ans);" "f (fun s -> Buffer.add_string ans s);"
+  fi
+
+  if vendored vendor/frama-c/src 61 frama-c; then
+    local FC=vendor/frama-c/src
+    replace 61 "frama-c Cmdline Queue.iter" "$FC/kernel_services/cmdline_parameters/cmdline.ml" \
+      "(Pretty_utils.pp_iter Queue.iter " "(Pretty_utils.pp_iter (fun f q -> Queue.iter f q) "
+    replace 61 "frama-c Parameter_builder mem" "$FC/kernel_services/cmdline_parameters/parameter_builder.ml" \
+      "      let mem = List.mem"$'\n' "      let mem x l = List.mem x l"$'\n'
+    replace 61 "frama-c Dotgraph add_label" "$FC/libraries/utils/dotgraph.ml" \
+      "let add_label buffer = Buffer.add_string buffer.label" "let add_label buffer s = Buffer.add_string buffer.label s"
+    replace 61 "frama-c Json save_buffer" "$FC/libraries/utils/json.mll" \
+      "(dump (Buffer.add_string buffer) v" "(dump (fun s -> Buffer.add_string buffer s) v"
+    replace 61 "frama-c Task cancel" "$FC/libraries/utils/task.ml" \
+      "Array.iter (Queue.iter cancel) server.queue" "Array.iter (fun q -> Queue.iter cancel q) server.queue"
+    replace 61 "frama-c Transfer_specification behaviors" "$FC/plugins/eva/engine/transfer_specification.ml" \
+      "(List.exists (List.mem behavior) complete_behaviors)" "(List.exists (fun l -> List.mem behavior l) complete_behaviors)"
+  fi
+
+  # The list's constructors resolve through the expected type, which OxCaml
+  # doesn't propagate back through `|>`.
+  if vendored vendor/infer/infer/src 62 infer; then
+    local IS=vendor/infer/infer/src
+    for s in print_string prerr_string; do
+      replace 62 "infer IStd.$s" "$IS/istd/IStd.ml" "fun _ -> Stdlib.$s" "fun _ s -> Stdlib.$s s"
+    done
+    replace 62 "infer taint dummy matchers" "$IS/pulse/PulseTaintOperations.ml" \
+      $'  [ ClassAndMethodNames\n' $'  ( [ ClassAndMethodNames\n'
+    replace 62 "infer taint dummy matchers type" "$IS/pulse/PulseTaintOperations.ml" \
+      $'      ; exclude_names= None } ]\n  |> List.map ~f:dummy_matcher_of_procedure_matcher' \
+      $'      ; exclude_names= None } ]\n    : Unit.procedure_matcher list )\n  |> List.map ~f:dummy_matcher_of_procedure_matcher'
   fi
 }
 
