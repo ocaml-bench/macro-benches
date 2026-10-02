@@ -21,6 +21,12 @@ cd "$MONOREPO_DIR"
 # (a no-op once applied). Without "all", <old> must occur
 # exactly once; a source in any other shape is an error, not a silent skip.
 replace() {
+  # An expanded file was patched before the expansion, which reprints it; the
+  # manifest check covers its content.
+  if [ -f duniverse/.ppx-expanded ] && grep -q "  $3\$" duniverse/.ppx-expanded; then
+    echo "  [$1] $2: already applied (ppx-expanded)."
+    return
+  fi
   OX_OLD="$4" OX_NEW="$5" OX_ALL="${6:-}" python3 - "$1" "$2" "$3" <<'PYEOF'
 import os, sys
 num, label, path = sys.argv[1:]
