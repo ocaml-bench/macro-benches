@@ -90,7 +90,7 @@ make setup          # or: bash scripts/setup-monorepo.sh
 ```
 
 This pulls the vendored packages, applies the source patches, builds the few
-non-dune dependencies (pplacer, apron, rocq), and test-builds every binary. 
+non-dune dependencies (pplacer, apron, rocq), replaces ppx preprocessing with its expanded source, and test-builds every binary.
 
 Verified with dune **3.22.1** and **3.24.0**. If you already have a populated
 `duniverse/` and are moving to dune 3.24+, rerun `make setup`.
@@ -182,14 +182,17 @@ make setup          # repopulate from the lock file
 ## How it works
 
 1. Dependencies are locked once (`opam monorepo lock`) into
-   `macro-benches.opam.locked`, which is committed.
+   `macro-benches.opam.locked`.
 2. `opam monorepo pull` downloads all of them into `duniverse/`.
 3. `setup-monorepo.sh` applies a set of source patches for newer compilers,
    known upstream bugs, and platform differences.
 4. The few packages that are not opam/dune (pplacer, apron, rocq) are vendored and built by their own scripts.
-5. `dune build` compiles everything from local source with whichever compiler is on `PATH`, into a per-runtime `_build-<runtime>/` directory so different runtimes do not clobber each other.
+5. ppx preprocessing is replaced by its expanded source depending on the OCaml version.
+6. `dune build` compiles everything from local source with whichever compiler is on `PATH`, into a per-runtime `_build-<runtime>/` directory so different runtimes do not contaminate each other.
 
 Third-party versions all come from `sources.yml`, pinned to commits. To bump any of the sources, change that file and rerun `make setup`.
+Make sure that if the bump changes any expanded file, run
+`bash scripts/ppx-expand.sh --update` and commit `scripts/ppx-expand/manifest`. A few files expand differently per OS (listed in `scripts/ppx-expand/per-os`): their lines are updated by running `--update` on each OS.
 
 ## Build-script contract
 

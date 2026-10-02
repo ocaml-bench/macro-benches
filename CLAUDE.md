@@ -70,7 +70,8 @@ matrix and gaps, the gotchas, and the backlog.
 - `duniverse/` — vendored dependency sources (the actual compiled code).
 - `vendor/` — manually vendored bits (camlpdf, cpdf-source, zarith, pplacer, frama-c, apron, …).
 - `scripts/` — `setup-monorepo.sh`, `vendor-*.sh` (coq, apron, frama-c, cpdf, …),
-  `ci-build-all.sh` / `ci-run-all.sh` / `ci-manifest.py` (the CI phases).
+  `ci-build-all.sh` / `ci-run-all.sh` / `ci-manifest.py` (the CI phases),
+  `ppx-expand.sh` + `ppx-expand/` (see §ppx expansion).
 - `.github/workflows/ci.yml` — master-only build + run-once gate (see §CI).
 - `.github/workflows/ci-freebsd.yml` — the same gate on FreeBSD, in a VM; a
   measurement rather than a gate for now (see §CI).
@@ -393,6 +394,63 @@ Consequences worth knowing:
 - Bumping a pin is a one-line edit to `sources.yml` plus `make setup`. It shows up
   in review and CI rebuilds and re-runs everything against it — which is the
   entire point.
+
+## ppx expansion
+
+Benchmark builds never run a ppx. `scripts/ppx-expand.sh` (setup step [8b/9])
+replaces every ppx use with its expanded source, so every compiler builds the
+same source and none needs ppxlib (which trunk and OxCaml can't always build).
+
+- **Tools switch** `macro-benches-tools` (`TOOLS_SWITCH`, `scripts/lib-switch.sh`):
+  all of setup runs on it, the expansion included. Exactly OCaml 5.4.1, dune 3.22.1,
+  ocamlfind 1.9.8, opam-monorepo 0.4.3, zarith 1.14; created with `--no-switch` on
+  first use from opam's `default` repository only (another registered repository
+  can resolve `ocaml-base-compiler.5.4.1` to `5.4.1+relocatable`), and checked by
+  `ocamlc -version` and non-flambda. An existing switch of that name at other
+  versions is an error, and setup never changes an existing switch's compiler.
+  Scripts only read its environment in their own process (ppx-expand.sh also
+  strips other switches from `PATH`), so the caller's switch never changes. Pinned
+  because the expansion and its printing depend on it. Having setup's tools in it
+  does not change the expansion (checked: identical manifest).
+- **Scope = a real build.** It runs `ci-build-all.sh` on that switch (tag
+  `ppx-expand`), so each build script's own setup (goblint's apron prefix, infer's
+  javalib/sawja) applies, then expands every binary `*.pp.ml(i)` in
+  `_build-ppx-expand/` except the ppxs' own code (rewriter stanzas and libraries on
+  ppxlib). Its output binaries are deleted afterwards.
+- **`scripts/ppx-expand/ppx_expand.ml`** prints each driver output with the
+  compiler's printer, after stripping the driver's context header and rewriting the
+  few ASTs ppxs build that have no source syntax (a value named `_`, a `function`
+  with no cases, `let (x : 'a. t)`, attributes on a local open's declaration). Every
+  printed file must parse back to the same AST, locations aside, or it fails. Files
+  the ppx left unchanged are not rewritten.
+- **Edits**: drops `pps` from each stanza (keeping non-ppx `per_module` entries)
+  and adds the rewriters' runtime libraries to `(libraries ...)` (read by having
+  dune describe a probe library with the same `pps`). Generated modules a ppx
+  rewrote are written as sources and their rule removed (infer's atdgen output,
+  extunix). Every alternative of a `select` is expanded (goblint's apron ones).
+- **Per-version files.** A file whose expansion depends on the OCaml version
+  (`[%%if ocaml_version ...]`, jsoo's `[@if ...]`) is expanded once per version
+  range from 5.4 up, as `X.v5_4_0.ml`, `X.v5_5_0.ml`, ... plus `enabled_if` rules
+  choosing one; today core `gc.ml(i)` and jsoo `ocaml_compiler.ml`. ppx_optcomp is
+  steered by its `ppx_optcomp.env` cookie, jsoo's by `PPX_EXPAND_OCAML_VERSION`
+  (patch 33). flambda conditionals abort: there is no bucket for them.
+- **Manifest.** `scripts/ppx-expand/manifest` lists a BLAKE2b-256 of every file
+  written (dashes for a deleted one); setup fails if the expansion differs. The
+  tool writes the same list to `duniverse/.ppx-expanded`, which also marks the
+  tree as expanded: a re-run (or a restored CI cache) only compares it with the
+  manifest, without the switch. After a bump: `bash scripts/ppx-expand.sh --update`
+  on a fresh duniverse/vendor, and commit the manifest. Paths in
+  `scripts/ppx-expand/per-os` have one line per OS (third column, `uname -s`);
+  `--update` on an OS rewrites only its own lines, and a check reads only the
+  untagged lines and its own. Linux and FreeBSD expansions were otherwise
+  identical (checked 2026-10-01 against a FreeBSD 15.1 run).
+- **In-repo sources**: a benchmark's own `.ml` that uses a ppx lives in
+  `benchmarks/<tool>/ppx-src/`; its expansion is committed one level up and is
+  what the benchmark builds (today `benchmarks/sedlex`).
+- **Check**: on an expanded tree `ci-build-all.sh` fails if it built any ppx
+  driver, which is how a missed file shows up.
+- **Platform**: extunix's `ppx_have` expands by the features configure found, so
+  its two files differ between Linux and FreeBSD; they are the per-os entries.
 
 ## Gotchas (hard-won — don't rediscover)
 
@@ -757,7 +815,7 @@ If a runtime change touches one of these areas, flag the gap explicitly when pro
 
 ## Vendored source patches
 
-Applied automatically by `scripts/setup-monorepo.sh`.
+Applied automatically by `scripts/setup-monorepo.sh` (33 by `scripts/ppx-expand.sh`, which setup runs).
 
 | # | Target | What | Why |
 |---|--------|------|-----|
@@ -793,6 +851,8 @@ Applied automatically by `scripts/setup-monorepo.sh`.
 | 30 | `duniverse/analyzer/src/util/preprocessor.ml` | Also search the unhyphenated `cpp` prefix (`cpp14`, …) when the hyphenated one yields nothing | FreeBSD, and the same problem as 29 one layer up. `/usr/bin/cpp` on FreeBSD is clang, which goblint correctly rejects, and the `compgen -c cpp-` fallback only finds Debian-style `cpp-14`. Symptom is at **run** time, long after a clean build: `No good preprocessor (cpp) found`. `"cpp-"` is kept first and every candidate still goes through `is_good`, so Linux is unchanged. Requires a real GCC to be installed (see README's FreeBSD prerequisites) |
 | 31 | `duniverse/Zarith/dune` | `grep "version" META \| head -1` becomes `grep -m1 "version" META` | dune runs every `(bash ...)` action as `bash -e -u -o pipefail -c`. zarith's META has **two** lines matching `version` (its own 1.14 and zarith_top's 1.13), so `head -1` exits while grep still has the second to write; grep takes SIGPIPE and `pipefail` promotes its **141** to the pipeline, failing the rule and with it the whole rocq bootstrap (step [8/9]). Whether it fires is a buffering race: GNU grep block-buffers to a pipe so both lines usually land in one `write()` that beats `head`'s exit, while FreeBSD's grep is line-buffered and loses the race far more often. It is latent on every platform, not a FreeBSD bug. `-m1` stops after the first match, so there is no second write and no pipe; output is byte-identical and `-m` is in both GNU and BSD grep |
 | 32 | `duniverse/ocaml_intrinsics_kernel/src/{int_stubs.c,int.ml}` | Rename the bytecode stubs `caml_int_clz`/`caml_int_ctz` to `ocaml_intrinsics_kernel_int_{clz,ctz}` | OCaml trunk (ocaml/ocaml#15018, 2026-09-25) added runtime primitives with the same names, so any native executable pulling in `int_stubs.o` fails to link with `multiple definition of caml_int_clz` (frama-c and liquidsoap on the trunk CI leg). Only the bytecode names change; native code calls the `*_untagged_to_untagged` variants, so measured binaries are unchanged on every runtime. **Temporary**: reported upstream; drop or adapt once the clash is resolved on either side |
+| 33 | `duniverse/js_of_ocaml/compiler/ppx-light-predicate/predicate.ml` | Read the compiler version from `PPX_EXPAND_OCAML_VERSION` when set | Applied by `scripts/ppx-expand.sh`, not this script. jsoo's ppx_optcomp_light takes the version from `Sys.ocaml_version`; the override lets one switch produce the per-version expansions of `ocaml_compiler.ml` (§ppx expansion). Without it every version range would silently get the 5.4 expansion |
+| 34 | `vendor/infer/infer/src/textual/dune` (in `scripts/vendor-infer.sh`) | Drop `sedlex.ppx` from Textuallib's `(libraries ...)` | It is the sedlex *rewriter*, listed as a library as well as in `pps`; no module uses it, but it linked ppxlib into `infer.exe`, the one thing left needing ppxlib after the ppx expansion (found by its no-driver check) |
 
 ## Known limitations
 
@@ -821,8 +881,8 @@ Applied automatically by `scripts/setup-monorepo.sh`.
   when the system already provides `mpfr.h` (Linux x86 apt, FreeBSD pkg, macOS brew).
 - **OxCaml**: only menhir, test_decompress, and zarith_pi work; others fail on
   locality-type annotation errors in vendored packages.
-- **Trunk (5.6) support**: depends on ppxlib and lwt git main (patches 4+5). When ppxlib
-  releases a 5.6-compatible version, these can be dropped and the lock file updated.
+- **Trunk (5.6) support**: depends on lwt git main (patch 5). ppxlib is now built only
+  on the ppx switch (OCaml 5.4.1, §ppx expansion), so patch 4 may no longer be needed.
 - **pplacer**: vendored manually (not in opam); needs `libgsl-dev` and `libsqlite3-dev`.
 - **frama-c**: vendored manually (`scripts/vendor-frama-c.sh`); 32.1 isn't in opam and only
   a trimmed kernel+EVA is built. Needs `libyaml`/`pkg-config` and a C preprocessor. The
@@ -833,7 +893,9 @@ Applied automatically by `scripts/setup-monorepo.sh`.
 For a third-party source that is **not** in the lock file (the git pins and the
 tarballs — ppxlib, lwt, js_of_ocaml, pplacer, mcl, frama-c, the apron chain, cpdf,
 menhir, rocq, alt-ergo's deps, …), the bump is a one-line edit to `sources.yml`
-followed by `make setup`. Nothing else references the version.
+followed by `make setup`, then `bash scripts/ppx-expand.sh --update` and a commit
+of `scripts/ppx-expand/manifest` if the expansion changed. Nothing else references
+the version.
 
 For the lock file itself:
 
@@ -841,11 +903,13 @@ For the lock file itself:
 # 1. Modify dune-project if adding/removing packages
 # 2. Re-lock in a switch that has the opam-monorepo plugin
 #    (OPAMSWITCH selects it for this one command without changing your shell's switch)
-OPAMSWITCH=<tools-switch> opam monorepo lock
-# 3. Rebuild from scratch
+OPAMSWITCH=macro-benches-tools opam monorepo lock
+# 3. Rebuild from scratch (setup fails on the stale expansion manifest)
 make clean-all && make setup
-# 4. Commit the updated lock file
-git add macro-benches.opam.locked dune-project *.opam
+# 4. Regenerate the manifest on the fresh tree
+bash scripts/ppx-expand.sh --update
+# 5. Commit the updated lock file and manifest
+git add macro-benches.opam.locked dune-project *.opam scripts/ppx-expand/manifest
 git commit -m "Update vendored dependencies"
 ```
 
@@ -855,7 +919,8 @@ git commit -m "Update vendored dependencies"
 2. Create an `.opam.template` if non-dune deps need `x-opam-monorepo-opam-provided`.
 3. Re-lock: `opam monorepo lock`.
 4. Create `benchmarks/<tool>/` with `<tool>.build.sh`, a `dune` file (if custom `.ml`),
-   and input files.
+   and input files. A custom `.ml` that uses a ppx goes in `benchmarks/<tool>/ppx-src/`
+   (see §ppx expansion).
 5. Add every program to `benchmarks/manifest.yml` **in the same commit** — CI fails
    if a build script has no program entry (or vice versa). For a input-size ladder, list
    only the `_small` rung. A tool that ships disabled goes under `disabled:` with a
