@@ -109,8 +109,9 @@ jobs:
             v="${{ steps.compiler.outputs.recipe }}"; v="${v#oxcaml-compiler.}"
             opam install --switch oxcaml --yes "ocaml-variants.${v%%-*}+ox"
           fi
-          opam switch set oxcaml
-          opam exec -- ocamlopt -version
+          # setup-ocaml's switch is local (_opam), which `opam switch set` can't override.
+          echo "OPAMSWITCH=oxcaml" >> "$GITHUB_ENV"
+          opam exec --switch oxcaml -- ocamlopt -version
 
       # The only place the GNU half of test-lib-portable.sh can run (FreeBSD
       # skips those comparisons). test-build-scripts-portable.sh is static, so it
