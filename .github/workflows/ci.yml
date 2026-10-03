@@ -26,9 +26,9 @@ jobs:
     name: build + run once (${{ matrix.label }})
     runs-on: ubuntu-latest
     timeout-minutes: 240
-    # Only the stable leg is a required check. The trunk leg tracks a moving
-    # compiler and ppxlib/lwt git main, so it can go red for unrelated reasons;
-    # it fails the run (so breakage is visible) without blocking merges.
+    # Only the stable leg is a required check. The trunk and oxcaml legs track
+    # moving compilers, so they can go red for unrelated reasons; they fail the
+    # run (so breakage is visible) without blocking merges.
     strategy:
       fail-fast: false
       matrix:
@@ -43,6 +43,13 @@ jobs:
             ocaml: "ocaml-variants.5.6.0+trunk"
             # Released dune can't bootstrap against 5.6 trunk; use git main.
             dune: "dev"
+          - label: "oxcaml"
+            # setup-ocaml's switch only provides opam; the runtime is the
+            # `oxcaml` switch built below from oxcaml/oxcaml main.
+            ocaml: "5.4.1"
+            oxcaml: true
+            # OxCaml switches need dune's +ox build.
+            dune: "3.22.2+ox"
 
     env:
       # Picks the build dir (_build-ci) and the output binary suffix.
@@ -56,7 +63,16 @@ jobs:
       - name: Resolve compiler identity
         id: compiler
         run: |
-          if [[ "${{ matrix.ocaml }}" == *trunk* ]]; then
+          if [ "${{ matrix.oxcaml }}" = "true" ]; then
+            api() { curl -fsSL "https://api.github.com/repos/oxcaml/$1"; }
+            sha="$(api oxcaml/commits/main | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"])')"
+            repo="$(api opam-repository/commits/main | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"])')"
+            # OxCaml has no in-tree compiler opam file: borrow the newest recipe.
+            recipe="$(api "opam-repository/contents/packages/oxcaml-compiler?ref=${repo}" \
+                      | python3 -c 'import json,sys; [print(e["name"]) for e in json.load(sys.stdin)]' | sort -V | tail -1)"
+            { echo "id=oxcaml-${sha:0:12}-${repo:0:12}"; echo "sha=${sha}"; echo "repo=${repo}"; echo "recipe=${recipe}"; } >> "$GITHUB_OUTPUT"
+            echo "### Compiler: oxcaml/oxcaml main @ \`${sha:0:12}\` (recipe \`${recipe}\`, opam-repository \`${repo:0:12}\`)" >> "$GITHUB_STEP_SUMMARY"
+          elif [[ "${{ matrix.ocaml }}" == *trunk* ]]; then
             sha="$(curl -fsSL https://api.github.com/repos/ocaml/ocaml/commits/trunk \
                    | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"][:12])')"
             echo "id=trunk-${sha}" >> "$GITHUB_OUTPUT"
@@ -79,6 +95,23 @@ jobs:
         with:
           ocaml-compiler: ${{ matrix.ocaml }}
           cache-prefix: ${{ steps.compiler.outputs.id }}
+
+      # Restored with the opam root on a cache hit. The recipe is pinned to the
+      # commit, so this builds main, not the recipe's release.
+      - name: Create the OxCaml switch
+        if: matrix.oxcaml
+        run: |
+          if ! opam switch list --short | grep -qx oxcaml; then
+            opam switch create oxcaml --empty --no-switch \
+              --repositories="oxcaml=git+https://github.com/oxcaml/opam-repository#${{ steps.compiler.outputs.repo }},default"
+            opam pin add --switch oxcaml --yes --no-action ${{ steps.compiler.outputs.recipe }} \
+              "git+https://github.com/oxcaml/oxcaml#${{ steps.compiler.outputs.sha }}"
+            v="${{ steps.compiler.outputs.recipe }}"; v="${v#oxcaml-compiler.}"
+            opam install --switch oxcaml --yes "ocaml-variants.${v%%-*}+ox"
+          fi
+          # setup-ocaml's switch is local (_opam), which `opam switch set` can't override.
+          echo "OPAMSWITCH=oxcaml" >> "$GITHUB_ENV"
+          opam exec --switch oxcaml -- ocamlopt -version
 
       # The only place the GNU half of test-lib-portable.sh can run (FreeBSD
       # skips those comparisons). test-build-scripts-portable.sh is static, so it
@@ -134,6 +167,17 @@ jobs:
           # _build-ci/ immediately below.
           eval "$(opam env)"
           SKIP_TEST_BUILD=1 bash scripts/setup-monorepo.sh
+
+      # OxCaml's ocamlc needs ~3x stock's memory: jsoo's large workload peaks at
+      # 20.5 GB, over the runner's 16 GB (#36).
+      - name: Add swap
+        if: matrix.oxcaml
+        run: |
+          sudo fallocate -l 24G /swapfile-oxcaml
+          sudo chmod 600 /swapfile-oxcaml
+          sudo mkswap /swapfile-oxcaml
+          sudo swapon /swapfile-oxcaml
+          free -h
 
       - name: Build every benchmark
         run: |

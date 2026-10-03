@@ -28,6 +28,8 @@ rm -rf "$PREFIX"; mkdir -p "$PREFIX/lib/stublibs" "$PREFIX/bin"
 for d in cppo extlib camlzip javalib sawja; do
   git -C "$SRC/$d" clean -fdxq && git -C "$SRC/$d" checkout -q .
 done
+# [46]-[47]: OxCaml compatibility, reapplied after the reset above.
+bash "$(cd "$(dirname "$0")" && pwd)/setup-oxcaml.sh" infer "$(cd "$SRC" && pwd)"
 export OCAMLPATH="$PREFIX/lib" OCAMLFIND_DESTDIR="$PREFIX/lib" PATH="$PREFIX/bin:$PATH"
 mkdir -p "$OCAMLFIND_DESTDIR"
 echo "compiler: $(ocaml -version)"
