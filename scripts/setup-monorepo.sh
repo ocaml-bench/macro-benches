@@ -1119,6 +1119,11 @@ else
 fi
 echo ""
 
+# [35]-[45]: source changes so the tree also compiles with OxCaml; each is
+# behaviour-preserving on stock OCaml, so they apply for every compiler.
+bash "$MONOREPO_DIR/scripts/setup-oxcaml.sh"
+echo ""
+
 echo "[8/9] Generating rocq config and dunestrap files..."
 ROCQ_DIR="duniverse/rocq"
 

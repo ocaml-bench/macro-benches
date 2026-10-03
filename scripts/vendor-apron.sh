@@ -67,6 +67,24 @@ fi
 rm -rf "$PREFIX"; mkdir -p "$PREFIX/lib/caml" "$PREFIX/lib/stublibs" "$PREFIX/bin"
 # Drop build artifacts left by another compiler.
 for d in bigarray-compat camlidl mlgmpidl apron; do git -C "$SRC/$d" clean -fdxq && git -C "$SRC/$d" checkout -q .; done
+# [54] OxCaml's caml/misc.h includes <stdbool.h>; keep apron's char bool.
+python3 - "$SRC/apron/apron/ap_config.h" <<'PY'
+import sys; p=sys.argv[1]; s=open(p).read()
+old="#ifndef HAS_BOOL\n#define HAS_BOOL\ntypedef char bool;"
+new="#ifndef HAS_BOOL\n#define HAS_BOOL\n#ifdef __bool_true_false_are_defined\n#undef bool\n#undef true\n#undef false\n#endif\ntypedef char bool;"
+if new not in s:
+    assert s.count(old) == 1; open(p, "w").write(s.replace(old, new))
+PY
+# OxCaml records -for-pack in the .cmi, so interfaces need it too (see [47]).
+python3 - "$SRC/apron/mlapronidl/Makefile" <<'PY'
+import sys; p=sys.argv[1]; s=open(p).read()
+for rule in ("%.cmi: %.mli", "%.cmo: %.ml %.cmi"):
+    old = rule + "\n\t$(OCAMLC) $(OCAMLFLAGS) $(OCAMLINC) -c $<"
+    new = rule + "\n\t$(OCAMLC) $(OCAMLFLAGS) $(OCAMLINC) -for-pack Apron -c $<"
+    if new not in s:
+        assert s.count(old) == 1, rule; s = s.replace(old, new)
+open(p, "w").write(s)
+PY
 export OCAMLPATH="$PREFIX/lib" OCAMLFIND_DESTDIR="$PREFIX/lib" PATH="$PREFIX/bin:$PATH"
 echo "compiler: $(ocaml -version)"
 

@@ -83,22 +83,44 @@ fi
 
 ensure_tools_switch "$_OPAM"
 
-# jsoo's ppx_optcomp_light reads the compiler version from Sys.ocaml_version;
-# let the per-version expansion override it. Idempotent.
+# jsoo's ppx_optcomp_light reads the compiler version and the OxCaml tag from
+# the running compiler; let the per-version expansions override both
+# (PPX_EXPAND_OCAML_VERSION=5.5.0, or 5.4.0+ox for OxCaml). Idempotent.
 PREDICATE=duniverse/js_of_ocaml/compiler/ppx-light-predicate/predicate.ml
-if [ -f "$PREDICATE" ] && ! grep -q PPX_EXPAND_OCAML_VERSION "$PREDICATE"; then
+if [ -f "$PREDICATE" ]; then
   python3 - "$PREDICATE" <<'PY'
 import sys
 p = sys.argv[1]
 s = open(p).read()
-old = "  let current = split Sys.ocaml_version\n"
-new = ("  let current =\n"
-       "    split\n"
-       "      (match Sys.getenv_opt \"PPX_EXPAND_OCAML_VERSION\" with\n"
-       "      | Some v -> v\n"
-       "      | None -> Sys.ocaml_version)\n")
-assert old in s, f"{p}: version lookup not found -- patch me"
-open(p, "w").write(s.replace(old, new, 1))
+edits = [
+    ("PPX_EXPAND_OCAML_VERSION",
+     "  let current = split Sys.ocaml_version\n",
+     "  let current =\n"
+     "    split\n"
+     "      (match Sys.getenv_opt \"PPX_EXPAND_OCAML_VERSION\" with\n"
+     "      | Some v -> v\n"
+     "      | None -> Sys.ocaml_version)\n"),
+    ("extra_of_release",
+     "  let extra =\n    (* Sys.ocaml_release",
+     "  let extra_of_release =\n    (* Sys.ocaml_release"),
+    ("extra_override",
+     "    | Some (Tilde, tag) -> Some (Tilde, tag)\n",
+     "    | Some (Tilde, tag) -> Some (Tilde, tag)\n\n"
+     "  let extra_override =\n"
+     "    match Sys.getenv_opt \"PPX_EXPAND_OCAML_VERSION\" with\n"
+     "    | None -> None\n"
+     "    | Some v -> (\n"
+     "        match split_char ~sep:(function '+' -> true | _ -> false) v with\n"
+     "        | [ _; tag ] -> Some (Some (Plus, tag))\n"
+     "        | _ -> Some None)\n\n"
+     "  let extra = match extra_override with Some e -> e | None -> extra_of_release\n"),
+]
+for marker, old, new in edits:
+    if marker in s and not (marker == "PPX_EXPAND_OCAML_VERSION" and old in s):
+        continue
+    assert s.count(old) == 1, f"{p}: {marker} edit not matched -- patch me"
+    s = s.replace(old, new, 1)
+open(p, "w").write(s)
 PY
 fi
 

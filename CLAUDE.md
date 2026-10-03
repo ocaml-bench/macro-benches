@@ -69,7 +69,7 @@ matrix and gaps, the gotchas, and the backlog.
 - `docs/benchmarks/<name>.md` — human-facing page per benchmark.
 - `duniverse/` — vendored dependency sources (the actual compiled code).
 - `vendor/` — manually vendored bits (camlpdf, cpdf-source, zarith, pplacer, frama-c, apron, …).
-- `scripts/` — `setup-monorepo.sh`, `vendor-*.sh` (coq, apron, frama-c, cpdf, …),
+- `scripts/` — `setup-monorepo.sh`, `setup-oxcaml.sh` (OxCaml compatibility patches), `vendor-*.sh` (coq, apron, frama-c, cpdf, …),
   `ci-build-all.sh` / `ci-run-all.sh` / `ci-manifest.py` (the CI phases),
   `ppx-expand.sh` + `ppx-expand/` (see §ppx expansion).
 - `.github/workflows/ci.yml` — master-only build + run-once gate (see §CI).
@@ -152,7 +152,7 @@ scope every PR can restore from. Note `cancel-in-progress` is deliberately limit
 to PR runs: superseding a PR run is right, but cancelling a `master` run would
 leave the merge that triggered it unverified.
 
-Two matrix legs: the
+Matrix legs: the
 **latest stable release**, which gates, and the **`ocaml/ocaml` trunk tip**, which
 is not a required check because it tracks a moving compiler and needs ppxlib/lwt
 git `main` (patches 4+5 below). It is deliberately **not** `continue-on-error`:
@@ -161,6 +161,15 @@ break on master for days (patch 32). A red trunk leg now fails the run but, not
 being required, does not block merges. The trunk leg resolves the tip commit *before*
 creating the switch and folds the SHA into every cache key — otherwise a restored
 opam-root cache silently tests a stale trunk.
+
+A third leg, **`oxcaml`**, builds `oxcaml/oxcaml` `main` the same way: OxCaml has
+no in-tree compiler opam file, so it pins the newest `oxcaml-compiler` recipe in
+`oxcaml/opam-repository` `main` to the commit (in an `oxcaml` switch next to
+setup-ocaml's, which then only provides opam), with `dune.3.22.2+ox`. Both commits
+go into the cache keys. Not required, like trunk; it tracks main to see how often
+it breaks. Linux only: OxCaml does not support FreeBSD. It adds 24 GB of swap
+before the build: OxCaml's `ocamlc` needs ~3x stock's memory, and jsoo's large
+workload peaks at 20.5 GB, over the runner's 16 GB (#36).
 
 The gate is enforced by branch protection on `master`: the required check is
 `build + run once (stable)`. The matrix `label` is deliberately version-free —
@@ -853,6 +862,60 @@ Applied automatically by `scripts/setup-monorepo.sh` (33 by `scripts/ppx-expand.
 | 32 | `duniverse/ocaml_intrinsics_kernel/src/{int_stubs.c,int.ml}` | Rename the bytecode stubs `caml_int_clz`/`caml_int_ctz` to `ocaml_intrinsics_kernel_int_{clz,ctz}` | OCaml trunk (ocaml/ocaml#15018, 2026-09-25) added runtime primitives with the same names, so any native executable pulling in `int_stubs.o` fails to link with `multiple definition of caml_int_clz` (frama-c and liquidsoap on the trunk CI leg). Only the bytecode names change; native code calls the `*_untagged_to_untagged` variants, so measured binaries are unchanged on every runtime. **Temporary**: reported upstream; drop or adapt once the clash is resolved on either side |
 | 33 | `duniverse/js_of_ocaml/compiler/ppx-light-predicate/predicate.ml` | Read the compiler version from `PPX_EXPAND_OCAML_VERSION` when set | Applied by `scripts/ppx-expand.sh`, not this script. jsoo's ppx_optcomp_light takes the version from `Sys.ocaml_version`; the override lets one switch produce the per-version expansions of `ocaml_compiler.ml` (§ppx expansion). Without it every version range would silently get the 5.4 expansion |
 | 34 | `vendor/infer/infer/src/textual/dune` (in `scripts/vendor-infer.sh`) | Drop `sedlex.ppx` from Textuallib's `(libraries ...)` | It is the sedlex *rewriter*, listed as a library as well as in `pps`; no module uses it, but it linked ppxlib into `infer.exe`, the one thing left needing ppxlib after the ppx expansion (found by its no-driver check) |
+| 35 | `duniverse/yojson/lib/write.ml` | Eta-expand `write_{int,float,string}lit` | OxCaml: stdlib functions take local arguments, so a curried re-export (`let f = Buffer.add_string`) is a local closure that no longer matches a global signature. This and 36-47 come from `scripts/setup-oxcaml.sh` (so do 48-49), are behaviour-preserving on stock OCaml, and are reproduced by `scripts/tests/oxcaml-repros.sh` (see §OxCaml) |
+| 36 | `duniverse/ocaml-extlib/src/ext{List,String}.ml` | Eta-expand `mem`, `memq`, `blit`, `(r)index_from(_opt)` after `include` | OxCaml, same as 35 (re-export through `include`). Same change as oxcaml/opam-repository's `extlib.1.8.0+ox` minus its cppo gate |
+| 37 | `vendor/camlpdf/pdf{util,ops}.ml` | Eta-expand `mem`; pass `fun s -> Buffer.add_string b s` instead of a partial application | OxCaml, same as 35 |
+| 38 | `vendor/cpdf-source/cpdfyojson.ml` | Eta-expand the four copies of `write_*lit` | OxCaml, same as 35 (cpdf bundles its own yojson) |
+| 39 | `duniverse/rocq/clib/int.ml` | Eta-expand `Int.List.mem` | OxCaml, same as 35 |
+| 40 | `duniverse/lwt/src/unix/lwt_unix.cppo.ml` | Eta-expand `do_{recv,send,recvfrom,sendto}` | OxCaml, same as 35 (`if Sys.win32 then Unix.recv else stub_recv`). The Unix half of `lwt.6.0.0+ox` |
+| 41 | `duniverse/eio/lib_eio/core/cells.ml` | Eta-expand the `Atomic.fetch_and_add` branch | OxCaml, same as 35 |
+| 42 | `duniverse/repr/src/repr/type_{random,binary}.ml` | Eta-expand `R.bool`, `Bytes.to_string`, and `seq (Buffer.add_string buf)` in `to_bin` | OxCaml, same as 35; the `to_bin` partial application is what made its continuation local |
+| 43 | `duniverse/devkit/ocamlnet_lite/netstring_tstring.ml` | Eta-expand the stdlib functions stored in the string/bytes ops records | OxCaml, same as 35 |
+| 44 | `duniverse/iter/src/Iter.ml` | `iter (fun s -> Buffer.add_string b s) seq` | OxCaml: a later partial application of a local-taking function fixes `Iter.iter`'s own (non-generalised) parameter mode as local, so the definition stops matching its `.mli` |
+| 45 | `duniverse/batteries-included/src/bat*.ml` | Eta-expand ~70 re-exported stdlib functions (Bytes, Buffer, Queue, String, List, Unix incl. `LargeFile`, `Random.State`, `Bigarray.Array0`, `File.chmod`, UTF8 `Buf`); define `Gc.eventlog_pause`/`resume` as `()` | OxCaml, same as 35; OxCaml removed the two deprecated `Gc` functions, which stock 5.x implements as no-ops |
+| 46 | infer's `extlib` checkout (`vendor/.infer-js-src`) | Same as 36 | Applied by `vendor-javalib-sawja.sh` after it resets the checkout, i.e. on every infer build |
+| 47 | infer's `javalib`/`sawja` Makefiles | Compile `.mli` and bytecode with `$(FOR_PACK)` too | OxCaml records the pack prefix in the `.cmi`, so an interface compiled without `-for-pack` breaks the pack (`a.cmx contains the description for unit A when P.A was expected`); stock accepts either |
+| 48 | `duniverse/ocaml_intrinsics_kernel/src/{int32,int64,nativeint,float}.ml`, `float.mli` | Drop `[@@builtin]` from the 8 externals naming intrinsics this OxCaml lacks (`*_c{l,t}z_nonzero_unboxed_to_untagged`, `caml_sse2_float64_{min,max}`) | OxCaml rejects an unrecognised `[@@builtin]`; stock ignores the attribute, and both then call the same C stub. OxCaml's `-disable-builtin-check` does the same, but stock rejects the flag |
+| 49 | `duniverse/ocaml-ctypes/src/ctypes/ctypes_memory.ml` | Eta-expand the four `bigarray_kind` branches | OxCaml: `Bigarray.*.kind` takes an `@ immutable` argument, so returning it unapplied into a GADT-refined function type fails. oxcaml's `ctypes.0.24.0+ox` uses OxCaml-only syntax instead |
+| 50 | `duniverse/js_of_ocaml/compiler/lib/ocaml_compiler.ml` | Move `Const_untagged_char` to the integer constants | OxCaml: inside jsoo's `[@@if oxcaml]` code only, where OxCaml's `Const_untagged_char` now carries an int; stock never compiles that branch |
+| 51 | `duniverse/devkit/{action,httpev,parallel}.ml` | Eta-expand `Random.int`, `Random.State.int` and two `Unix.waitpid` partial applications | OxCaml, same as 35 |
+| 52 | `duniverse/analyzer/src/util/std/gobRef.ml` | Eta-expand `wrap` | OxCaml, same as 35 (its one caller applies it fully) |
+| 53 | `duniverse/base/shadow-stdlib/gen/mapper.mll` | Handle kind-annotated types (`type t : k`) in the stdlib `.cmi` dump | OxCaml: the manifest must come after the kind; the rule never fires on stock |
+| 54 | apron's `ap_config.h` and `mlapronidl/Makefile` (in `scripts/vendor-apron.sh`) | Undefine `bool`/`true`/`false` before `typedef char bool`; compile `.cmi`/`.cmo` with `-for-pack Apron` | OxCaml: its `caml/misc.h` includes `<stdbool.h>`, and it records the pack prefix in the `.cmi` (as 47) |
+| 55 | `duniverse/ocaml-compiler-libs/src/read_cma/read_cma.ml` | Split into `read_cma.{upstream,oxcaml}.ml` plus a rule choosing by `%{ocaml_version}` | OxCaml: `cu_name` is a `Compilation_unit.t`. No one source compiles on both compiler-libs; the rule and the OxCaml side are what OxCaml's own vendored copy uses |
+| 56 | `duniverse/base/shadow-stdlib/gen/gen.ml` | Split as 55, the OxCaml side printing `fst cmi.cmi_sign` | OxCaml: `cmi_sign` pairs the signature with a mode |
+| 57 | `duniverse/base/shadow-stdlib/gen/dune` | Also link `compiler-libs.bytecomp` | OxCaml moved `Printtyp`/`Cmi_format`/`Subst` from `compiler-libs.common` to `compiler-libs.frontend` (absent on stock); `bytecomp` pulls in the right one on both |
+| 58 | `duniverse/base/src/{import0,base,linked_queue0,buffer}.ml` | Drop `with type 'a ref := 'a ref`; drop the ascription inside four `Obj.magic (Stdlib.X.f : ty)`; eta-expand `Buffer.add_{string,bytes}` after `include Stdlib.Buffer` | OxCaml: `'a ref` takes a `value_or_null` parameter that an unannotated substitution can't restate (the later `type 'a ref` shadows the included one anyway); the ascriptions and re-exports are 35's local-parameter problem |
+| 59 | `duniverse/core/core/src/array.ml` | `Permissioned.length` becomes a `val`; drop the two anonymous modules checking `S` and `Permissioned` against each other | OxCaml rejects `%array_length` on the abstract `Permissioned.t` (Jane Street's oxcaml branch makes it a `val` too); the checks are type-only and no longer hold. Clients of `Array.Permissioned.length` call a function instead of the primitive |
+| 60 | `duniverse/liquidsoap/src/lang/base/{types/type_constraints,lang_string}.ml` | Eta-expand `mem` and the two partial applications passed to `kprint_string`'s callback | OxCaml, same as 35 |
+| 61 | `vendor/frama-c/src/` `cmdline.ml`, `parameter_builder.ml`, `dotgraph.ml`, `json.mll`, `task.ml`, eva `transfer_specification.ml` | Eta-expand six re-exports and partial applications | OxCaml, same as 35 |
+| 62 | `vendor/infer/infer/src/{istd/IStd,pulse/PulseTaintOperations}.ml` | Eta-expand `print_string`/`prerr_string`; annotate the dummy-matcher list with `Unit.procedure_matcher list` | OxCaml, same as 35; its constructors were found through the expected type, which OxCaml doesn't propagate back through `\|>` |
+
+## OxCaml compatibility
+
+Status at oxcaml/oxcaml `be90cb46` (5.4.0+ox): all 94 programs build and the 20
+CI smoke programs run (2026-10-02, fresh setup). The same tree builds 94/94 and runs
+20/20 on stock 5.4.1.
+
+OxCaml does not compile all stock OCaml. Its stdlib gives many functions local
+(stack) parameters, which is invisible to callers that apply them fully but breaks
+curried re-exports, partial applications passed where a global function is
+expected, and signatures inferred from those. `scripts/setup-oxcaml.sh` fixes each
+occurrence with an eta-expansion that is behaviour-preserving on stock OCaml, plus
+a few non-mode changes (patches 45, 47, 48, 58, 59 and 62). `scripts/tests/oxcaml-repros.sh [bin dir...]`
+compiles one minimal case per class (`scripts/tests/oxcaml-repros/`), original and
+fixed, on each compiler: stock compiles both, OxCaml fails every original.
+
+Code written against compiler-libs can't share one source (patches 55-56): those
+files are split into `X.upstream.ml` and `X.oxcaml.ml`, chosen by a rule on
+`%{ocaml_version}` (the rule OxCaml's own vendored libraries use). The ppx expansion
+(§ppx expansion) removed the other compiler-specific dependency, ppxlib. Note OxCaml
+moved the typing modules (`Printtyp`, `Cmi_format`, ...) from `compiler-libs.common`
+to `compiler-libs.frontend`, so stock code using them through `compiler-libs.common`
+fails to link (patch 57).
+
+TODO: `oxcaml-repros.sh` has no case yet for the compiler-libs split (55-57),
+base's `'a ref` (58), core's `%array_length` (59) or the `|>` disambiguation (62).
 
 ## Known limitations
 
@@ -879,8 +942,7 @@ Applied automatically by `scripts/setup-monorepo.sh` (33 by `scripts/ppx-expand.
   source (`sources.yml` `mpfr`) into `vendor/.mpfr-prefix` and feeds `mlgmpidl` (via
   `CPPFLAGS`) and `apron` (via `MPFR_PREFIX`, which apron wants instead of `-I`) — skipped
   when the system already provides `mpfr.h` (Linux x86 apt, FreeBSD pkg, macOS brew).
-- **OxCaml**: only menhir, test_decompress, and zarith_pi work; others fail on
-  locality-type annotation errors in vendored packages.
+- **OxCaml**: see §OxCaml compatibility.
 - **Trunk (5.6) support**: depends on lwt git main (patch 5). ppxlib is now built only
   on the ppx switch (OCaml 5.4.1, §ppx expansion), so patch 4 may no longer be needed.
 - **pplacer**: vendored manually (not in opam); needs `libgsl-dev` and `libsqlite3-dev`.
