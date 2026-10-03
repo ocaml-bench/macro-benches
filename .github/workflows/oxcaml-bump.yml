@@ -1,0 +1,83 @@
+name: OxCaml bump
+
+# Weekly: points .github/oxcaml-pin.env at oxcaml main on the `oxcaml-bump`
+# branch, runs CI there, and fails if the oxcaml leg does. Merging is manual:
+# open a PR from the branch when this is green.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 4 * * 0"
+
+concurrency:
+  group: oxcaml-bump
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BRANCH: oxcaml-bump
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve oxcaml main
+        id: main
+        run: |
+          api() { curl -fsSL -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/repos/oxcaml/$1"; }
+          sha="$(api oxcaml/commits/main | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"])')"
+          repo="$(api opam-repository/commits/main | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"])')"
+          # OxCaml has no in-tree compiler opam file: borrow the newest recipe.
+          recipe="$(api "opam-repository/contents/packages/oxcaml-compiler?ref=${repo}" \
+                    | python3 -c 'import json,sys; [print(e["name"]) for e in json.load(sys.stdin)]' | sort -V | tail -1)"
+          . .github/oxcaml-pin.env
+          if [ "$sha $repo $recipe" = "$OXCAML_SHA $OXCAML_REPO $OXCAML_RECIPE" ]; then
+            echo "### Pin is already oxcaml main @ \`${sha:0:12}\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          sed -i -e "s/^OXCAML_SHA=.*/OXCAML_SHA=$sha/" -e "s/^OXCAML_REPO=.*/OXCAML_REPO=$repo/" \
+                 -e "s/^OXCAML_RECIPE=.*/OXCAML_RECIPE=$recipe/" .github/oxcaml-pin.env
+          {
+            echo "changed=true"
+            echo "title=Bump oxcaml to ${sha:0:12}"
+            echo "range=https://github.com/oxcaml/oxcaml/compare/${OXCAML_SHA:0:12}...${sha:0:12}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Push the bump branch
+        if: steps.main.outputs.changed == 'true'
+        id: push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -qam "${{ steps.main.outputs.title }}" -m "${{ steps.main.outputs.range }}"
+          git push -f origin "HEAD:refs/heads/$BRANCH"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      # A push made with GITHUB_TOKEN triggers no workflows; a dispatch does.
+      - name: Run CI on the bump branch
+        if: steps.main.outputs.changed == 'true'
+        run: |
+          gh workflow run ci.yml --ref "$BRANCH"
+          for _ in $(seq 30); do
+            sleep 10
+            id="$(gh run list --workflow ci.yml --branch "$BRANCH" --event workflow_dispatch \
+                    --json databaseId,headSha -q "map(select(.headSha == \"${{ steps.push.outputs.sha }}\"))[0].databaseId")"
+            [ -n "$id" ] && break
+          done
+          [ -n "$id" ] || { echo "dispatched CI run not found"; exit 1; }
+          url="${{ github.server_url }}/${{ github.repository }}/actions/runs/$id"
+          echo "CI run: $url"
+          while [ "$(gh run view "$id" --json status -q .status)" != completed ]; do sleep 120; done
+          result="$(gh run view "$id" --json jobs -q '.jobs[] | select(.name | test("oxcaml")) | .conclusion')"
+          {
+            echo "### ${{ steps.main.outputs.title }}: oxcaml leg ${result:-missing}"
+            echo "- Upstream changes: ${{ steps.main.outputs.range }}"
+            echo "- CI run: $url"
+            echo "- Open a PR: ${{ github.server_url }}/${{ github.repository }}/compare/master...$BRANCH?expand=1"
+          } >> "$GITHUB_STEP_SUMMARY"
+          [ "$result" = success ]
