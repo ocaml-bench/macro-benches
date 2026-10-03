@@ -64,9 +64,11 @@ jobs:
       # Records which trunk was tested; a trunk run that does not say which
       # trunk is a result nobody can act on.
       - name: Resolve compiler identity
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           if [ "${{ matrix.label }}" = "trunk" ]; then
-            sha="$(curl -fsSL https://api.github.com/repos/ocaml/ocaml/commits/trunk \
+            sha="$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/repos/ocaml/ocaml/commits/trunk \
                    | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"][:12])')"
             echo "### Compiler: ocaml/ocaml trunk @ \`${sha}\`" >> "$GITHUB_STEP_SUMMARY"
           else

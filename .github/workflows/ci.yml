@@ -62,9 +62,11 @@ jobs:
       # cache key, or a restored opam-root cache would hand back a stale switch.
       - name: Resolve compiler identity
         id: compiler
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           if [ "${{ matrix.oxcaml }}" = "true" ]; then
-            api() { curl -fsSL "https://api.github.com/repos/oxcaml/$1"; }
+            api() { curl -fsSL -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/repos/oxcaml/$1"; }
             sha="$(api oxcaml/commits/main | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"])')"
             repo="$(api opam-repository/commits/main | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"])')"
             # OxCaml has no in-tree compiler opam file: borrow the newest recipe.
@@ -73,7 +75,7 @@ jobs:
             { echo "id=oxcaml-${sha:0:12}-${repo:0:12}"; echo "sha=${sha}"; echo "repo=${repo}"; echo "recipe=${recipe}"; } >> "$GITHUB_OUTPUT"
             echo "### Compiler: oxcaml/oxcaml main @ \`${sha:0:12}\` (recipe \`${recipe}\`, opam-repository \`${repo:0:12}\`)" >> "$GITHUB_STEP_SUMMARY"
           elif [[ "${{ matrix.ocaml }}" == *trunk* ]]; then
-            sha="$(curl -fsSL https://api.github.com/repos/ocaml/ocaml/commits/trunk \
+            sha="$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/repos/ocaml/ocaml/commits/trunk \
                    | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"][:12])')"
             echo "id=trunk-${sha}" >> "$GITHUB_OUTPUT"
             echo "### Compiler: ocaml/ocaml trunk @ \`${sha}\`" >> "$GITHUB_STEP_SUMMARY"
