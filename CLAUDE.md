@@ -73,6 +73,8 @@ matrix and gaps, the gotchas, and the backlog.
   `ci-build-all.sh` / `ci-run-all.sh` / `ci-manifest.py` (the CI phases),
   `ppx-expand.sh` + `ppx-expand/` (see §ppx expansion).
 - `.github/workflows/ci.yml` — master-only build + run-once gate (see §CI).
+- `.github/workflows/oxcaml-bump.yml` + `.github/oxcaml-pin.env` — the oxcaml
+  leg's compiler pin and its weekly bump (see §CI).
 - `.github/workflows/ci-freebsd.yml` — the same gate on FreeBSD, in a VM; a
   measurement rather than a gate for now (see §CI).
 - `sources.yml`, `macro-bench-*.opam(.template)`, `dune-workspace`, `dune-overlays`.
@@ -162,12 +164,18 @@ being required, does not block merges. The trunk leg resolves the tip commit *be
 creating the switch and folds the SHA into every cache key — otherwise a restored
 opam-root cache silently tests a stale trunk.
 
-A third leg, **`oxcaml`**, builds `oxcaml/oxcaml` `main` the same way: OxCaml has
-no in-tree compiler opam file, so it pins the newest `oxcaml-compiler` recipe in
-`oxcaml/opam-repository` `main` to the commit (in an `oxcaml` switch next to
-setup-ocaml's, which then only provides opam), with `dune.3.22.2+ox`. Both commits
-go into the cache keys. Not required, like trunk; it tracks main to see how often
-it breaks. Linux only: OxCaml does not support FreeBSD. It adds 24 GB of swap
+A third leg, **`oxcaml`**, builds the `oxcaml/oxcaml` commit pinned in
+`.github/oxcaml-pin.env`: OxCaml has no in-tree compiler opam file, so it pins the
+`oxcaml-compiler` recipe named there, from the pinned `oxcaml/opam-repository`
+commit, to that commit (in an `oxcaml` switch next to setup-ocaml's, which then
+only provides opam), with `dune.3.22.2+ox`. Both commits go into the cache keys.
+Not required, like trunk. It is pinned rather than tracking main because main can
+break the released dune+ox (oxcaml#5462 did). `.github/workflows/oxcaml-bump.yml`
+moves it weekly (Sunday cron, or by hand): it points the pin at main on the
+`oxcaml-bump` branch, dispatches `ci.yml` there (a `GITHUB_TOKEN` push triggers no
+workflow), waits, and fails unless the oxcaml leg passed. Its summary links the
+upstream range, the CI run and a compare page; merging is a PR opened by hand
+(Actions may not open PRs in this repo). Linux only: OxCaml does not support FreeBSD. It adds 24 GB of swap
 before the build: OxCaml's `ocamlc` needs ~3x stock's memory, and jsoo's large
 workload peaks at 20.5 GB, over the runner's 16 GB (#36).
 

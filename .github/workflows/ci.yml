@@ -45,7 +45,7 @@ jobs:
             dune: "dev"
           - label: "oxcaml"
             # setup-ocaml's switch only provides opam; the runtime is the
-            # `oxcaml` switch built below from oxcaml/oxcaml main.
+            # `oxcaml` switch built below from .github/oxcaml-pin.env.
             ocaml: "5.4.1"
             oxcaml: true
             # OxCaml switches need dune's +ox build.
@@ -66,14 +66,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           if [ "${{ matrix.oxcaml }}" = "true" ]; then
-            api() { curl -fsSL -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/repos/oxcaml/$1"; }
-            sha="$(api oxcaml/commits/main | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"])')"
-            repo="$(api opam-repository/commits/main | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"])')"
-            # OxCaml has no in-tree compiler opam file: borrow the newest recipe.
-            recipe="$(api "opam-repository/contents/packages/oxcaml-compiler?ref=${repo}" \
-                      | python3 -c 'import json,sys; [print(e["name"]) for e in json.load(sys.stdin)]' | sort -V | tail -1)"
+            . .github/oxcaml-pin.env
+            sha="$OXCAML_SHA" repo="$OXCAML_REPO" recipe="$OXCAML_RECIPE"
             { echo "id=oxcaml-${sha:0:12}-${repo:0:12}"; echo "sha=${sha}"; echo "repo=${repo}"; echo "recipe=${recipe}"; } >> "$GITHUB_OUTPUT"
-            echo "### Compiler: oxcaml/oxcaml main @ \`${sha:0:12}\` (recipe \`${recipe}\`, opam-repository \`${repo:0:12}\`)" >> "$GITHUB_STEP_SUMMARY"
+            echo "### Compiler: oxcaml/oxcaml @ \`${sha:0:12}\` (recipe \`${recipe}\`, opam-repository \`${repo:0:12}\`)" >> "$GITHUB_STEP_SUMMARY"
           elif [[ "${{ matrix.ocaml }}" == *trunk* ]]; then
             sha="$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/repos/ocaml/ocaml/commits/trunk \
                    | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"][:12])')"
