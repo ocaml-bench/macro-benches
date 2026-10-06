@@ -61,8 +61,7 @@ while IFS=$'\t' read -r name tool timeout_s expected_exit args; do
 
   case ${rc} in
     "${expected_exit}")
-      # Some programs exit non-zero by design (alt-ergo's --timelimit dies by
-      # SIGALRM), declared as expected_exit.
+      # A program that exits non-zero by design declares it as expected_exit.
       if [ "${expected_exit}" = "0" ]; then
         printf 'ok      %4ds\n' "${elapsed}"
       else

@@ -91,8 +91,7 @@ programs:
   alt_ergo_unsat_smt2:
     tool: alt-ergo
     build_script: alt-ergo.build.sh
-    args: "--timelimit 15 ${RUNNING_MACRO_BENCH_DIR}/benchmarks/alt-ergo/unsat.smt2"
-    expected_exit: 142
+    args: "--steps-bound 12000 ${RUNNING_MACRO_BENCH_DIR}/benchmarks/alt-ergo/unsat.smt2"
   frama_c_eva_t:
     tool: frama-c
     build_script: frama-c.build.sh
