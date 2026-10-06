@@ -239,10 +239,13 @@ Notes for whoever touches this next:
 
 - **`args` in the manifest are copied verbatim from running-ng's `macro_base.yml`**
   so the two lists can be diffed mechanically. Keep it that way.
-- **`expected_exit`** declares a by-design non-zero exit. Only `alt_ergo_unsat_smt2`
-  needs it today: `--timelimit 15` means the workload *is* "solve for 15 s", the goal
-  never closes, and alt-ergo dies of its own SIGVTALRM (128+14 = **142**) on every
-  run. Don't "fix" that by dropping the flag — the time limit is the workload.
+- **`expected_exit`** declares a by-design non-zero exit. No program needs it today.
+  `alt_ergo_unsat_smt2` did until 2026-10-06: it ran `--timelimit 15`, never proved
+  its goal, and exited 142 after its SIGVTALRM handler raised `Util.Timeout`. On
+  OxCaml an exception raised by a signal handler is fatal (`caml_check_async`), so
+  it exited 2 there instead, and its wall time was 15 s on every runtime by
+  construction. It now stops after `--steps-bound 12000` (~15 s on 5.4.1), a fixed
+  amount of work that exits 0.
 - **In the manifest rows, `args` is the last column on purpose.** Bash treats TAB as
   whitespace-IFS, so an empty field mid-row collapses and shifts every later column;
   the programs with no args would silently take the next field as their argv.
@@ -725,7 +728,7 @@ a list of what you can run; this file is where they are documented.
 | **`Domain.spawn` / `join`** | `caml_domain_*` | infer (`--multicore`: single-process multi-domain shared-heap analysis, one domain per CPU of the inherited affinity mask — the suite's only non-disabled multi-domain workload, hence its only parallel-GC coverage. Source-audited 2026-09-21: `base/DomainPool.ml:134,98,238` `Domain.spawn`/`join`/`cpu_relax`, a hand-rolled pool over `Concurrent.Queue` (mutex + condvar), not Domainslib; `backend/ondemand.ml:56-90` reads `Domain.DLS` per analysed procedure) | lavyek_kv_{2,4,8}d, merlin_bench when re-enabled |
 | **`Atomic.*`** | inlined CAS in native code, not a runtime symbol | — (**no measurable coverage**; the running-ng tag was dropped 2026-09-21) | eio_* (`waiters.ml:2,21,48`, one `bool Atomic.t` per suspension; `lib_eio_linux/sched.ml:67,100`) and infer_* (`base/Utils.ml:490-497` CAS loop, `base/Stats.ml` counters) do use Atomic, but uncontended and at a rate no profile sees: no `caml_atomic_*` or Atomic symbol appears anywhere in the 5.5.0 profiles. Contended atomics were lavyek's job (disabled). ocaml-re does Atomic only at regex compile time, so devkit_* see it only in init |
 | **kcas / lock-free MCAS** | n/a (library) | — (**verified gap**: lavyek imports `kcas`/`kcas_data` but never calls them; `REMOVED.md:22`). The running-ng `kcas` selector was removed 2026-09-21, so this gap now lives only here | — |
-| **`Sys.set_signal`** | `caml_install_signal_handler` | alt_ergo_unsat_smt2 only, and weakly: `--timelimit 15` arms an ITIMER_VIRTUAL per goal (`my_unix.ml:36-44` from `solving_loop.ml:149,169`; strace shows ~700 setitimer + ~700 rt_sigaction per run) and every invocation ends at 15.01 CPU-seconds on the SIGVTALRM, i.e. ONE delivery per run. The running-ng `signals` tag was dropped 2026-09-21: one delivery measures nothing about the poll path | alt_ergo_{fill,yyll,chain_*} (handlers installed at startup, no timer armed); coq SIGINT unused. No high-frequency signal delivery. |
+| **`Sys.set_signal`** | `caml_install_signal_handler` | none (**gap**: since 2026-10-06 no benchmark delivers a signal. `alt_ergo_unsat_smt2` used to, once per run, from its `--timelimit` itimer; it now uses `--steps-bound`. The running-ng `signals` tag was dropped 2026-09-21) | alt_ergo_* (handlers installed at startup, no timer armed); coq SIGINT unused. No signal delivery at all. |
 | **`Lazy.force` (hot)** | `caml_call_lazy` | liq_parse_typecheck (`typechecking.ml:386`), jsoo (`inline.ml:195,429,714`), menhir_* (`invariant.ml`) | many cold init lazies |
 | **`Format` (hot)** | `Format.{fprintf,pp_*}` | menhir_* (codegen + table dumps), ocamlformat_rocq (whole workload), liq_parse_typecheck (type printing), alt_ergo_*, zarith_pi (`Z.output`) | others use Format only on error paths |
 | **`Hashtbl` at scale** | `caml_hash` | menhir_* (`LRijkstraClassic.ml:849`), ocamlc_self_compile (`btype.ml:46 TypeHash`), alt_ergo_*, cpdf_* (`camlpdf/pdf.ml:118`), irmin_mem_rw (`irmin_mem.ml:44`), liq_parse_typecheck (`repr.ml`), pplacer (`ptree.ml:4`), devkit_*, goblint | others touch Hashtbl only trivially |
@@ -768,7 +771,7 @@ a list of what you can run; this file is where they are documented.
 | `cpdf_squeeze_{small,default,large}` | input size = document working set (merge N=8/24/64 copies + recompress). Live PDF object map grows ~linearly with N (top_heap 110→405M w, RSS 0.88→3.0GB, majorGC 38→56); gc% FALLS 31→16% as flate C recompression dominates. Live-heap ladder, not a GC-pacing one |
 | `alt_ergo_fill, alt_ergo_yyll` | weak-refs (Weak.Make hash-consing), hashtbl, format |
 | `alt_ergo_chain_{small,default,large}` | input size = single-solve problem size (generated chain VC a(0)=0, a(i)=a(i-1)+1, prove a(N)=N; N=4000/7000/10500). One large mostly-live congruence structure per solve: top_heap 76→638M w, RSS 0.6→4.9GB, minor 3.7k→25k (major only 16→24, promo ~0.1). gc% RISES 14→26%, pauses grow (p99.9 3→22ms) — heap-scan-bound. Distinct from fill_x100's fixed-input repetition |
-| `alt_ergo_unsat_smt2` | weak-refs, hashtbl, format, ffi-stubs (GMP via Q/Z, ~12%: `ml_z_gcd` 5.0%, `Z.mul` 2.7%), signals (the `--timelimit 15` SIGVTALRM fires every run — it never proves its goal, so it measures 15s of solver work, not a fixed amount of it) |
+| `alt_ergo_unsat_smt2` | weak-refs, hashtbl, format, ffi-stubs (GMP via Q/Z, ~12%: `ml_z_gcd` 5.0%, `Z.mul` 2.7%), a fixed amount of solver work (`--steps-bound 12000`; it never proves its goal) |
 | `frama_c_eva_{t,sqlite,sqlite_small,sqlite_default,sqlite_large}` | weak-refs / ephemeron-backed hash-consing (`State_builder.Hashconsing_tbl` is the weak variant unless `-deterministic`; `Stdlib.Weak.find_aux` 1.8% of cycles), polymorphic compare/hash (caml_string_compare 7.8%), forks the C preprocessor inside the measured region, hashtbl, recursive-variants (CIL AST), minor-gc, max-rss (sqlite, #11733). input-size ladder = `-eva-precision` (2nd wrapper arg) on sqlite; slevel inert; t is a fixed fast standalone |
 | `goblint` | high allocation / minor-gc churn (~1.3GB for a 5.6KB input), polymorphic compare/hash, apron relational domains (C/GMP FFI — autotune enables the octagon domain for THIS program only, not for the gen_* ladder), forks the C preprocessor inside the measured region, recursive-variants (CIL AST), allocated-bytes (#13733) |
 | `goblint_gen_{small,default,large}` | input size = analysed-program size (synthetic Btor2C bit-vector state machine, N=100/165/240 state vars; goblint.build.sh generates the .c). Pure allocation-churn ladder (#13733 signature): allocated_words 3.8→39.5G (10×), minor GC 15k→151k, gc% 22→34%; live set grows too (top_heap 5.9→19.5M, major 41→97) but RSS modest 77→186MB. octagon O(N²) in the generator, but autotune does NOT enable the apron octagon domain here (verified by running it). Polymorphic compare/hash (compare_val 2.5%) and a forked cpp. Read by allocated_words. On-heap counterpoint to pplacer's off-heap footprint |
@@ -820,10 +823,9 @@ Each was checked by `grep -rn` against the actual vendored source.
   pool; lavyek dispatched via a manual `Atomic.fetch_and_add` counter).
 - **`Gc.compact` / `Gc.full_major` in a hot loop** — no benchmark forces a full GC.
 - **`Gc.alarm` / `Gc.create_alarm`** — no benchmark registers one.
-- **High-frequency signal delivery in tight loops** — alt-ergo installs handlers ~700
-  times per run and arms an itimer per goal, but exactly one signal is delivered, at
-  the end of `alt_ergo_unsat_smt2`. Nothing measures the poll-point path, which is the
-  part of this that runtime work actually touches.
+- **Signal delivery**: no benchmark receives a signal (`alt_ergo_unsat_smt2` did, once
+  per run, until it moved to `--steps-bound`). Nothing measures the poll-point path,
+  which is the part of this that runtime work actually touches.
 - **Pure-OCaml hot inner-loop float (flambda)** — owl_gc defers to OpenBLAS, so flambda
   has nothing to optimise in the inner loop. A pure-OCaml numerical kernel would catch it.
 - **`Bigarray` slicing / reshape patterns** — owl_gc doesn't slice; liq_video_frames_pool

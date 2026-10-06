@@ -38,6 +38,7 @@ Kept for reference, not run by default (`RUNNING_TAG=legacy`):
 - `alt_ergo_yyll` — a larger single native `.why` input through the native parser.
 - `alt_ergo_unsat_smt2` — a Dolmen `.smt2` input run with `--timelimit 15`; the
   goal never closes and it dies of its own SIGVTALRM, exiting 142 by design.
+  <!-- TODO(docs): it now runs `--steps-bound 12000` instead: a fixed amount of solver work (~15 s on 5.4.1) that exits 0. The goal still never closes. It never died of SIGVTALRM: its handler raised `Util.Timeout` and alt-ergo exited 142 itself; on OxCaml an exception from a signal handler is fatal (exit 2), which is why it changed. -->
 
 ## Notes
 
