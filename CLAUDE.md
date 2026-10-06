@@ -478,6 +478,9 @@ same source and none needs ppxlib (which trunk and OxCaml can't always build).
   the wrappers in place, so running-ng thinks they're built, **skips rebuild, and the
   wrapper fails at run with `exit 127, .exe: No such file`** — *not* an MMTk/runtime
   bug. Re-`buildbms` after deleting the wrapper output to regenerate the `.exe`.
+- **`opam monorepo pull` is retried 3 times** (15 s, then 30 s apart): GitHub release
+  downloads fail with transient 5xx errors. A failed attempt's partial `duniverse/`
+  is deleted, because setup skips the pull whenever `duniverse/` is non-empty.
 - **dune caches configurator probes in `_build`** (e.g. `lwt_features.h`, `*.sexp`).
   An env-var change (e.g. `LIBRARY_PATH`) alone won't re-probe — needs a clean build dir.
 - **The duniverse builds across multiple compilers** (5.4.1, `d8bb46c`, trunk,
