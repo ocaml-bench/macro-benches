@@ -36,8 +36,11 @@ Kept for reference, not run by default (`RUNNING_TAG=legacy`):
 - `alt_ergo_fill` — 100 independent copies of one goal (`fill_x100.why`,
   generated), scaled by repetition; ~14s at ~0.14s per goal.
 - `alt_ergo_yyll` — a larger single native `.why` input through the native parser.
-- `alt_ergo_unsat_smt2` — a Dolmen `.smt2` input run with `--timelimit 15`; the
-  goal never closes and it dies of its own SIGVTALRM, exiting 142 by design.
+- `alt_ergo_unsat_smt2` — a Dolmen `.smt2` input run with `--steps-bound 12000`;
+  the goal never closes, so it stops after a fixed amount of solver work (~15s on
+  5.4.1) and exits 0. It used `--timelimit 15` until 2026-10-06, which made its
+  wall time 15s on every runtime and ended it from a SIGVTALRM handler, an
+  exception OxCaml treats as fatal.
 
 ## Notes
 
