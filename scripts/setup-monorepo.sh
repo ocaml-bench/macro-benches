@@ -59,7 +59,20 @@ if [ -d duniverse ] && [ "$(ls duniverse/ | wc -l)" -gt 0 ]; then
   echo "  duniverse/ already populated ($(ls duniverse/ | wc -l) packages). Skipping."
   echo "  To re-pull, remove duniverse/ first."
 else
-  OPAMSWITCH="$TOOLS_SWITCH" "$_OPAM" monorepo pull --lockfile=macro-benches.opam.locked
+  # Downloads hit transient GitHub 5xx errors. A failed pull leaves a partial
+  # duniverse/ that the check above would then skip, so clear it each time.
+  for attempt in 1 2 3; do
+    if OPAMSWITCH="$TOOLS_SWITCH" "$_OPAM" monorepo pull --lockfile=macro-benches.opam.locked; then
+      break
+    fi
+    rm -rf duniverse
+    if [ "$attempt" = 3 ]; then
+      echo "ERROR: opam monorepo pull failed 3 times." >&2
+      exit 1
+    fi
+    echo "  opam monorepo pull failed (attempt $attempt/3); retrying in $((attempt * 15))s..."
+    sleep $((attempt * 15))
+  done
 fi
 echo ""
 
