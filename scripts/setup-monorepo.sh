@@ -1082,6 +1082,92 @@ else
 fi
 echo ""
 
+# Patches 63-64: OCaml trunk (ocaml/ocaml#15121) added Unix.O_NOFOLLOW, and both
+# batteries and lwt re-declare Unix.open_flag, which then no longer matches.
+# Each adds the constructor behind its own version gate; lwt also maps it in its
+# C flag table. Drop once upstream supports it.
+BATUNIX_MLI="duniverse/batteries-included/src/batUnix.mli"
+if [ -f "$BATUNIX_MLI" ]; then
+  if grep -q 'O_NOFOLLOW' "$BATUNIX_MLI"; then
+    echo "  [63] batteries Unix.open_flag O_NOFOLLOW: already patched."
+  else
+    insert_after "$BATUNIX_MLI" '[|] O_KEEPEXEC$' '##V>=5.7##  | O_NOFOLLOW'
+    echo "  [63] batteries Unix.open_flag: added O_NOFOLLOW (##V>=5.7##)."
+  fi
+else
+  echo "  [63] batteries: not vendored. Skipping."
+fi
+LWT_UNIX="duniverse/lwt/src/unix"
+if [ -f "$LWT_UNIX/lwt_unix.cppo.mli" ]; then
+  if grep -q 'O_NOFOLLOW' "$LWT_UNIX/lwt_unix.cppo.mli"; then
+    echo "  [64] lwt Unix.open_flag O_NOFOLLOW: already patched."
+  else
+    python3 - "$LWT_UNIX" <<'PYEOF'
+import sys
+
+d = sys.argv[1]
+gate = "  | O_KEEPEXEC\n#if OCAML_VERSION >= (5, 7, 0)\n  | O_NOFOLLOW\n#endif\n"
+edits = {
+    "lwt_unix.cppo.mli": [("  | O_KEEPEXEC\n", gate)],
+    "lwt_unix.cppo.ml": [("  | O_KEEPEXEC\n", gate)],
+    "unix_c/unix_open_job.c": [
+        ("#if OCAML_VERSION_MAJOR < 5\n",
+         "#ifndef O_NOFOLLOW\n#define O_NOFOLLOW 0\n#endif\n\n#if OCAML_VERSION_MAJOR < 5\n"),
+        ("    0  /* O_KEEPEXEC, treated specially */\n",
+         "    0, /* O_KEEPEXEC, treated specially */\n    O_NOFOLLOW\n"),
+        ("static int open_cloexec_table[15] = {0, 0, 0, 0, 0, 0,       0,       0,\n"
+         "                                     0, 0, 0, 0, 0, CLOEXEC, KEEPEXEC};",
+         "static int open_cloexec_table[16] = {0, 0, 0, 0, 0, 0,       0,       0,\n"
+         "                                     0, 0, 0, 0, 0, CLOEXEC, KEEPEXEC, 0};"),
+    ],
+}
+for f, reps in edits.items():
+    p = f"{d}/{f}"
+    s = open(p).read()
+    for old, new in reps:
+        if s.count(old) != 1:
+            sys.exit(f"  [64] lwt {f}: not in the expected shape")
+        s = s.replace(old, new)
+    open(p, "w").write(s)
+print("  [64] lwt Unix.open_flag: added O_NOFOLLOW (OCaml >= 5.7) and its C flag.")
+PYEOF
+  fi
+else
+  echo "  [64] lwt: not vendored. Skipping."
+fi
+echo ""
+
+# Patch 65: OCaml trunk (ocaml/ocaml#15135) renamed the bytecode hint
+# Hint_physical_comparison to Hint_int_equality_test. The pinned jsoo ignores
+# that hint; keep ignoring it under either name, so the ppx expansion gains a
+# 5.7 bucket. Drop on a jsoo bump past ocsigen/js_of_ocaml@acefa21.
+JSOO_OC="duniverse/js_of_ocaml/compiler/lib/ocaml_compiler.ml"
+if [ -f "$JSOO_OC" ]; then
+  if grep -q 'Hint_int_equality_test' "$JSOO_OC"; then
+    echo "  [65] jsoo Hint_int_equality_test: already patched."
+  else
+    python3 - "$JSOO_OC" <<'PYEOF'
+import sys
+
+p = sys.argv[1]
+old = ("    | Hint_physical_comparison ->\n"
+       "        (* No corresponding optimization in js_of_ocaml yet; ignore the hint. *)\n"
+       "        None\n")
+new = ("    | ((Hint_physical_comparison) [@if ocaml_version < (5, 7, 0)]) -> None\n"
+       "    | ((Hint_int_equality_test) [@if ocaml_version >= (5, 7, 0)]) -> None\n")
+s = open(p).read()
+if s.count(old) != 1:
+    sys.exit("  [65] jsoo ocaml_compiler.ml: not in the expected shape")
+open(p, "w").write(s.replace(old, new))
+print("  [65] jsoo: Hint_physical_comparison / Hint_int_equality_test by OCaml version.")
+PYEOF
+  fi
+else
+  # an expanded tree has no ocaml_compiler.ml; its buckets carry the patch
+  echo "  [65] jsoo ocaml_compiler.ml: absent (not vendored, or expanded). Skipping."
+fi
+echo ""
+
 # [22] sedlex's `(mode promote)` rule regenerates the shipped unicode.ml from
 # tables downloaded from www.unicode.org on every clean build, which fails
 # intermittently. Drop the rule; guarded on the shipped generated file being
