@@ -1137,10 +1137,10 @@ else
 fi
 echo ""
 
-# Patch 65: OCaml trunk (ocaml/ocaml#15135) renamed the bytecode hint
-# Hint_physical_comparison to Hint_int_equality_test. The pinned jsoo ignores
-# that hint; keep ignoring it under either name, so the ppx expansion gains a
-# 5.7 bucket. Drop on a jsoo bump past ocsigen/js_of_ocaml@acefa21.
+# Patch 65: ocaml/ocaml#15135 (trunk, and backported to 5.6) renamed the
+# bytecode hint Hint_physical_comparison to Hint_int_equality_test. The pinned
+# jsoo ignores that hint; keep ignoring it under either name. Drop on a jsoo
+# bump past ocsigen/js_of_ocaml@acefa21.
 JSOO_OC="duniverse/js_of_ocaml/compiler/lib/ocaml_compiler.ml"
 if [ -f "$JSOO_OC" ]; then
   if grep -q 'Hint_int_equality_test' "$JSOO_OC"; then
@@ -1153,8 +1153,8 @@ p = sys.argv[1]
 old = ("    | Hint_physical_comparison ->\n"
        "        (* No corresponding optimization in js_of_ocaml yet; ignore the hint. *)\n"
        "        None\n")
-new = ("    | ((Hint_physical_comparison) [@if ocaml_version < (5, 7, 0)]) -> None\n"
-       "    | ((Hint_int_equality_test) [@if ocaml_version >= (5, 7, 0)]) -> None\n")
+new = ("    | ((Hint_physical_comparison) [@if ocaml_version < (5, 6, 0)]) -> None\n"
+       "    | ((Hint_int_equality_test) [@if ocaml_version >= (5, 6, 0)]) -> None\n")
 s = open(p).read()
 if s.count(old) != 1:
     sys.exit("  [65] jsoo ocaml_compiler.ml: not in the expected shape")

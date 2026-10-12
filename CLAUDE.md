@@ -905,7 +905,7 @@ Applied automatically by `scripts/setup-monorepo.sh` (33 by `scripts/ppx-expand.
 | 62 | `vendor/infer/infer/src/{istd/IStd,pulse/PulseTaintOperations}.ml` | Eta-expand `print_string`/`prerr_string`; annotate the dummy-matcher list with `Unit.procedure_matcher list` | OxCaml, same as 35; its constructors were found through the expected type, which OxCaml doesn't propagate back through `\|>` |
 | 63 | `duniverse/batteries-included/src/batUnix.mli` | Add `O_NOFOLLOW` to `open_flag` behind `##V>=5.7##` | OCaml trunk (ocaml/ocaml#15121) added `Unix.O_NOFOLLOW`, so the re-declared type no longer matches. Drop once batteries supports it |
 | 64 | `duniverse/lwt/src/unix/lwt_unix.cppo.{ml,mli}`, `unix_c/unix_open_job.c` | Add `O_NOFOLLOW` behind `#if OCAML_VERSION >= (5, 7, 0)`, and its entry in the C flag tables | Same as 63. Drop once lwt supports it |
-| 65 | `duniverse/js_of_ocaml/compiler/lib/ocaml_compiler.ml` | Match `Hint_physical_comparison` below 5.7 and `Hint_int_equality_test` from 5.7, both ignored | OCaml trunk (ocaml/ocaml#15135) renamed the hint; the pinned jsoo ignored it. Gives the ppx expansion a 5.7 bucket. Drop on a jsoo bump past ocsigen/js_of_ocaml@acefa21 |
+| 65 | `duniverse/js_of_ocaml/compiler/lib/ocaml_compiler.ml` | Match `Hint_physical_comparison` below 5.6 and `Hint_int_equality_test` from 5.6, both ignored | ocaml/ocaml#15135 (trunk, backported to 5.6) renamed the hint; the pinned jsoo ignored it. Drop on a jsoo bump past ocsigen/js_of_ocaml@acefa21 |
 
 ## OxCaml compatibility
 
