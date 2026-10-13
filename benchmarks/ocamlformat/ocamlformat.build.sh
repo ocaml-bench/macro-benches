@@ -30,7 +30,7 @@ for n in 12 30 150; do
   fi
 done
 
-dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
+dune_locked build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
   --profile release \
   duniverse/ocamlformat/bin/ocamlformat/main.exe
 

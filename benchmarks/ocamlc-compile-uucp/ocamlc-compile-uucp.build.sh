@@ -46,6 +46,7 @@ case "$(basename "${OUT}")" in
   *)                             REPLICAS=1;  STAGE="${BENCH_DIR}/inputs/uucp" ;;
 esac
 
+gen_lock "${BENCH_DIR}/.gen.lock"
 rm -rf "${STAGE}"; mkdir -p "${STAGE}"
 if (( REPLICAS == 1 )); then
   cp "${SRC}"/*.ml "${SRC}"/*.mli "${STAGE}"/ 2>/dev/null
@@ -58,6 +59,7 @@ else
   done
 fi
 echo "  staged $(ls "${STAGE}"/*.ml | wc -l) modules ($(cat "${STAGE}"/*.ml | wc -l) lines, REPLICAS=${REPLICAS})"
+gen_unlock
 
 ORDER="$(cd "${STAGE}" && "${OCAMLDEP}" -sort *.mli *.ml 2>/dev/null)"
 MLIS="$(echo "${ORDER}" | tr ' ' '\n' | grep '\.mli$' | tr '\n' ' ')"

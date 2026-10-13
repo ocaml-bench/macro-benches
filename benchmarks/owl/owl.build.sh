@@ -13,7 +13,7 @@ BUILD_DIR="${MONOREPO_DIR}/_build-${RUNTIME_TAG//[^a-zA-Z0-9._-]/_}"
 echo "Building owl (monorepo) for runtime: ${RUNTIME_TAG}"
 unset OPAM_SWITCH_PREFIX OCAMLTOP_INCLUDE_PATH CAML_LD_LIBRARY_PATH OCAMLLIB
 export OCAMLPATH=""
-dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" --profile release benchmarks/owl/owl_gc.exe
+dune_locked build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" --profile release benchmarks/owl/owl_gc.exe
 REAL_EXE="${BUILD_DIR}/default/benchmarks/owl/owl_gc.exe"
 # argv.1 = in-process loop count; argv.2 = matrix dimension -> OWL_MATRIX_DIM
 # (off-heap live set is 100 * dim^2 * 8 bytes; default 100).
