@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Source patches that let the vendored tree compile with OxCaml as well as stock
 # OCaml. Each one is plain OCaml that behaves identically on stock OCaml, so they
-# are applied for every compiler. Called by setup-monorepo.sh ([35]-[45], [48]-[53], [55]-[62]) and, for
+# are applied for every compiler. Called by setup-monorepo.sh ([35]-[45], [48]-[53], [55]-[62], [66]) and, for
 # infer's own checkouts that vendor-javalib-sawja.sh resets on every build, by
 # vendor-javalib-sawja.sh ([46]-[47]). scripts/tests/oxcaml-repros.sh reproduces
 # each class of incompatibility on its own.
@@ -50,31 +50,31 @@ after() {
   replace "$1" "$2" "$3" "$4" "$4$5"
 }
 
-# variant <num> <label> <file> <old> <new>: for code against compiler-libs,
-# whose API differs on OxCaml, so no one source compiles on both. Keeps <file>
-# as <stem>.upstream.ml, writes <stem>.oxcaml.ml with <old> replaced by <new>,
+# variant <num> <label> <file> <old> <new>: for code no one source of which
+# compiles on both (compiler-libs' API, OxCaml-only syntax). Keeps <file>
+# as <stem>.upstream.<ext>, writes <stem>.oxcaml.<ext> with <old> replaced by <new>,
 # and adds the rule OxCaml's own vendored libraries use to pick one (it works
 # from dune lang 1.0, which some of these projects declare).
 variant() {
-  local num=$1 label=$2 f=$3 d stem
-  d=$(dirname "$f"); stem=$(basename "$f" .ml)
-  if [ -f "$d/$stem.oxcaml.ml" ]; then
+  local num=$1 label=$2 f=$3 d ext stem
+  d=$(dirname "$f"); ext=${f##*.}; stem=$(basename "$f" ".$ext")
+  if [ -f "$d/$stem.oxcaml.$ext" ]; then
     echo "  [$num] $label: already applied."
     return
   fi
-  mv "$f" "$d/$stem.upstream.ml"
-  cp "$d/$stem.upstream.ml" "$d/$stem.oxcaml.ml"
-  replace "$num" "$label" "$d/$stem.oxcaml.ml" "$4" "$5"
+  mv "$f" "$d/$stem.upstream.$ext"
+  cp "$d/$stem.upstream.$ext" "$d/$stem.oxcaml.$ext"
+  replace "$num" "$label" "$d/$stem.oxcaml.$ext" "$4" "$5"
   cat >> "$d/dune" <<EOF
 
 (rule
- (targets $stem.ml)
- (deps $stem.upstream.ml $stem.oxcaml.ml)
+ (targets $stem.$ext)
+ (deps $stem.upstream.$ext $stem.oxcaml.$ext)
  (action
   (with-stdout-to
    %{targets}
    (system
-    "case '%{ocaml_version}' in *+ox*) cat $stem.oxcaml.ml ;; *) cat $stem.upstream.ml ;; esac"))))
+    "case '%{ocaml_version}' in *+ox*) cat $stem.oxcaml.$ext ;; *) cat $stem.upstream.$ext ;; esac"))))
 EOF
 }
 
@@ -390,6 +390,26 @@ BATUNIX
     replace 62 "infer taint dummy matchers type" "$IS/pulse/PulseTaintOperations.ml" \
       $'      ; exclude_names= None } ]\n  |> List.map ~f:dummy_matcher_of_procedure_matcher' \
       $'      ; exclude_names= None } ]\n    : Unit.procedure_matcher list )\n  |> List.map ~f:dummy_matcher_of_procedure_matcher'
+  fi
+
+  # oxcaml#5462 made option's parameter `any`, which a re-export with
+  # constructors must restate. Base's and ppx_yojson_conv_lib's constructors are
+  # used qualified, so those keep them; odoc-parser's are not, so it drops them.
+  local OPT=$'type \'a t = \'a option =\n  | None\n  | Some of \'a\n'
+  if vendored duniverse/base/src 66 base; then
+    for f in option.ml option.mli; do
+      variant 66 "base $f Option.t" "duniverse/base/src/$f" "$OPT" "${OPT/\'a t/(\'a : any) t}"
+    done
+  fi
+  if vendored duniverse/ppx_yojson_conv_lib 66 ppx_yojson_conv_lib; then
+    variant 66 "ppx_yojson_conv_lib Option.t" duniverse/ppx_yojson_conv_lib/ppx_yojson_conv_lib.ml \
+      "  type 'a t = 'a option =" "  type ('a : any) t = 'a option ="
+  fi
+  if vendored duniverse/ocamlformat/vendor/odoc-parser 66 odoc-parser; then
+    for f in compat.ml compat.mli; do
+      replace 66 "odoc-parser $f Option.t" "duniverse/ocamlformat/vendor/odoc-parser/$f" \
+        "type 'a t = 'a option = None | Some of 'a" "type 'a t = 'a option"
+    done
   fi
 }
 
