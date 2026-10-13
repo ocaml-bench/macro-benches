@@ -906,6 +906,7 @@ Applied automatically by `scripts/setup-monorepo.sh` (33 by `scripts/ppx-expand.
 | 63 | `duniverse/batteries-included/src/batUnix.mli` | Add `O_NOFOLLOW` to `open_flag` behind `##V>=5.7##` | OCaml trunk (ocaml/ocaml#15121) added `Unix.O_NOFOLLOW`, so the re-declared type no longer matches. Drop once batteries supports it |
 | 64 | `duniverse/lwt/src/unix/lwt_unix.cppo.{ml,mli}`, `unix_c/unix_open_job.c` | Add `O_NOFOLLOW` behind `#if OCAML_VERSION >= (5, 7, 0)`, and its entry in the C flag tables | Same as 63. Drop once lwt supports it |
 | 65 | `duniverse/js_of_ocaml/compiler/lib/ocaml_compiler.ml` | Match `Hint_physical_comparison` below 5.6 and `Hint_int_equality_test` from 5.6, both ignored | ocaml/ocaml#15135 (trunk, backported to 5.6) renamed the hint; the pinned jsoo ignored it. Drop on a jsoo bump past ocsigen/js_of_ocaml@acefa21 |
+| 66 | `duniverse/base/src/option.ml(i)`, `duniverse/ppx_yojson_conv_lib/ppx_yojson_conv_lib.ml`, `duniverse/ocamlformat/vendor/odoc-parser/compat.ml(i)` | base and ppx_yojson_conv_lib: split as 55, the OxCaml side declaring `type ('a : any) t = 'a option = None \| Some of 'a`; odoc-parser: drop the constructors (`type 'a t = 'a option`) | oxcaml/oxcaml#5462 gave `option` an `any` parameter, which a re-export with constructors must restate, and stock can't parse the annotation. Base's and ppx_yojson_conv's constructors are used qualified (`Option.Some`, and the yojson deriver's `Ppx_yojson_conv_lib.Option.None`), so they keep them; odoc-parser's are not |
 
 ## OxCaml compatibility
 
@@ -918,11 +919,12 @@ OxCaml does not compile all stock OCaml. Its stdlib gives many functions local
 curried re-exports, partial applications passed where a global function is
 expected, and signatures inferred from those. `scripts/setup-oxcaml.sh` fixes each
 occurrence with an eta-expansion that is behaviour-preserving on stock OCaml, plus
-a few non-mode changes (patches 45, 47, 48, 58, 59 and 62). `scripts/tests/oxcaml-repros.sh [bin dir...]`
+a few non-mode changes (patches 45, 47, 48, 58, 59, 62 and 66). `scripts/tests/oxcaml-repros.sh [bin dir...]`
 compiles one minimal case per class (`scripts/tests/oxcaml-repros/`), original and
 fixed, on each compiler: stock compiles both, OxCaml fails every original.
 
-Code written against compiler-libs can't share one source (patches 55-56): those
+Code written against compiler-libs can't share one source (patches 55-56), nor can
+a re-export of `option` with its constructors (66, oxcaml#5462): those
 files are split into `X.upstream.ml` and `X.oxcaml.ml`, chosen by a rule on
 `%{ocaml_version}` (the rule OxCaml's own vendored libraries use). The ppx expansion
 (§ppx expansion) removed the other compiler-specific dependency, ppxlib. Note OxCaml
