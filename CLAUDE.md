@@ -133,7 +133,10 @@ runtime, and next to every other script:
   the tree lock shared;
 - generate shared, runtime-independent inputs between `gen_lock
   "${BENCH_DIR}/.gen.lock"` and `gen_unlock`, so another runtime's build waits
-  and then finds them complete;
+  and then finds them complete. Regenerate only when stale, and swap a
+  regenerated dir in whole (build it under a temporary name, then `mv`):
+  builds read the inputs after releasing the lock, so deleting them under the
+  lock still breaks another build mid-read (ocamlc-compile-uucp did, 2026-10-13);
 - keep anything else written per runtime: compile workloads in a private temp
   dir (jsoo), and build vendored C/OCaml sources from a per-runtime copy
   (`seed_src_copy`, as apron and javalib do: their vendor scripts `git clean`
