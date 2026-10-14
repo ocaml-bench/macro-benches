@@ -7,6 +7,7 @@
 # each class of incompatibility on its own.
 #
 # Usage: bash scripts/setup-oxcaml.sh            duniverse/ and vendor/
+#        bash scripts/setup-oxcaml.sh post-expand after scripts/ppx-expand.sh
 #        bash scripts/setup-oxcaml.sh infer <dir> extlib, javalib and sawja under <dir>
 #
 # Most entries eta-expand a stdlib function that OxCaml gives local (stack)
@@ -422,6 +423,15 @@ extlib_patches() {
     $'\nlet blit a b c d e = blit a b c d e\nlet index_from a b c = index_from a b c\nlet index_from_opt a b c = index_from_opt a b c\nlet rindex_from a b c = rindex_from a b c\nlet rindex_from_opt a b c = rindex_from_opt a b c\n'
 }
 
+# Patches to files the ppx expansion rewrites, so they match its output.
+post_expand_patches() {
+  # core re-exports Base.Option, whose parameter is now `any` (66).
+  if vendored duniverse/core/core/src 66 core; then
+    variant 66 "core option.mli Base.Option" duniverse/core/core/src/option.mli \
+      "end with type 'a  t :=  'a option" "end with type ('a : any) t :=  'a option"
+  fi
+}
+
 infer_patches() {
   local src=$1
   extlib_patches 46 "$src/extlib/src"
@@ -438,6 +448,7 @@ infer_patches() {
 
 case "${1:-}" in
   "") duniverse_patches ;;
+  post-expand) post_expand_patches ;;
   infer) infer_patches "${2:?usage: setup-oxcaml.sh infer <dir>}" ;;
-  *) echo "usage: setup-oxcaml.sh [infer <dir>]" >&2; exit 2 ;;
+  *) echo "usage: setup-oxcaml.sh [post-expand | infer <dir>]" >&2; exit 2 ;;
 esac

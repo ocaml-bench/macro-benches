@@ -1286,6 +1286,7 @@ echo ""
 
 echo "[8b/9] Expanding ppx-preprocessed sources (scripts/ppx-expand.sh)..."
 bash scripts/ppx-expand.sh
+bash "$MONOREPO_DIR/scripts/setup-oxcaml.sh" post-expand
 echo ""
 
 # CI sets SKIP_TEST_BUILD=1: ci-build-all.sh runs straight after into
