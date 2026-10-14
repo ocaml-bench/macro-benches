@@ -28,24 +28,27 @@ jobs:
       - name: Resolve oxcaml main
         id: main
         run: |
-          api() { curl -fsSL -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/repos/oxcaml/$1"; }
-          sha="$(api oxcaml/commits/main | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"])')"
-          repo="$(api opam-repository/commits/main | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"])')"
+          api() { curl -fsSL -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/repos/$1"; }
+          main_sha() { api "$1/commits/main" | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"])'; }
+          sha="$(main_sha oxcaml/oxcaml)"
+          repo="$(main_sha oxcaml/opam-repository)"
+          dune="$(main_sha ocaml/dune)"
           # OxCaml has no in-tree compiler opam file: borrow the newest recipe.
-          recipe="$(api "opam-repository/contents/packages/oxcaml-compiler?ref=${repo}" \
+          recipe="$(api "oxcaml/opam-repository/contents/packages/oxcaml-compiler?ref=${repo}" \
                     | python3 -c 'import json,sys; [print(e["name"]) for e in json.load(sys.stdin)]' | sort -V | tail -1)"
           . .github/oxcaml-pin.env
-          if [ "$sha $repo $recipe" = "$OXCAML_SHA $OXCAML_REPO $OXCAML_RECIPE" ]; then
-            echo "### Pin is already oxcaml main @ \`${sha:0:12}\`" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$sha $repo $recipe $dune" = "$OXCAML_SHA $OXCAML_REPO $OXCAML_RECIPE $DUNE_SHA" ]; then
+            echo "### Pin is already oxcaml main @ \`${sha:0:12}\`, dune main @ \`${dune:0:12}\`" >> "$GITHUB_STEP_SUMMARY"
             echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           sed -i -e "s/^OXCAML_SHA=.*/OXCAML_SHA=$sha/" -e "s/^OXCAML_REPO=.*/OXCAML_REPO=$repo/" \
-                 -e "s/^OXCAML_RECIPE=.*/OXCAML_RECIPE=$recipe/" .github/oxcaml-pin.env
+                 -e "s/^OXCAML_RECIPE=.*/OXCAML_RECIPE=$recipe/" -e "s/^DUNE_SHA=.*/DUNE_SHA=$dune/" .github/oxcaml-pin.env
           {
             echo "changed=true"
             echo "title=Bump oxcaml to ${sha:0:12}"
             echo "range=https://github.com/oxcaml/oxcaml/compare/${OXCAML_SHA:0:12}...${sha:0:12}"
+            echo "dune_range=https://github.com/ocaml/dune/compare/${DUNE_SHA:0:12}...${dune:0:12}"
           } >> "$GITHUB_OUTPUT"
 
       - name: Push the bump branch
@@ -54,7 +57,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -qam "${{ steps.main.outputs.title }}" -m "${{ steps.main.outputs.range }}"
+          git commit -qam "${{ steps.main.outputs.title }}" -m "${{ steps.main.outputs.range }}" -m "${{ steps.main.outputs.dune_range }}"
           git push -f origin "HEAD:refs/heads/$BRANCH"
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
@@ -77,6 +80,7 @@ jobs:
           {
             echo "### ${{ steps.main.outputs.title }}: oxcaml leg ${result:-missing}"
             echo "- Upstream changes: ${{ steps.main.outputs.range }}"
+            echo "- Dune changes: ${{ steps.main.outputs.dune_range }}"
             echo "- CI run: $url"
             echo "- Open a PR: ${{ github.server_url }}/${{ github.repository }}/compare/master...$BRANCH?expand=1"
           } >> "$GITHUB_STEP_SUMMARY"
