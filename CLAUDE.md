@@ -168,10 +168,14 @@ A third leg, **`oxcaml`**, builds the `oxcaml/oxcaml` commit pinned in
 `.github/oxcaml-pin.env`: OxCaml has no in-tree compiler opam file, so it pins the
 `oxcaml-compiler` recipe named there, from the pinned `oxcaml/opam-repository`
 commit, to that commit (in an `oxcaml` switch next to setup-ocaml's, which then
-only provides opam), with `dune.3.22.2+ox`. Both commits go into the cache keys.
-Not required, like trunk. It is pinned rather than tracking main because main can
-break the released dune+ox (oxcaml#5462 did). `.github/workflows/oxcaml-bump.yml`
-moves it weekly (Sunday cron, or by hand): it points the pin at main on the
+only provides opam), with dune pinned to the `ocaml/dune` commit there
+(`DUNE_SHA`). Dune's CI bootstraps dune `main` with OxCaml `main`, while the
+released `+ox` dunes in oxcaml/opam-repository target OxCaml releases
+(oxcaml#5462 broke `3.22.2+ox` on main; dune fixed it in ocaml/dune#16589). All
+three commits go into the cache keys. Not required, like trunk. It is pinned
+rather than tracking main so a red leg points at one upstream range.
+`.github/workflows/oxcaml-bump.yml` moves it weekly (Sunday cron, or by hand): it
+points both pins at main on the
 `oxcaml-bump` branch, dispatches `ci.yml` there (a `GITHUB_TOKEN` push triggers no
 workflow), waits, and fails unless the oxcaml leg passed. Its summary links the
 upstream range, the CI run and a compare page; merging is a PR opened by hand
@@ -256,7 +260,8 @@ Notes for whoever touches this next:
   CI sets it because that step targets the default `_build/` while the build
   scripts target `_build-<tag>/` — running both compiles the duniverse twice.
 - **Dune is pinned per leg**: `3.22.1` on stable, git `main` on trunk (released
-  dune can't bootstrap against 5.6). Patch 19 is what lets the trunk leg work at
+  dune can't bootstrap against 5.6), a `main` commit on oxcaml (`DUNE_SHA` in
+  `.github/oxcaml-pin.env`). Patch 19 is what lets the trunk leg work at
   all — its dune is ≥ 3.24, which deleted the `coq` extension vendored rocq
   declared. The stable pin is for determinism, not necessity: the workspace parses
   under both 3.22.1 and 3.24 now, and pinning keeps the build environment fixed

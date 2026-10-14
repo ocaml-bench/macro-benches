@@ -48,8 +48,8 @@ jobs:
             # `oxcaml` switch built below from .github/oxcaml-pin.env.
             ocaml: "5.4.1"
             oxcaml: true
-            # OxCaml switches need dune's +ox build.
-            dune: "3.22.2+ox"
+            # The ocaml/dune commit in .github/oxcaml-pin.env.
+            dune: "pinned"
 
     env:
       # Picks the build dir (_build-ci) and the output binary suffix.
@@ -67,9 +67,9 @@ jobs:
         run: |
           if [ "${{ matrix.oxcaml }}" = "true" ]; then
             . .github/oxcaml-pin.env
-            sha="$OXCAML_SHA" repo="$OXCAML_REPO" recipe="$OXCAML_RECIPE"
-            { echo "id=oxcaml-${sha:0:12}-${repo:0:12}"; echo "sha=${sha}"; echo "repo=${repo}"; echo "recipe=${recipe}"; } >> "$GITHUB_OUTPUT"
-            echo "### Compiler: oxcaml/oxcaml @ \`${sha:0:12}\` (recipe \`${recipe}\`, opam-repository \`${repo:0:12}\`)" >> "$GITHUB_STEP_SUMMARY"
+            sha="$OXCAML_SHA" repo="$OXCAML_REPO" recipe="$OXCAML_RECIPE" dune="$DUNE_SHA"
+            { echo "id=oxcaml-${sha:0:12}-${repo:0:12}-${dune:0:12}"; echo "sha=${sha}"; echo "repo=${repo}"; echo "recipe=${recipe}"; echo "dune=${dune}"; } >> "$GITHUB_OUTPUT"
+            echo "### Compiler: oxcaml/oxcaml @ \`${sha:0:12}\` (recipe \`${recipe}\`, opam-repository \`${repo:0:12}\`, dune \`${dune:0:12}\`)" >> "$GITHUB_STEP_SUMMARY"
           elif [[ "${{ matrix.ocaml }}" == *trunk* ]]; then
             sha="$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/repos/ocaml/ocaml/commits/trunk \
                    | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"][:12])')"
@@ -134,6 +134,8 @@ jobs:
           eval "$(opam env)"
           if [ "${{ matrix.dune }}" = "dev" ]; then
             opam pin add --yes dune --dev-repo
+          elif [ "${{ matrix.dune }}" = "pinned" ]; then
+            opam pin add --yes dune "git+https://github.com/ocaml/dune#${{ steps.compiler.outputs.dune }}"
           else
             opam pin add --yes --no-action dune ${{ matrix.dune }}
             opam install --yes dune.${{ matrix.dune }}
