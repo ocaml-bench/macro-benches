@@ -104,7 +104,7 @@ benchmarks needing a library path — goblint's apron, coq's rocq prefix — set
 --build-dir _build-<runtime> --profile release <target>` and copies the result
 out. Because every benchmark lives at `benchmarks/<tool>/`, each script derives
 the monorepo root from `BENCH_DIR` (`$(cd "${BENCH_DIR}/../.." && pwd)`); no
-macro-specific env var is needed, and the contract matches `~/benches/`
+macro-specific env var is needed, and the contract matches `~/micro-benches/`
 name-for-name. (`RUNNING_MACRO_BENCH_DIR` is a *run*-time variable — the
 manifest's `args` interpolate it to reach input files — not a build-time one.)
 
