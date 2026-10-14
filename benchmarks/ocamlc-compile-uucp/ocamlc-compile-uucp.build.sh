@@ -46,22 +46,31 @@ case "$(basename "${OUT}")" in
   *)                             REPLICAS=1;  STAGE="${BENCH_DIR}/inputs/uucp" ;;
 esac
 
+# Regenerated only when stale, into a temporary dir swapped in whole: another
+# runtime's build of this rung reads STAGE outside the lock.
 gen_lock "${BENCH_DIR}/.gen.lock"
-rm -rf "${STAGE}"; mkdir -p "${STAGE}"
-if (( REPLICAS == 1 )); then
-  cp "${SRC}"/*.ml "${SRC}"/*.mli "${STAGE}"/ 2>/dev/null
-else
-  for k in $(seq 1 "${REPLICAS}"); do
-    for f in "${SRC}"/*.ml "${SRC}"/*.mli; do
-      b="$(basename "$f")"
-      sed "s/Uucp/Uucp${k}/g" "$f" > "${STAGE}/${b/#uucp/uucp${k}}"
+STAMP="${STAGE}/.stamp"
+if [[ ! -f "${STAMP}" ]] || [[ "$(cat "${STAMP}")" != "REPLICAS=${REPLICAS}" ]] \
+   || [[ -n "$(find "${SRC}" -newer "${STAMP}" -print -quit)" ]]; then
+  T="${STAGE}.tmp.$$"
+  rm -rf "${T}"; mkdir -p "${T}"
+  if (( REPLICAS == 1 )); then
+    cp "${SRC}"/*.ml "${SRC}"/*.mli "${T}"/ 2>/dev/null
+  else
+    for k in $(seq 1 "${REPLICAS}"); do
+      for f in "${SRC}"/*.ml "${SRC}"/*.mli; do
+        b="$(basename "$f")"
+        sed "s/Uucp/Uucp${k}/g" "$f" > "${T}/${b/#uucp/uucp${k}}"
+      done
     done
-  done
+  fi
+  echo "REPLICAS=${REPLICAS}" > "${T}/.stamp"
+  rm -rf "${STAGE}" && mv "${T}" "${STAGE}"
 fi
-echo "  staged $(ls "${STAGE}"/*.ml | wc -l) modules ($(cat "${STAGE}"/*.ml | wc -l) lines, REPLICAS=${REPLICAS})"
 gen_unlock
+echo "  staged $(ls "${STAGE}"/*.ml | wc -l) modules ($(cat "${STAGE}"/*.ml | wc -l) lines, REPLICAS=${REPLICAS})"
 
-ORDER="$(cd "${STAGE}" && "${OCAMLDEP}" -sort *.mli *.ml 2>/dev/null)"
+ORDER="$(cd "${STAGE}" && "${OCAMLDEP}" -sort *.mli *.ml)"
 MLIS="$(echo "${ORDER}" | tr ' ' '\n' | grep '\.mli$' | tr '\n' ' ')"
 MLS="$(echo "${ORDER}"  | tr ' ' '\n' | grep '\.ml$'  | tr '\n' ' ')"
 OCAMLLIB_DIR="$("${OCAMLC}" -where)"
