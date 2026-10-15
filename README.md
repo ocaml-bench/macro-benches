@@ -209,7 +209,12 @@ already activated, so its compiler and `dune` are on `PATH`. It reads:
 | `RUNNING_OCAML_SWITCH` | the active opam switch | unset |
 | `RUNNING_OCAML_SWITCH_PREFIX` | that switch's prefix path (optional; honoured if an orchestrator sets it) | resolved from `RUNNING_OCAML_SWITCH`, else the `ocamlc` on `PATH` |
 
-<!-- TODO(docs): builds of several runtimes now run in parallel in one tree (.parallel-builds marks it). A build script must call dune as `dune_locked build ...`, generate shared inputs between `gen_lock "${BENCH_DIR}/.gen.lock"` and `gen_unlock`, and keep other writes per runtime (see CLAUDE.md, "Builds run in parallel"). -->
+Benchmarks for several runtimes are built in parallel (`.parallel-builds`
+indicates that to the orchestrator). So when creating a build script for a new
+benchmark, it must be safe to run next to the same script building another
+runtime. For instance, call dune as `dune_locked build ...`, generate shared
+inputs between `gen_lock "${BENCH_DIR}/.gen.lock"` and `gen_unlock` (only when
+stale), and keep any other writes per runtime.
 
 ## Layout
 
