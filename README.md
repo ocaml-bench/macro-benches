@@ -11,7 +11,7 @@ The benchmarks can be used in two ways:
 
 - **Standalone.** Run `make setup` once, then build any single benchmark under any opam switch and run the binary yourself.
 - **Orchestrated.** Point a benchmark orchestrator such as
-  [running-ng](https://github.com/udesou/running-ng) at the repo and let it
+  [running-ng](https://github.com/ocaml-bench/running-ng) at the repo and let it
   manage per-runtime switches and drive cross-runtime or
   GC-parameter sweeps.
 
@@ -127,7 +127,7 @@ dune build -- benchmarks/eio/eio_bench.exe
 ### Run sweeps
 
 For cross-runtime or doing GC-parameter sweeps you want an
-orchestrator to manage the per-runtime switches. [running-ng](https://github.com/udesou/running-ng) can be used 
+orchestrator to manage the per-runtime switches. [running-ng](https://github.com/ocaml-bench/running-ng) can be used 
 in combination with the macro-benchmarks by checking it out and defining `export RUNNING_MACRO_BENCH_DIR=~/macro-benches`. 
 The set of scripts helps drive the benchmark runs. To know more about how to use running-ng see its own docs.
 
