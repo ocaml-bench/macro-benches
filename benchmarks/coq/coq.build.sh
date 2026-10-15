@@ -30,7 +30,7 @@ if [ ! -f "${MONOREPO_DIR}/duniverse/rocq/config/coq_config.ml" ]; then
   exit 1
 fi
 
-dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
+dune_locked build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
   --profile release \
   duniverse/rocq/topbin/coqc_bin.exe
 

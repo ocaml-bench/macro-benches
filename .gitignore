@@ -69,3 +69,9 @@ benchmarks/menhir/sysver.ml
 benchmarks/menhir/sysver.mli
 benchmarks/menhir/sysver.automaton
 benchmarks/menhir/sysver.conflicts
+
+# Build locks (scripts/lib-portable.sh)
+/.build-tree.lock
+/_build*.lock
+/benchmarks/*/.gen.lock
+/vendor/*.lock

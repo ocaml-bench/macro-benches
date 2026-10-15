@@ -46,6 +46,7 @@ if [[ ! -d "${JSOO_BENCH}" ]]; then
 fi
 
 # Regenerate if a source is newer or REPLICAS changed (sentinel in line 1).
+gen_lock "${BENCH_DIR}/.gen.lock"
 NEEDS_REGEN=0
 if [[ ! -f "${WORKLOAD}" ]]; then
   NEEDS_REGEN=1
@@ -81,6 +82,7 @@ PY
 else
   echo "  compile_workload.ml is up to date."
 fi
+gen_unlock
 
 # Stage ocamlc.opt under a unique name: running-ng's pid_is_benchmark filter
 # rejects /proc/<pid>/exe basenames in BUILD_TOOLS ("ocamlc", "ocamlc.opt"), so

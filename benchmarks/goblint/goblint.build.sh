@@ -21,14 +21,17 @@ APRON_PREFIX="${MONOREPO_DIR}/vendor/.apron_prefix-${RUNTIME_TAG}"
 echo "Building goblint (monorepo) for runtime: ${RUNTIME_TAG}"
 
 # 1. Per-runtime apron prefix (opam-free).
-APRON_SRC="${MONOREPO_DIR}/vendor/.apron-src" \
+# Per-runtime apron sources: vendor-apron.sh resets and builds in place.
+APRON_SRC="${MONOREPO_DIR}/vendor/.apron-src-${RUNTIME_TAG//[^a-zA-Z0-9._-]/_}"
+seed_src_copy "${MONOREPO_DIR}/vendor/.apron-src" "${APRON_SRC}"
+APRON_SRC="${APRON_SRC}" \
 APRON_PREFIX="${APRON_PREFIX}" \
   bash "${MONOREPO_DIR}/scripts/vendor-apron.sh"
 
 # 2. Hermetic build: only the apron prefix is on OCAMLPATH.
 unset OPAM_SWITCH_PREFIX OCAMLTOP_INCLUDE_PATH CAML_LD_LIBRARY_PATH OCAMLLIB
 export OCAMLPATH="${APRON_PREFIX}/lib"
-dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
+dune_locked build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
   --profile release \
   duniverse/analyzer/src/goblint.exe
 
@@ -77,6 +80,7 @@ L.append('}')
 open(out, 'w').write('\n'.join(L) + '\n')
 PY
 }
+gen_lock "${BENCH_DIR}/.gen.lock"
 for spec in "small:100" "default:165" "large:240"; do
   rung="${spec%%:*}"; n="${spec##*:}"
   gen_c="${BENCH_DIR}/goblint_gen_${rung}.c"
@@ -85,6 +89,7 @@ for spec in "small:100" "default:165" "large:240"; do
     gen_chain_c "$gen_c" "$n"
   fi
 done
+gen_unlock
 
 # 3. Wrapper. The analysed file follows the output name: goblint_gen_<rung> or bench.c.
 case "$(basename "${OUT}")" in

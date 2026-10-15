@@ -33,12 +33,17 @@ JOBS="${INFER_JOBS:-12}"
 
 echo "Building infer (monorepo) for runtime: ${RUNTIME_TAG}"
 
+gen_lock "${MONOREPO_DIR}/vendor/.infer-setup.lock"
 [ -f "${MONOREPO_DIR}/vendor/infer/infer/src/base/Version.ml" ] \
   || bash "${MONOREPO_DIR}/scripts/vendor-infer.sh"
 
 [ -f "${CORPUS}" ] || bash "${MONOREPO_DIR}/scripts/vendor-infer-corpus.sh"
+gen_unlock
 
-JS_SRC="${MONOREPO_DIR}/vendor/.infer-js-src" JS_PREFIX="${JS_PREFIX}" \
+# Per-runtime javalib/sawja sources: vendor-javalib-sawja.sh resets them in place.
+JS_SRC="${MONOREPO_DIR}/vendor/.infer-js-src-${SAFE_TAG}"
+seed_src_copy "${MONOREPO_DIR}/vendor/.infer-js-src" "${JS_SRC}"
+JS_SRC="${JS_SRC}" JS_PREFIX="${JS_PREFIX}" \
   bash "${MONOREPO_DIR}/scripts/vendor-javalib-sawja.sh"
 
 # Hide the duniverse extlib/camlzip during the build: the javalib/sawja prefix
@@ -47,6 +52,8 @@ JS_SRC="${MONOREPO_DIR}/vendor/.infer-js-src" JS_PREFIX="${JS_PREFIX}" \
 unset OPAM_SWITCH_PREFIX OCAMLTOP_INCLUDE_PATH CAML_LD_LIBRARY_PATH OCAMLLIB
 export OCAMLPATH="${JS_PREFIX}/lib"
 
+# Alone in the tree while the packages are hidden: no other dune may run.
+tree_lock_exclusive
 _INFER_HIDDEN_DIR="$(mktemp -d "${MONOREPO_DIR}/vendor/.infer-hidden-dups.XXXXXX")"
 _infer_restore_dups() {
   for d in ocaml-extlib camlzip; do
@@ -66,6 +73,7 @@ dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" --profile release
 
 _infer_restore_dups
 trap - EXIT
+tree_unlock
 REAL_EXE="${BUILD_DIR}/default/vendor/infer/infer/src/infer.exe"
 
 # Capture once per runtime (shared by the rungs, redone when infer.exe is newer).
