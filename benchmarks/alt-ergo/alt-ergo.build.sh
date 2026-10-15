@@ -18,6 +18,7 @@ echo "Building alt-ergo (monorepo) for runtime: ${RUNTIME_TAG}"
 # alt_ergo_fill input: replicate fill.why's single goal 100 times under new names
 # (~0.14s/goal). Done before the dune build so it runs regardless of compiler
 # status. Gitignored; regenerated when fill.why changes.
+gen_lock "${BENCH_DIR}/.gen.lock"
 FILL_SRC="${BENCH_DIR}/fill.why"
 FILL_X100="${BENCH_DIR}/fill_x100.why"
 if [[ -f "$FILL_SRC" ]] && { [[ ! -f "$FILL_X100" ]] || [[ "$FILL_SRC" -nt "$FILL_X100" ]]; }; then
@@ -61,11 +62,12 @@ for spec in "small:4000" "default:7000" "large:10500"; do
     gen_chain "$chain_out" "$n"
   fi
 done
+gen_unlock
 
 unset OPAM_SWITCH_PREFIX OCAMLTOP_INCLUDE_PATH CAML_LD_LIBRARY_PATH OCAMLLIB
 export OCAMLPATH=""
 
-dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
+dune_locked build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
   --profile release \
   duniverse/alt-ergo/src/bin/text/Main_text.exe
 

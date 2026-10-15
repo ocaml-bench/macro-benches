@@ -138,3 +138,52 @@ ncpu() {
         echo 1
     fi
 }
+
+# Building several runtimes at once in one tree (running-ng builds in parallel
+# when the tree has .parallel-builds): a second dune process on a build dir
+# fails, and infer hides duniverse packages while it builds. So every dune call
+# holds its build dir's lock and the tree lock shared; infer holds the tree lock
+# exclusively. Locks are flock(2) through python3, which FreeBSD's base system
+# has no command for; one taken on a shell fd stays held until the fd is closed.
+_tree_lock() { printf '%s/.build-tree.lock' "${MONOREPO_DIR:?}"; }
+_flock_fd() {  # <fd> sh|ex|un
+    python3 -c 'import fcntl, sys
+op = {"sh": fcntl.LOCK_SH, "ex": fcntl.LOCK_EX, "un": fcntl.LOCK_UN}[sys.argv[2]]
+fcntl.flock(int(sys.argv[1]), op)' "$1" "$2"
+}
+
+# dune_locked <dune args...>: dune, waiting for its build dir and the tree (fds 5, 6).
+dune_locked() {
+    local bd="" prev="" a rc=0
+    for a in "$@"; do
+        [ "$prev" = "--build-dir" ] && bd="$a"
+        prev="$a"
+    done
+    [ -n "$bd" ] || bd="${MONOREPO_DIR:?}/_build"
+    exec 5>"$(_tree_lock)" 6>"$bd.lock"
+    _flock_fd 5 sh
+    _flock_fd 6 ex
+    dune "$@" || rc=$?
+    exec 5>&- 6>&-
+    return $rc
+}
+
+# tree_lock_exclusive / tree_unlock: hold the tree lock alone (fd 7).
+tree_lock_exclusive() { exec 7>"$(_tree_lock)"; _flock_fd 7 ex; }
+tree_unlock() { exec 7>&-; }
+
+# gen_lock <file> / gen_unlock: serialise generating shared inputs (fd 8), so a
+# second runtime's build waits and then finds them complete.
+gen_lock() { exec 8>"$1"; _flock_fd 8 ex; }
+gen_unlock() { exec 8>&-; }
+
+# seed_src_copy <shared> <dest>: a private copy of a shared source clone, for a
+# vendor script that resets and builds in place. No-op if dest exists or the
+# shared clone does not (the vendor script then clones dest itself).
+seed_src_copy() {
+    [ -d "$2" ] || [ ! -d "$1" ] || {
+        gen_lock "$1.lock"
+        [ -d "$2" ] || { cp -a "$1" "$2.tmp.$$" && mv "$2.tmp.$$" "$2"; }
+        gen_unlock
+    }
+}

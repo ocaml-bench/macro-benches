@@ -22,7 +22,7 @@ echo "Building js_of_ocaml (monorepo) for runtime: ${RUNTIME_TAG}"
 unset OPAM_SWITCH_PREFIX OCAMLTOP_INCLUDE_PATH CAML_LD_LIBRARY_PATH OCAMLLIB
 export OCAMLPATH=""
 
-dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
+dune_locked build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
   --profile release \
   duniverse/js_of_ocaml/compiler/bin-js_of_ocaml/js_of_ocaml.exe
 
@@ -72,6 +72,7 @@ for spec in "small:30" "default:80" "large:200"; do
   rung="${spec%%:*}"; reps="${spec##*:}"
   ML="${BENCH_DIR}/jsoo_wl_${rung}.ml"
   BYTE="${BENCH_DIR}/jsoo_wl_${rung}-${RUNTIME_TAG}.byte"
+  gen_lock "${BENCH_DIR}/.gen.lock"
   if [[ ! -s "${ML}" ]] || ! head -1 "${ML}" 2>/dev/null | grep -q "REPS=${reps}"; then
     python3 - "${JSOO_SRC}" "${ML}" "${reps}" <<'PY'
 import os, glob, sys
@@ -87,11 +88,14 @@ for rep in range(r):
 open(dst, "w").write("\n".join(out) + "\n")
 PY
   fi
+  gen_unlock
   if [[ ! -s "${BYTE}" || "${ML}" -nt "${BYTE}" ]]; then
     echo "  compiling ladder workload ${rung} (reps=${reps}) with ${RT_OCAMLC}"
-    "${RT_OCAMLC}" -w -a -o "${BYTE}" "${ML}" 2>/dev/null \
+    # in a private dir: another runtime may compile the same .ml at once
+    _wl="$(mktemp -d)"; cp "${ML}" "${_wl}/"
+    "${RT_OCAMLC}" -w -a -o "${BYTE}" "${_wl}/$(basename "${ML}")" 2>/dev/null \
       || echo "  WARN: could not compile ${rung} workload (rung will be unavailable)"
-    rm -f "${BENCH_DIR}/jsoo_wl_${rung}.cmi" "${BENCH_DIR}/jsoo_wl_${rung}.cmo"
+    rm -rf "${_wl}"
   fi
 done
 

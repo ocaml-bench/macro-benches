@@ -22,7 +22,7 @@ echo "Building merlin_bench (monorepo) for runtime: ${RUNTIME_TAG}"
 unset OPAM_SWITCH_PREFIX OCAMLTOP_INCLUDE_PATH CAML_LD_LIBRARY_PATH OCAMLLIB
 export OCAMLPATH=""
 
-dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
+dune_locked build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
   benchmarks/merlin/merlin_bench.exe
 
 REAL_EXE="${BUILD_DIR}/default/benchmarks/merlin/merlin_bench.exe"

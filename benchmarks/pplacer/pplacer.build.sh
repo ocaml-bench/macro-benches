@@ -28,7 +28,7 @@ mkdir -p "$(dirname "${OUT}")"
 # argv.1 times in-process (PPLACER_TEST_LOOP).
 case "$(basename "${OUT}")" in
   *pplacer_like_*)
-    dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
+    dune_locked build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
       --profile release \
       vendor/pplacer/like_bench.exe
     LIKE_EXE="${BUILD_DIR}/default/vendor/pplacer/like_bench.exe"
@@ -43,7 +43,7 @@ WRAPPER
     echo "pplacer like_bench built: ${OUT}"
     ;;
   *)
-    dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
+    dune_locked build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
       --profile release \
       vendor/pplacer/tests.exe
     TESTS_EXE="${BUILD_DIR}/default/vendor/pplacer/tests.exe"

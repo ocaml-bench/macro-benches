@@ -24,7 +24,7 @@ case "$(basename "${OUT}")" in
   *)           EXE="eio_bench" ;;
 esac
 
-dune build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
+dune_locked build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
   --profile release \
   "benchmarks/eio/${EXE}.exe"
 

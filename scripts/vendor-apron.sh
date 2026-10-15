@@ -45,6 +45,7 @@ die_stage() {   # <label> <logfile>
 MPFR_CPPFLAGS=""; MPFR_LDFLAGS=""
 if ! printf '#include <mpfr.h>\n' | "${CC:-cc}" -E - >/dev/null 2>&1; then
   MPFR_PREFIX="${MPFR_PREFIX:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/vendor/.mpfr-prefix}"
+  gen_lock "$MPFR_PREFIX.lock"   # shared by every runtime's apron build
   if [ ! -f "$MPFR_PREFIX/include/mpfr.h" ]; then
     echo "[mpfr] system mpfr.h absent; building MPFR $(src_field mpfr version) into $MPFR_PREFIX"
     _mpfr_t="$(mktemp -d)"
@@ -59,6 +60,7 @@ if ! printf '#include <mpfr.h>\n' | "${CC:-cc}" -E - >/dev/null 2>&1; then
     rm -f "$_mpfr_log"
     rm -rf "$_mpfr_t"
   fi
+  gen_unlock
   MPFR_CPPFLAGS="-I$MPFR_PREFIX/include"
   MPFR_LDFLAGS="-L$MPFR_PREFIX/lib -Wl,-rpath,$MPFR_PREFIX/lib"
   echo "[mpfr] using $MPFR_PREFIX"

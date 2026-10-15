@@ -123,6 +123,30 @@ build the same binary and differ only in the config's arguments. `ci-manifest.py
 check` only cross-checks the `case "${BM_NAME}"` / `case "${OUT_BASE}"` form
 (ahrefs-devkit today); a `case "$(basename "${OUT}")"` block is invisible to it.
 
+**Builds run in parallel** (`.parallel-builds` at the root tells running-ng it
+may; it then builds up to 16 (benchmark, runtime) pairs at once, but a script's
+programs for one runtime always in turn, since rungs share that runtime's
+caches). So a build script must be safe next to the same script for another
+runtime, and next to every other script:
+- call dune as `dune_locked build ...` (scripts/lib-portable.sh): a second dune
+  process on one build dir fails, so it waits for the build dir's lock, and holds
+  the tree lock shared;
+- generate shared, runtime-independent inputs between `gen_lock
+  "${BENCH_DIR}/.gen.lock"` and `gen_unlock`, so another runtime's build waits
+  and then finds them complete. Regenerate only when stale, and swap a
+  regenerated dir in whole (build it under a temporary name, then `mv`):
+  builds read the inputs after releasing the lock, so deleting them under the
+  lock still breaks another build mid-read (ocamlc-compile-uucp did, 2026-10-13);
+- keep anything else written per runtime: compile workloads in a private temp
+  dir (jsoo), and build vendored C/OCaml sources from a per-runtime copy
+  (`seed_src_copy`, as apron and javalib do: their vendor scripts `git clean`
+  in place);
+- anything that changes the tree others build from takes the tree lock
+  exclusively (`tree_lock_exclusive`, infer while it hides two duniverse
+  packages). Waiting for it can starve behind shared holders, which is why infer
+  bounds a cold parallel build (~220 s of ~430 s on monolith, 2 runtimes).
+The locks are flock(2) through python3, so FreeBSD needs no extra tool.
+
 **Generated inputs are the build script's job** — there is no
 `<name>.build.deps.sh` split as in benches. alt-ergo's `fill_x100.why` and
 congruence chains, goblint's state machines, ocamlformat's line ladder and jsoo's
