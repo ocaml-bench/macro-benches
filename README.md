@@ -176,7 +176,7 @@ When adding a benchmark, add it to the manifest in the same commit as its build 
 ```bash
 make clean          # remove build artifacts, keep vendored sources
 make clean-all      # remove everything generated (duniverse/, vendor/, _rocq_prefix/, _build*)
-make setup          # repopulate from the lock file
+make setup          # repopulate; re-vendors by itself when a setup input changed
 ```
 
 ## How it works

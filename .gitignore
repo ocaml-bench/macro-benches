@@ -8,6 +8,7 @@ vendor/
 
 # Rocq local install (for coqc stdlib/plugins)
 _rocq_prefix/
+.setup-stamp
 
 # Benchmark binaries (executable-mode MMTk names; commit-mode -ocaml-mmtk-* is
 # already covered by *-ocaml-*). Narrow patterns so they don't match result dirs
