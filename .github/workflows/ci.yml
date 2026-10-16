@@ -171,7 +171,8 @@ jobs:
           # ocamlfind; setup's own tools live in its own switch.
           opam install --yes ocamlfind
 
-      # duniverse/, vendor/ and _rocq_prefix/ are the setup phase's output;
+      # duniverse/, vendor/ and _rocq_prefix/ are the setup phase's output, and
+      # configured for the OS (actions/cache shares keys across Linux and macOS);
       # vendor/ also holds the per-runtime apron prefix, so the compiler identity
       # is part of the key.
       # The same inputs setup-monorepo.sh checks .setup-stamp against.
@@ -188,7 +189,7 @@ jobs:
             vendor
             _rocq_prefix
             .setup-stamp
-          key: vendor-${{ steps.compiler.outputs.id }}-${{ steps.setup-inputs.outputs.hash }}
+          key: vendor-${{ runner.os }}-${{ steps.compiler.outputs.id }}-${{ steps.setup-inputs.outputs.hash }}
 
       - name: Set up the monorepo (vendor sources, patch, bootstrap rocq)
         run: |
