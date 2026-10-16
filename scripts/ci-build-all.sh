@@ -84,7 +84,7 @@ if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
     echo ""
     echo "| program | result | build time | detail |"
     echo "|---|---|---:|---|"
-    for r in "${results[@]}"; do
+    for r in ${results[@]+"${results[@]}"}; do
       IFS='|' read -r status name elapsed detail <<< "${r}"
       icon=$([ "${status}" = "ok" ] && echo ":white_check_mark:" || echo ":x:")
       echo "| \`${name}\` | ${icon} ${status} | ${elapsed}s | ${detail} |"
