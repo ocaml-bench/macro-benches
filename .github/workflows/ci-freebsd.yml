@@ -189,6 +189,7 @@ jobs:
           cd /work
           bash scripts/tests/test-lib-portable.sh
           bash scripts/tests/test-build-scripts-portable.sh
+          bash scripts/tests/test-setup-stamp.sh
           for f in scripts/*.sh benchmarks/*/*.build.sh; do bash -n "$f"; done
 
       - name: Validate the manifest against the tree

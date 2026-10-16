@@ -178,6 +178,7 @@ make clean          # remove build artifacts, keep vendored sources
 make clean-all      # remove everything generated (duniverse/, vendor/, _rocq_prefix/, _build*)
 make setup          # repopulate from the lock file
 ```
+<!-- TODO(docs): `make setup` now starts over by itself when a setup input changed (lock, sources.yml, setup/vendor scripts, patches, ppx manifest, dune-overlays): it compares scripts/setup-stamp.sh's hash with .setup-stamp and removes duniverse/, vendor/, _rocq_prefix/, _build*/ and the benchmark binaries first. So `make clean-all` is no longer needed after a pull or pin bump. -->
 
 ## How it works
 
