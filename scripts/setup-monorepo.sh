@@ -171,7 +171,7 @@ else
   mkdir -p duniverse/cmdliner
   _cmdliner_url="$(src_field cmdliner-dune url)"
   _cmdliner_tbz="$(mktemp -d)/cmdliner.tbz"
-  curl -fsSL "$_cmdliner_url" -o "$_cmdliner_tbz"
+  curl -fsSL --retry 3 --retry-all-errors --retry-delay 5 "$_cmdliner_url" -o "$_cmdliner_tbz"
   # --no-same-owner: as root, tar restores the archive's uid/gid, which fails
   # with EPERM on a root-squashed NFS export (FreeBSD CI). Both tars accept the
   # long form; `-o` means different things to each.
@@ -311,7 +311,7 @@ else
   mkdir -p vendor/processor
   _proc_url="$(src_field processor url)"
   _proc_tgz="$(mktemp -d)/processor.tgz"
-  curl -fsSL "${_proc_url}" -o "${_proc_tgz}"
+  curl -fsSL --retry 3 --retry-all-errors --retry-delay 5 "${_proc_url}" -o "${_proc_tgz}"
   _proc_want="$(src_field processor md5)"
   _proc_got="$(checksum "${_proc_tgz}")"
   if [ -n "${_proc_want}" ] && [ "${_proc_want}" != "${_proc_got}" ]; then
