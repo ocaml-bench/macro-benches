@@ -418,7 +418,8 @@ Consequences worth knowing:
 
 - **js_of_ocaml is pinned to a `master` commit**, not the old `ocaml-5.6` PR
   branch: the 5.6 support landed on master (the `[ 5; 7 ]` bound in
-  `compiler/lib/magic_number.ml`) and the branch is gone. Bumping this pin changes
+  `compiler/lib/magic_number.ml`, which patch 67 raises for 5.7) and the branch
+  is gone. Bumping this pin changes
   *two* benchmarks — `ocamlc_self_compile` takes its workload from
   `duniverse/js_of_ocaml/benchmarks/sources/ml`.
 - **Pins are commits, never tags.** A tag can be re-pointed upstream. Resolve one
@@ -948,6 +949,7 @@ Applied automatically by `scripts/setup-monorepo.sh` (33 by `scripts/ppx-expand.
 | 64 | `duniverse/lwt/src/unix/lwt_unix.cppo.{ml,mli}`, `unix_c/unix_open_job.c` | Add `O_NOFOLLOW` behind `#if OCAML_VERSION >= (5, 7, 0)`, and its entry in the C flag tables | Same as 63. Drop once lwt supports it |
 | 65 | `duniverse/js_of_ocaml/compiler/lib/ocaml_compiler.ml` | Match `Hint_physical_comparison` below 5.6 and `Hint_int_equality_test` from 5.6, both ignored | ocaml/ocaml#15135 (trunk, backported to 5.6) renamed the hint; the pinned jsoo ignored it. Drop on a jsoo bump past ocsigen/js_of_ocaml@acefa21 |
 | 66 | `duniverse/base/src/option.ml(i)`, `duniverse/ppx_yojson_conv_lib/ppx_yojson_conv_lib.ml`, `duniverse/core/core/src/option.mli`, `duniverse/ocamlformat/vendor/odoc-parser/compat.ml(i)` | base and ppx_yojson_conv_lib: split as 55, the OxCaml side declaring `type ('a : any) t = 'a option = None \| Some of 'a`; core: split the same way, restating it in `with type ('a : any) t := 'a option` (applied after the ppx expansion, by `setup-oxcaml.sh post-expand`, since the expansion rewrites the file); odoc-parser: drop the constructors (`type 'a t = 'a option`) | oxcaml/oxcaml#5462 gave `option` an `any` parameter, which a re-export with constructors must restate, and stock can't parse the annotation. Base's and ppx_yojson_conv's constructors are used qualified (`Option.Some`, and the yojson deriver's `Ppx_yojson_conv_lib.Option.None`), so they keep them; odoc-parser's are not |
+| 67 | `duniverse/js_of_ocaml/compiler/lib/magic_number.ml` | Raise the OCaml bound from `[ 5; 7 ]` to `[ 5; 8 ]` | jsoo refuses to run when built by OCaml >= 5.7 (`Failure("OCaml version unsupported. Upgrade js_of_ocaml.")`, exit 2), and trunk is 5.7. Upstream's 5.6 support was this bound alone. Checked 2026-10-16 on trunk `cfa217c`: `jsoo_default` builds and runs, its JavaScript is within 0.04% of 5.4.1's size and runs under node. Drop once upstream jsoo accepts 5.7 |
 
 ## OxCaml compatibility
 

@@ -1170,6 +1170,22 @@ else
 fi
 echo ""
 
+# Patch 67: the pinned jsoo refuses to run when built by OCaml >= 5.7 (trunk);
+# 5.6 support upstream was only this bound. Drop once upstream jsoo accepts 5.7.
+JSOO_MAGIC="duniverse/js_of_ocaml/compiler/lib/magic_number.ml"
+if [ ! -f "$JSOO_MAGIC" ]; then
+  echo "  [67] jsoo magic_number.ml: not vendored. Skipping."
+elif grep -q 'compare current \[ 5; 8 \] >= 0' "$JSOO_MAGIC"; then
+  echo "  [67] jsoo OCaml 5.7 bound: already patched."
+elif grep -q 'compare current \[ 5; 7 \] >= 0' "$JSOO_MAGIC"; then
+  sed_i 's/compare current \[ 5; 7 \] >= 0/compare current [ 5; 8 ] >= 0/' "$JSOO_MAGIC"
+  echo "  [67] jsoo: accept OCaml 5.7."
+else
+  echo "ERROR: [67] jsoo magic_number.ml: not in the expected shape" >&2
+  exit 1
+fi
+echo ""
+
 # [22] sedlex's `(mode promote)` rule regenerates the shipped unicode.ml from
 # tables downloaded from www.unicode.org on every clean build, which fails
 # intermittently. Drop the rule; guarded on the shipped generated file being
