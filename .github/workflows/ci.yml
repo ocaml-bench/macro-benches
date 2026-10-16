@@ -24,7 +24,7 @@ concurrency:
 jobs:
   build-and-run:
     name: build + run once (${{ matrix.label }})
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os || 'ubuntu-latest' }}
     timeout-minutes: 240
     # Only the stable leg is a required check. The trunk and oxcaml legs track
     # moving compilers, so they can go red for unrelated reasons; they fail the
@@ -50,6 +50,12 @@ jobs:
             oxcaml: true
             # The ocaml/dune commit in .github/oxcaml-pin.env.
             dune: "pinned"
+          # Apple Silicon, Homebrew. Informational until it has been green for
+          # a while.
+          - label: "macos"
+            os: macos-14
+            ocaml: "5.5.0"
+            dune: "3.22.1"
 
     env:
       # Picks the build dir (_build-ci) and the output binary suffix.
@@ -81,6 +87,7 @@ jobs:
           fi
 
       - name: Install system dependencies
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
@@ -88,6 +95,18 @@ jobs:
             libgmp-dev libmpfr-dev libevent-dev libcurl4-openssl-dev \
             libpcre3-dev zlib1g-dev libopenblas-dev liblapacke-dev \
             libgsl-dev libsqlite3-dev libyaml-dev python3-yaml
+
+      # The README's macOS line. gcc: goblint's CIL rejects Apple clang.
+      # coreutils: gtimeout. PyYAML: ci-manifest.py (Homebrew has no formula
+      # for it, and its python refuses a plain pip install).
+      - name: Install system dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install autoconf automake pkgconf gmp mpfr libevent pcre \
+            openblas gsl sqlite libyaml gcc coreutils
+          python3 -m pip install --break-system-packages pyyaml
+          command -v python3
+          python3 -c 'import yaml; print("PyYAML", yaml.__version__)'
 
       - uses: ocaml/setup-ocaml@v3
         with:
@@ -123,6 +142,7 @@ jobs:
       # Checks the FreeBSD workflow's package names against FreeBSD's index over
       # HTTP; skips rather than fails if the index cannot be fetched.
       - name: FreeBSD package names resolve
+        if: runner.os == 'Linux'
         run: python3 scripts/tests/check-freebsd-packages.py
 
       # Fails in seconds on a benchmark added without a manifest entry, rather
@@ -146,7 +166,8 @@ jobs:
           # ocamlfind; setup's own tools live in its own switch.
           opam install --yes ocamlfind
 
-      # duniverse/, vendor/ and _rocq_prefix/ are the setup phase's output;
+      # duniverse/, vendor/ and _rocq_prefix/ are the setup phase's output, and
+      # configured for the OS (actions/cache shares keys across Linux and macOS);
       # vendor/ also holds the per-runtime apron prefix, so the compiler identity
       # is part of the key.
       # The same inputs setup-monorepo.sh checks .setup-stamp against.
@@ -163,7 +184,7 @@ jobs:
             vendor
             _rocq_prefix
             .setup-stamp
-          key: vendor-${{ steps.compiler.outputs.id }}-${{ steps.setup-inputs.outputs.hash }}
+          key: vendor-${{ runner.os }}-${{ steps.compiler.outputs.id }}-${{ steps.setup-inputs.outputs.hash }}
 
       - name: Set up the monorepo (vendor sources, patch, bootstrap rocq)
         run: |
@@ -206,7 +227,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ci-logs-${{ steps.compiler.outputs.id }}
+          name: ci-logs-${{ matrix.label }}-${{ steps.compiler.outputs.id }}
           path: ci-logs/
           retention-days: 14
           if-no-files-found: ignore

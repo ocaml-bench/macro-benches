@@ -873,6 +873,52 @@ else
 fi
 echo ""
 
+# Patch 68: owl on macOS fails to link the same way (`___kmpc_*` undefined):
+# Homebrew's openblas .pc asks for OpenMP and points at keg-only libomp's
+# headers, but not its library. Add -L<libomp>/lib -lomp there, after patch 26.
+if [ -f "$OWL_CONFIGURE" ]; then
+  if grep -q '"macosx"$' "$OWL_CONFIGURE" 2>/dev/null; then
+    echo "  [68] owl OpenMP on macOS: already patched."
+  else
+    python3 - "$OWL_CONFIGURE" <<'PYEOF'
+import sys
+
+p = sys.argv[1]
+s = open(p).read()
+old = (
+    '        then libs @ [ "-lomp" ]\n'
+    '        else libs\n'
+    '      in\n'
+)
+new = old + (
+    '      (* macOS: Homebrew openblas does the same, with libomp keg-only. *)\n'
+    '      let libs =\n'
+    '        if List.exists (fun f -> f = "-fopenmp") cflags\n'
+    '           && not (List.mem "-lomp" libs)\n'
+    '           && get_os_type c = "macosx"\n'
+    '        then\n'
+    '          libs\n'
+    '          @ List.filter_map\n'
+    '              (fun f ->\n'
+    '                if String.starts_with ~prefix:"-I" f\n'
+    '                   && Filename.basename (Filename.dirname f) = "libomp"\n'
+    '                then Some (Filename.concat (Filename.dirname f) "lib"\n'
+    '                           |> fun d -> "-L" ^ String.sub d 2 (String.length d - 2))\n'
+    '                else None)\n'
+    '              cflags\n'
+    '          @ [ "-lomp" ]\n'
+    '        else libs\n'
+    '      in\n'
+)
+if s.count(old) != 1:
+    sys.exit("  [68] owl OpenMP on macOS: patch 26's flag assembly not found")
+open(p, "w").write(s.replace(old, new, 1))
+print("  [68] owl OpenMP: link libomp on macOS.")
+PYEOF
+  fi
+fi
+echo ""
+
 # Patch 27: gsl-ocaml's discover.ml hardcodes /usr/include for the gsl headers;
 # on FreeBSD gsl is under LOCALBASE, so pplacer dies with
 #   Sys_error("/usr/include/gsl/gsl_cdf.h: No such file or directory")

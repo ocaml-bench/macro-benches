@@ -3,12 +3,17 @@
 # setup-monorepo.sh and the vendor-*.sh scripts. Each helper works on Linux
 # too and must keep the Linux behaviour unchanged.
 #
-# FreeBSD: pkg installs under /usr/local, which base clang does not search, so
-# a vendored C stub fails with "fatal error: 'gsl/gsl_vector.h' file not found".
-# Appended (a caller's own value keeps priority) and idempotent (vendor scripts
-# inherit the exports and source this file again).
-if [ "$(uname -s)" = "FreeBSD" ]; then
-    _localbase="${LOCALBASE:-$(sysctl -n user.localbase 2>/dev/null || echo /usr/local)}"
+# FreeBSD (pkg, /usr/local) and macOS (Homebrew) install where the system clang
+# does not search, so a vendored C stub fails with "fatal error:
+# 'gsl/gsl_vector.h' file not found". Appended (a caller's own value keeps
+# priority) and idempotent (vendor scripts inherit the exports and source this
+# file again).
+case "$(uname -s)" in
+    FreeBSD) _localbase="${LOCALBASE:-$(sysctl -n user.localbase 2>/dev/null || echo /usr/local)}" ;;
+    Darwin)  _localbase="${HOMEBREW_PREFIX:-$(brew --prefix 2>/dev/null || echo /opt/homebrew)}" ;;
+    *)       _localbase= ;;
+esac
+if [ -n "${_localbase}" ]; then
     _append_path_once() {      # <var name> <dir>
         local _cur="${!1:-}"
         case ":${_cur}:" in
@@ -19,9 +24,13 @@ if [ "$(uname -s)" = "FreeBSD" ]; then
     _append_path_once C_INCLUDE_PATH     "${_localbase}/include"
     _append_path_once CPLUS_INCLUDE_PATH "${_localbase}/include"
     _append_path_once LIBRARY_PATH       "${_localbase}/lib"
-    unset _localbase
+    # Homebrew's openblas is keg-only: owl finds it through pkg-config.
+    if [ -d "${_localbase}/opt/openblas/lib/pkgconfig" ]; then
+        _append_path_once PKG_CONFIG_PATH "${_localbase}/opt/openblas/lib/pkgconfig"
+    fi
     unset -f _append_path_once
 fi
+unset _localbase
 
 # The <regex> helpers pass it to awk (ERE only): write a literal parenthesis as
 # `[(]`, not `\(`, which awk reads as a group.

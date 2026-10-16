@@ -397,6 +397,29 @@ README lists the apt and pkg lines. What it deliberately does not carry:
   needing `gmake`). Note **28 is not a FreeBSD patch**, despite sitting in that
   run of numbers.
 
+### macOS (Apple Silicon, Homebrew)
+
+`ci.yml`'s `macos` leg (`macos-14`, not required): all 94 build and the 20 smoke
+programs run (2026-10-16).
+Its install lines are README's macOS lines verbatim (`brew install`, then PyYAML
+by pip: Homebrew has no formula for it), and it checks `python3` imports it, so
+the documented install is what CI tests: keep the two identical.
+
+- **Homebrew's prefix is not on Apple clang's search path.** `lib-portable.sh`
+  adds `$(brew --prefix)/include` and `/lib`, and keg-only openblas's pkg-config
+  dir, as it does LOCALBASE on FreeBSD.
+- **ld64 has no `--no-as-needed`** and libraries are `.dylib`: the libevent
+  overlay and devkit's link flags choose by `uname -s`.
+- **owl needs patch 68**: Homebrew's openblas asks for OpenMP without its runtime.
+- **`gcc` (Homebrew) is needed for goblint**, as on FreeBSD: CIL rejects Apple
+  clang. Homebrew installs `gcc-15`/`cpp-15`, which CIL and goblint already find.
+- **`timeout` is `gtimeout`** (coreutils); `ci-run-all.sh` falls back to it.
+  Scripts also work under macOS's bash 3.2: empty arrays expand as
+  `${a[@]+"${a[@]}"}`.
+- **The vendored-sources cache key includes `runner.os`.** actions/cache shares
+  a key between Linux and macOS, and the macOS leg once restored the Linux leg's
+  trees (Linux-configured `cpu`, a GNU-ar `libmcl.a`, the Linux libevent overlay).
+
 ## Vendored source pins
 
 `sources.yml` is the single source of truth for every third-party version this
@@ -504,7 +527,8 @@ same source and none needs ppxlib (which trunk and OxCaml can't always build).
 - **Check**: on an expanded tree `ci-build-all.sh` fails if it built any ppx
   driver, which is how a missed file shows up.
 - **Platform**: extunix's `ppx_have` expands by the features configure found, so
-  its two files differ between Linux and FreeBSD; they are the per-os entries.
+  its two files differ between Linux, FreeBSD and macOS (Darwin); they are the
+  per-os entries, and the only files that differ.
 
 ## Gotchas (hard-won — don't rediscover)
 
@@ -957,6 +981,7 @@ Applied automatically by `scripts/setup-monorepo.sh` (33 by `scripts/ppx-expand.
 | 65 | `duniverse/js_of_ocaml/compiler/lib/ocaml_compiler.ml` | Match `Hint_physical_comparison` below 5.6 and `Hint_int_equality_test` from 5.6, both ignored | ocaml/ocaml#15135 (trunk, backported to 5.6) renamed the hint; the pinned jsoo ignored it. Drop on a jsoo bump past ocsigen/js_of_ocaml@acefa21 |
 | 66 | `duniverse/base/src/option.ml(i)`, `duniverse/ppx_yojson_conv_lib/ppx_yojson_conv_lib.ml`, `duniverse/core/core/src/option.mli`, `duniverse/ocamlformat/vendor/odoc-parser/compat.ml(i)` | base and ppx_yojson_conv_lib: split as 55, the OxCaml side declaring `type ('a : any) t = 'a option = None \| Some of 'a`; core: split the same way, restating it in `with type ('a : any) t := 'a option` (applied after the ppx expansion, by `setup-oxcaml.sh post-expand`, since the expansion rewrites the file); odoc-parser: drop the constructors (`type 'a t = 'a option`) | oxcaml/oxcaml#5462 gave `option` an `any` parameter, which a re-export with constructors must restate, and stock can't parse the annotation. Base's and ppx_yojson_conv's constructors are used qualified (`Option.Some`, and the yojson deriver's `Ppx_yojson_conv_lib.Option.None`), so they keep them; odoc-parser's are not |
 | 67 | `duniverse/js_of_ocaml/compiler/lib/magic_number.ml` | Raise the OCaml bound from `[ 5; 7 ]` to `[ 5; 8 ]` | jsoo refuses to run when built by OCaml >= 5.7 (`Failure("OCaml version unsupported. Upgrade js_of_ocaml.")`, exit 2), and trunk is 5.7. Upstream's 5.6 support was this bound alone. Checked 2026-10-16 on trunk `cfa217c`: `jsoo_default` builds and runs, its JavaScript is within 0.04% of 5.4.1's size and runs under node. Drop once upstream jsoo accepts 5.7 |
+| 68 | `duniverse/owl/src/owl/config/configure.ml` (after 26) | On macOS, add `-L<libomp>/lib -lomp` when the cflags ask for OpenMP and the libs carry no runtime, taking the dir from pkg-config's `-I.../libomp/include` | macOS, the same hole as 26: Homebrew's openblas `.pc` passes `-fopenmp` and keg-only libomp's headers but not its library, so owl fails with `___kmpc_*` undefined. Linux unchanged (guarded on `macosx`) |
 
 ## OxCaml compatibility
 

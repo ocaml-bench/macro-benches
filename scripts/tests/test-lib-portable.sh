@@ -170,13 +170,29 @@ chmod +x "$ROOT_DIR/scripts/tests/.reader.sh"
 [ "$(_as_freebsd "" 3)" = "/usr/local/include" ] \
     && ok "FreeBSD: re-sourcing does not duplicate the entry" \
     || bad "FreeBSD: duplicated on re-source: '$(_as_freebsd "" 3)'"
+
+# macOS: the same exports from the Homebrew prefix.
+DFAKE="$WORK/fakebin-darwin"
+mkdir -p "$DFAKE"
+printf '#!/bin/sh\n[ "$1" = "-s" ] && echo Darwin || exit 1\n' > "$DFAKE/uname"
+chmod +x "$DFAKE/uname"
+_as_darwin() {   # <preset C_INCLUDE_PATH or empty> <times to source>
+    PATH="$DFAKE:$PATH" C_INCLUDE_PATH="$1" LOCALBASE="" HOMEBREW_PREFIX=/opt/hb \
+    "$ROOT_DIR/scripts/tests/.reader.sh" "$2"
+}
+[ "$(_as_darwin "" 1)" = "/opt/hb/include" ] \
+    && ok "macOS: the Homebrew include dir is added" \
+    || bad "macOS: got '$(_as_darwin "" 1)'"
+[ "$(_as_darwin "" 3)" = "/opt/hb/include" ] \
+    && ok "macOS: re-sourcing does not duplicate the entry" \
+    || bad "macOS: duplicated on re-source: '$(_as_darwin "" 3)'"
 rm -f "$ROOT_DIR/scripts/tests/.reader.sh"
 
-if [ "$(uname -s)" != "FreeBSD" ]; then
+if [ "$(uname -s)" = "Linux" ]; then
     ( unset C_INCLUDE_PATH; . "$ROOT_DIR/scripts/lib-portable.sh"
       [ -z "${C_INCLUDE_PATH:-}" ] ) \
-        && ok "non-FreeBSD host: C_INCLUDE_PATH left alone" \
-        || bad "non-FreeBSD host: C_INCLUDE_PATH was modified"
+        && ok "Linux: C_INCLUDE_PATH left alone" \
+        || bad "Linux: C_INCLUDE_PATH was modified"
 fi
 
 n="$(ncpu)"
