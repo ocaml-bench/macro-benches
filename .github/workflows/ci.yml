@@ -118,6 +118,7 @@ jobs:
         run: |
           bash scripts/tests/test-lib-portable.sh
           bash scripts/tests/test-build-scripts-portable.sh
+          bash scripts/tests/test-setup-stamp.sh
 
       # Checks the FreeBSD workflow's package names against FreeBSD's index over
       # HTTP; skips rather than fails if the index cannot be fetched.
@@ -148,6 +149,11 @@ jobs:
       # duniverse/, vendor/ and _rocq_prefix/ are the setup phase's output;
       # vendor/ also holds the per-runtime apron prefix, so the compiler identity
       # is part of the key.
+      # The same inputs setup-monorepo.sh checks .setup-stamp against.
+      - name: Hash the setup inputs
+        id: setup-inputs
+        run: echo "hash=$(bash scripts/setup-stamp.sh)" >> "$GITHUB_OUTPUT"
+
       - name: Cache vendored sources
         if: github.event_name != 'schedule'
         uses: actions/cache@v4
@@ -156,7 +162,8 @@ jobs:
             duniverse
             vendor
             _rocq_prefix
-          key: vendor-${{ steps.compiler.outputs.id }}-${{ hashFiles('macro-benches.opam.locked', 'sources.yml', 'dune-project', 'scripts/setup-monorepo.sh', 'scripts/vendor-*.sh', 'scripts/lib-sources.sh', 'scripts/lib-switch.sh', 'scripts/ppx-expand.sh', 'scripts/ppx-expand/**') }}
+            .setup-stamp
+          key: vendor-${{ steps.compiler.outputs.id }}-${{ steps.setup-inputs.outputs.hash }}
 
       - name: Set up the monorepo (vendor sources, patch, bootstrap rocq)
         run: |
