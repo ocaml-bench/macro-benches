@@ -397,6 +397,26 @@ README lists the apt and pkg lines. What it deliberately does not carry:
   needing `gmake`). Note **28 is not a FreeBSD patch**, despite sitting in that
   run of numbers.
 
+### macOS (Apple Silicon, Homebrew)
+
+`ci.yml`'s `macos` leg (`macos-14`, not required): all 94 build and the 20 smoke
+programs run (2026-10-16).
+
+- **Homebrew's prefix is not on Apple clang's search path.** `lib-portable.sh`
+  adds `$(brew --prefix)/include` and `/lib`, and keg-only openblas's pkg-config
+  dir, as it does LOCALBASE on FreeBSD.
+- **ld64 has no `--no-as-needed`** and libraries are `.dylib`: the libevent
+  overlay and devkit's link flags choose by `uname -s`.
+- **owl needs patch 68**: Homebrew's openblas asks for OpenMP without its runtime.
+- **`gcc` (Homebrew) is needed for goblint**, as on FreeBSD: CIL rejects Apple
+  clang. Homebrew installs `gcc-15`/`cpp-15`, which CIL and goblint already find.
+- **`timeout` is `gtimeout`** (coreutils); `ci-run-all.sh` falls back to it.
+  Scripts also work under macOS's bash 3.2: empty arrays expand as
+  `${a[@]+"${a[@]}"}`.
+- **The vendored-sources cache key includes `runner.os`.** actions/cache shares
+  a key between Linux and macOS, and the macOS leg once restored the Linux leg's
+  trees (Linux-configured `cpu`, a GNU-ar `libmcl.a`, the Linux libevent overlay).
+
 ## Vendored source pins
 
 `sources.yml` is the single source of truth for every third-party version this
@@ -504,7 +524,8 @@ same source and none needs ppxlib (which trunk and OxCaml can't always build).
 - **Check**: on an expanded tree `ci-build-all.sh` fails if it built any ppx
   driver, which is how a missed file shows up.
 - **Platform**: extunix's `ppx_have` expands by the features configure found, so
-  its two files differ between Linux and FreeBSD; they are the per-os entries.
+  its two files differ between Linux, FreeBSD and macOS (Darwin); they are the
+  per-os entries, and the only files that differ.
 
 ## Gotchas (hard-won — don't rediscover)
 
