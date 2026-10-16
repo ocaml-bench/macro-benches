@@ -2,13 +2,14 @@
 ; links on any multiarch target. Full path to libevent.so rather than -levent:
 ; dune puts (link_flags) before the C-stub archive on the link line, so a bare
 ; -levent is dropped before the stubs reference it (--no-as-needed doesn't help).
+; libevent.dylib on macOS.
 
 (rule
  (target devkit_link_flags.sexp)
  (action
   (with-stdout-to devkit_link_flags.sexp
    (system
-    "d=$(pkg-config --variable=libdir libevent 2>/dev/null); [ -n \"$d\" ] || d=$(dirname \"$(gcc -print-file-name=libevent.so)\"); printf '(-cclib -Wl,-rpath,%s -cclib %s/libevent.so -cclib -lcurl)' \"$d\" \"$d\""))))
+    "e=so; [ \"$(uname -s)\" = Darwin ] && e=dylib; d=$(pkg-config --variable=libdir libevent 2>/dev/null); [ -n \"$d\" ] || d=$(dirname \"$(gcc -print-file-name=libevent.$e)\"); printf '(-cclib -Wl,-rpath,%s -cclib %s/libevent.%s -cclib -lcurl)' \"$d\" \"$d\" \"$e\""))))
 
 (executable
  (name htmlStream_bench)
