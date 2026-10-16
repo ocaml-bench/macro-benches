@@ -31,7 +31,7 @@ download_and_extract() {
   trap 'rm -rf "${tmpdir}"' RETURN
 
   echo "Downloading ${name}..."
-  curl -fSL "${url}" -o "${tmpdir}/archive.tar.gz"
+  curl -fSL --retry 3 --retry-all-errors --retry-delay 5 "${url}" -o "${tmpdir}/archive.tar.gz"
 
   local actual_md5
   actual_md5="$(checksum "${tmpdir}/archive.tar.gz")"

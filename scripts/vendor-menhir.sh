@@ -21,7 +21,7 @@ TMPDIR="$(mktemp -d)"
 trap 'rm -rf "${TMPDIR}"' EXIT
 
 echo "Downloading menhir ${VERSION}..."
-curl -fSL "${URL}" -o "${TMPDIR}/menhir.tar.gz"
+curl -fSL --retry 3 --retry-all-errors --retry-delay 5 "${URL}" -o "${TMPDIR}/menhir.tar.gz"
 
 ACTUAL_MD5="$(checksum "${TMPDIR}/menhir.tar.gz")"
 if [ "${ACTUAL_MD5}" != "${MD5}" ]; then

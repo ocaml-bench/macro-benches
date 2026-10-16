@@ -49,7 +49,7 @@ if ! printf '#include <mpfr.h>\n' | "${CC:-cc}" -E - >/dev/null 2>&1; then
   if [ ! -f "$MPFR_PREFIX/include/mpfr.h" ]; then
     echo "[mpfr] system mpfr.h absent; building MPFR $(src_field mpfr version) into $MPFR_PREFIX"
     _mpfr_t="$(mktemp -d)"
-    curl -fsSL "$(src_field mpfr url)" -o "$_mpfr_t/mpfr.tar.xz"
+    curl -fsSL --retry 3 --retry-all-errors --retry-delay 5 "$(src_field mpfr url)" -o "$_mpfr_t/mpfr.tar.xz"
     tar --no-same-owner -xf "$_mpfr_t/mpfr.tar.xz" -C "$_mpfr_t"
     _ncpu="$(ncpu)"
     _mpfr_log="$(mktemp)"
