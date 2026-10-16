@@ -529,6 +529,10 @@ same source and none needs ppxlib (which trunk and OxCaml can't always build).
 - **`opam monorepo pull` is retried 3 times** (15 s, then 30 s apart): GitHub release
   downloads fail with transient 5xx errors. A failed attempt's partial `duniverse/`
   is deleted, because setup skips the pull whenever `duniverse/` is non-empty.
+  Every other download in setup (tarballs, mpfr, infer's corpus jars from Maven
+  Central) is `curl --retry 3 --retry-all-errors`: a 404 from a CDN can be
+  transient too (guava's jar, once, on the cache-less FreeBSD job). A corpus jar
+  that fails its checksum is deleted, so the next setup fetches it again.
 - **dune caches configurator probes in `_build`** (e.g. `lwt_features.h`, `*.sexp`).
   An env-var change (e.g. `LIBRARY_PATH`) alone won't re-probe — needs a clean build dir.
 - **The duniverse builds across multiple compilers** (5.4.1, `d8bb46c`, trunk,

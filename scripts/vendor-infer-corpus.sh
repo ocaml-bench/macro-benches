@@ -22,9 +22,9 @@ mkdir -p "${DEST}/dl" "${DEST}/merge"
 
 fetch () { # <maven-relative-path> <sha256>
   local rel="$1" sha="$2" f="${DEST}/dl/$(basename "$1")"
-  [ -f "$f" ] || curl -fsSL -o "$f" "${BASE}/${rel}"
+  [ -f "$f" ] || curl -fsSL --retry 3 --retry-all-errors --retry-delay 5 -o "$f" "${BASE}/${rel}"
   echo "${sha}  ${f}" | shasum -a 256 -c - >/dev/null \
-    || { echo "checksum mismatch for ${rel}" >&2; exit 1; }
+    || { rm -f "$f"; echo "checksum mismatch for ${rel}" >&2; exit 1; }
   printf '%s' "$f"
 }
 
