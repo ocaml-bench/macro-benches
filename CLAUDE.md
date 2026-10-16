@@ -212,8 +212,9 @@ The gate is enforced by branch protection on `master`: the required check is
 GitHub matches required checks **by name**, so putting `5.5.0` in the label would
 orphan the requirement the moment the compiler is bumped.
 
-Before those, two suites that cost under a second: `scripts/tests/
-test-lib-portable.sh` and `test-build-scripts-portable.sh`. The first asserts every
+Before those, three suites that cost under a second: `scripts/tests/
+test-lib-portable.sh`, `test-build-scripts-portable.sh` and
+`test-setup-stamp.sh` (see §Gotchas). The first asserts every
 helper in `lib-portable.sh` is byte-identical to the GNU command it replaces, which
 **requires GNU userland** — on FreeBSD those comparisons are skipped and it reports
 14 checks where Linux reports 24. So the FreeBSD job cannot cover for the Linux one
@@ -510,6 +511,17 @@ same source and none needs ppxlib (which trunk and OxCaml can't always build).
   the wrappers in place, so running-ng thinks they're built, **skips rebuild, and the
   wrapper fails at run with `exit 127, .exe: No such file`** — *not* an MMTk/runtime
   bug. Re-`buildbms` after deleting the wrapper output to regenerate the `.exe`.
+- **A tree set up from other inputs starts over.** Every setup step skips when
+  its output exists, so after a pin bump or a patch change the old patched and
+  expanded tree used to survive, and failed the ppx manifest check (or worse,
+  half-applied a patch). `scripts/setup-stamp.sh` hashes setup's inputs (lock,
+  `sources.yml`, `dune-project`, `dune-overlays/`, the setup/vendor/lib scripts,
+  `ppx-expand/`); `setup-monorepo.sh` calls it with `--refresh`, which compares
+  the hash with `.setup-stamp` and on a mismatch (or no stamp) runs `make
+  clean-all` plus `git clean -fdX benchmarks/`, since wrappers exec into the old
+  tree. The same hash keys CI's vendored-sources cache, and the stamp is cached
+  with the trees. A file setup reads that is not in `INPUTS` there will not
+  trigger a re-vendor: add it. `scripts/tests/test-setup-stamp.sh` covers it.
 - **`opam monorepo pull` is retried 3 times** (15 s, then 30 s apart): GitHub release
   downloads fail with transient 5xx errors. A failed attempt's partial `duniverse/`
   is deleted, because setup skips the pull whenever `duniverse/` is non-empty.
@@ -1013,8 +1025,8 @@ For the lock file itself:
 # 2. Re-lock in a switch that has the opam-monorepo plugin
 #    (OPAMSWITCH selects it for this one command without changing your shell's switch)
 OPAMSWITCH=macro-benches-tools opam monorepo lock
-# 3. Rebuild from scratch (setup fails on the stale expansion manifest)
-make clean-all && make setup
+# 3. Rebuild from scratch (setup re-vendors itself: the lock is a setup input)
+make setup
 # 4. Regenerate the manifest on the fresh tree
 bash scripts/ppx-expand.sh --update
 # 5. Commit the updated lock file and manifest

@@ -53,6 +53,8 @@ echo "Monorepo dir: $MONOREPO_DIR"
 echo "Tools switch: $TOOLS_SWITCH ($TOOLS_BIN)"
 echo ""
 
+bash scripts/setup-stamp.sh --refresh
+
 
 echo "[2/9] Pulling vendored sources (opam monorepo pull)..."
 if [ -d duniverse ] && [ "$(ls duniverse/ | wc -l)" -gt 0 ]; then
