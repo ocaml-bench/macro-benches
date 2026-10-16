@@ -181,7 +181,10 @@ leave the merge that triggered it unverified.
 Matrix legs: the
 **latest stable release**, which gates, and the **`ocaml/ocaml` trunk tip**, which
 is not a required check because it tracks a moving compiler and needs ppxlib/lwt
-git `main` (patches 4+5 below). It is deliberately **not** `continue-on-error`:
+git `main` (patches 4+5 below). It installs `ocaml-variants.<next>+trunk`, the
+variant whose `dev-repo` is `#trunk`: once a release branches, the old one tracks
+that branch instead (`5.6.0+trunk` builds `#5.6`), so bump it when opam-repository
+adds the next one, or the leg tests the release branch under a trunk label. It is deliberately **not** `continue-on-error`:
 that marked the whole run green while trunk failed, which hid a trunk link
 break on master for days (patch 32). A red trunk leg now fails the run but, not
 being required, does not block merges. The trunk leg resolves the tip commit *before*
@@ -285,7 +288,7 @@ Notes for whoever touches this next:
   CI sets it because that step targets the default `_build/` while the build
   scripts target `_build-<tag>/` — running both compiles the duniverse twice.
 - **Dune is pinned per leg**: `3.22.1` on stable, git `main` on trunk (released
-  dune can't bootstrap against 5.6), a `main` commit on oxcaml (`DUNE_SHA` in
+  dune can't bootstrap against trunk), a `main` commit on oxcaml (`DUNE_SHA` in
   `.github/oxcaml-pin.env`). Patch 19 is what lets the trunk leg work at
   all — its dune is ≥ 3.24, which deleted the `coq` extension vendored rocq
   declared. The stable pin is for determinism, not necessity: the workspace parses
