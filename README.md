@@ -86,7 +86,8 @@ macOS (Apple Silicon, Homebrew):
 
 ```sh
 brew install autoconf automake pkgconf gmp mpfr libevent pcre openblas gsl \
-             sqlite libyaml gcc coreutils pyyaml
+             sqlite libyaml gcc coreutils
+python3 -m pip install --break-system-packages pyyaml
 ```
 
 No exports are needed: the setup scripts add Homebrew's paths. `gcc` is for

@@ -401,9 +401,9 @@ README lists the apt and pkg lines. What it deliberately does not carry:
 
 `ci.yml`'s `macos` leg (`macos-14`, not required): all 94 build and the 20 smoke
 programs run (2026-10-16).
-Its `brew install` line is README's macOS line verbatim, `pyyaml` included (it
-checks `python3` imports it), so the documented install is what CI tests: keep
-the two identical.
+Its install lines are README's macOS lines verbatim (`brew install`, then PyYAML
+by pip: Homebrew has no formula for it), and it checks `python3` imports it, so
+the documented install is what CI tests: keep the two identical.
 
 - **Homebrew's prefix is not on Apple clang's search path.** `lib-portable.sh`
   adds `$(brew --prefix)/include` and `/lib`, and keg-only openblas's pkg-config
