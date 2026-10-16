@@ -82,6 +82,8 @@ export C_INCLUDE_PATH=/usr/local/include LIBRARY_PATH=/usr/local/lib
 Also set `LOCALBASE` if your packages are somewhere other than `/usr/local`. Several
 suites need a source patch on FreeBSD; `make setup` applies them all.
 
+<!-- TODO(docs): add a macOS (Apple Silicon, Homebrew) block like the FreeBSD one: `brew install autoconf automake pkgconf gmp mpfr libevent pcre openblas gsl sqlite libyaml gcc coreutils` (gcc: goblint's CIL rejects Apple clang; coreutils: gtimeout for ci-run-all.sh), plus PyYAML for scripts/ci-manifest.py. No exports needed: lib-portable.sh adds Homebrew's include/lib dirs and openblas's pkg-config dir. CI runs it on macos-14 (all 94 build, the 20 smoke programs run). -->
+
 ### Setup
 
 ```bash

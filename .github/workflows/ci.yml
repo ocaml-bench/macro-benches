@@ -199,19 +199,7 @@ jobs:
           # time into the default _build/ — ci-build-all.sh does that work in
           # _build-ci/ immediately below.
           eval "$(opam env)"
-          if [ "${{ runner.os }}" != macOS ]; then
-            SKIP_TEST_BUILD=1 bash scripts/setup-monorepo.sh
-            exit
-          fi
-          # TEMP(macos-discovery): record the Darwin manifest lines and carry on.
-          if ! SKIP_TEST_BUILD=1 bash scripts/setup-monorepo.sh; then
-            [ -f duniverse/.ppx-expanded ] || exit 1
-            mkdir -p ci-logs
-            bash scripts/ppx-expand.sh --update
-            cp scripts/ppx-expand/manifest ci-logs/ppx-manifest
-            git diff scripts/ppx-expand/manifest > ci-logs/ppx-manifest.diff || true
-            SKIP_TEST_BUILD=1 bash scripts/setup-monorepo.sh
-          fi
+          SKIP_TEST_BUILD=1 bash scripts/setup-monorepo.sh
 
       # OxCaml's ocamlc needs ~3x stock's memory: jsoo's large workload peaks at
       # 20.5 GB, over the runner's 16 GB (#36).
