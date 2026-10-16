@@ -82,6 +82,17 @@ export C_INCLUDE_PATH=/usr/local/include LIBRARY_PATH=/usr/local/lib
 Also set `LOCALBASE` if your packages are somewhere other than `/usr/local`. Several
 suites need a source patch on FreeBSD; `make setup` applies them all.
 
+macOS (Apple Silicon, Homebrew):
+
+```sh
+brew install autoconf automake pkgconf gmp mpfr libevent pcre openblas gsl \
+             sqlite libyaml gcc coreutils
+python3 -m pip install --break-system-packages pyyaml
+```
+
+No exports are needed: the setup scripts add Homebrew's paths. `gcc` is for
+goblint (its C frontend rejects Apple clang); `coreutils` provides `gtimeout`.
+
 ### Setup
 
 ```bash

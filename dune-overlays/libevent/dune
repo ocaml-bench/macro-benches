@@ -10,4 +10,13 @@
   (language c)
   (names event_stubs)
   (flags (:standard -Wall)))
- (c_library_flags (-Wl,-no-as-needed -levent)))
+ (c_library_flags (:include libevent_flags.sexp)))
+
+; macOS's ld64 has no --no-as-needed (nor needs it).
+
+(rule
+ (target libevent_flags.sexp)
+ (action
+  (with-stdout-to libevent_flags.sexp
+   (system
+    "if [ \"$(uname -s)\" = Darwin ]; then printf '(-levent)'; else printf '(-Wl,-no-as-needed -levent)'; fi"))))
