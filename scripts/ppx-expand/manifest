@@ -566,7 +566,7 @@ a6b12644db052a4b2c9f45aff4ce25020d5acd5f942b82629084b4b6a9638b6f  duniverse/js_o
 8dad067571bdfe5245114fb24a7a7747b96539aa582b2de87bdba6516e871a2f  duniverse/js_of_ocaml/compiler/lib/ocaml_compiler.v5_4_0.ml
 336ad786a80c03461fa448c5ad2904af225fa21115fedc2ec7d53aa7b9f39d0f  duniverse/js_of_ocaml/compiler/lib/ocaml_compiler.v5_4_0.mli
 a7e6ba8acec66d560f425a4ce2b2df80fb92cf412e9721642581586d548033b7  duniverse/js_of_ocaml/compiler/lib/ocaml_compiler.v5_5_0.ml
-173003343b71767dad9af2614db3d6a8b3f3d42ff58d9db136e6ad71da440649  duniverse/js_of_ocaml/compiler/lib/ocaml_compiler.v5_6_0.ml
+c7672b011fb5ffd53cdf5bca9fab15db82cc3f50a295e333d3939adf4e28441a  duniverse/js_of_ocaml/compiler/lib/ocaml_compiler.v5_6_0.ml
 ----------------------------------------------------------------  duniverse/js_of_ocaml/compiler/lib/parse_bytecode.ml
 ebf4d15b5c8b0dec41c277e79a02d29eb7528a900d81ddb50d7d936a1f487eb4  duniverse/js_of_ocaml/compiler/lib/parse_bytecode.oxcaml.ml
 8eba189b2bf7e58071da04c204e487d681c905351e40dc675a69c972ca273db8  duniverse/js_of_ocaml/compiler/lib/parse_bytecode.v5_4_0.ml
