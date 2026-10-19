@@ -15,6 +15,11 @@ TOOLS_OCAML_VERSION=5.4.1
 # ocaml-base-compiler.5.4.1 is 5.4.1+relocatable) cannot supply the compiler.
 ensure_tools_switch() {
   local opam="$1" pkg installed have missing=""
+  # A fresh machine, or an OPAMROOT nothing has used yet.
+  if [ ! -f "${OPAMROOT:-$HOME/.opam}/config" ]; then
+    echo "Initialising opam root ${OPAMROOT:-$HOME/.opam}..."
+    "$opam" init --bare --no-setup --disable-sandboxing --yes
+  fi
   if ! "$opam" switch list --short --color=never 2>/dev/null | grep -qx "$TOOLS_SWITCH"; then
     echo "Creating opam switch $TOOLS_SWITCH ($TOOLS_PACKAGES)..."
     "$opam" switch create "$TOOLS_SWITCH" --no-switch --yes --repos=default \

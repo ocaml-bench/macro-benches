@@ -413,6 +413,12 @@ the documented install is what CI tests: keep the two identical.
 - **owl needs patch 68**: Homebrew's openblas asks for OpenMP without its runtime.
 - **`gcc` (Homebrew) is needed for goblint**, as on FreeBSD: CIL rejects Apple
   clang. Homebrew installs `gcc-15`/`cpp-15`, which CIL and goblint already find.
+- **Homebrew's gcc needs `SDKROOT` when the Command Line Tools lag the OS.** Its
+  bottle is configured with the newest CLT SDK as sysroot; with older CLT (and
+  the current SDK only in Xcode.app) it fails with `stdio.h: No such file or
+  directory` in CIL's `machdep-ml.c`. `lib-portable.sh` exports
+  `SDKROOT=$(xcrun --show-sdk-path)` on Darwin when unset (found on an M5,
+  macOS 27, 2026-10-19).
 - **`timeout` is `gtimeout`** (coreutils); `ci-run-all.sh` falls back to it.
   Scripts also work under macOS's bash 3.2: empty arrays expand as
   `${a[@]+"${a[@]}"}`.
@@ -485,7 +491,8 @@ same source and none needs ppxlib (which trunk and OxCaml can't always build).
   can resolve `ocaml-base-compiler.5.4.1` to `5.4.1+relocatable`), and checked by
   `ocamlc -version` and non-flambda. An existing switch of that name at other
   versions is an error, and setup never changes an existing switch's compiler.
-  Scripts only read its environment in their own process (ppx-expand.sh also
+  An uninitialised opam root (fresh machine, or a new `OPAMROOT`) is
+  `opam init --bare`ed first. Scripts only read its environment in their own process (ppx-expand.sh also
   strips other switches from `PATH`), so the caller's switch never changes. Pinned
   because the expansion and its printing depend on it. Having setup's tools in it
   does not change the expansion (checked: identical manifest).

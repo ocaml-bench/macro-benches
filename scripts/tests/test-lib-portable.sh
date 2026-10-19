@@ -186,6 +186,18 @@ _as_darwin() {   # <preset C_INCLUDE_PATH or empty> <times to source>
 [ "$(_as_darwin "" 3)" = "/opt/hb/include" ] \
     && ok "macOS: re-sourcing does not duplicate the entry" \
     || bad "macOS: duplicated on re-source: '$(_as_darwin "" 3)'"
+printf '#!/bin/sh\necho /fake/MacOSX.sdk\n' > "$DFAKE/xcrun"
+chmod +x "$DFAKE/xcrun"
+_sdkroot() {   # <preset SDKROOT or empty>
+    PATH="$DFAKE:$PATH" SDKROOT="$1" bash -c '[ -n "$SDKROOT" ] || unset SDKROOT
+        . "$0/../lib-portable.sh"; printf "%s\n" "${SDKROOT:-}"' "$ROOT_DIR/scripts/tests"
+}
+[ "$(_sdkroot "")" = "/fake/MacOSX.sdk" ] \
+    && ok "macOS: SDKROOT is the SDK xcrun selects" \
+    || bad "macOS: SDKROOT got '$(_sdkroot "")'"
+[ "$(_sdkroot /mine.sdk)" = "/mine.sdk" ] \
+    && ok "macOS: a caller's SDKROOT is kept" \
+    || bad "macOS: SDKROOT overridden: '$(_sdkroot /mine.sdk)'"
 rm -f "$ROOT_DIR/scripts/tests/.reader.sh"
 
 if [ "$(uname -s)" = "Linux" ]; then
