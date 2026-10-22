@@ -1187,11 +1187,12 @@ echo ""
 
 # Patch 65: ocaml/ocaml#15135 (trunk, and backported to 5.6) renamed the
 # bytecode hint Hint_physical_comparison to Hint_int_equality_test. The pinned
-# jsoo ignores that hint; keep ignoring it under either name. Drop on a jsoo
-# bump past ocsigen/js_of_ocaml@acefa21.
+# jsoo ignores that hint; a wildcard keeps ignoring it under either name, since
+# 5.6 dev snapshots from before the rename report the same version. Drop on a
+# jsoo bump past ocsigen/js_of_ocaml@acefa21.
 JSOO_OC="duniverse/js_of_ocaml/compiler/lib/ocaml_compiler.ml"
 if [ -f "$JSOO_OC" ]; then
-  if grep -q 'Hint_int_equality_test' "$JSOO_OC"; then
+  if grep -q 'ocaml/ocaml#15135' "$JSOO_OC"; then
     echo "  [65] jsoo Hint_int_equality_test: already patched."
   else
     python3 - "$JSOO_OC" <<'PYEOF'
@@ -1201,13 +1202,15 @@ p = sys.argv[1]
 old = ("    | Hint_physical_comparison ->\n"
        "        (* No corresponding optimization in js_of_ocaml yet; ignore the hint. *)\n"
        "        None\n")
-new = ("    | ((Hint_physical_comparison) [@if ocaml_version < (5, 6, 0)]) -> None\n"
-       "    | ((Hint_int_equality_test) [@if ocaml_version >= (5, 6, 0)]) -> None\n")
+new = ("    | _ ->\n"
+       "        (* Hint_physical_comparison, or Hint_int_equality_test since\n"
+       "           ocaml/ocaml#15135: no corresponding optimization; ignore it. *)\n"
+       "        None\n")
 s = open(p).read()
 if s.count(old) != 1:
     sys.exit("  [65] jsoo ocaml_compiler.ml: not in the expected shape")
 open(p, "w").write(s.replace(old, new))
-print("  [65] jsoo: Hint_physical_comparison / Hint_int_equality_test by OCaml version.")
+print("  [65] jsoo: ignore Hint_physical_comparison / Hint_int_equality_test by wildcard.")
 PYEOF
   fi
 else
