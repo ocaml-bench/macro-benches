@@ -32,6 +32,13 @@ if [ -n "${_localbase}" ]; then
 fi
 unset _localbase
 
+# macOS: Homebrew's gcc (goblint's CIL needs it) is built against the newest
+# Command Line Tools SDK; with older CLT and a newer Xcode it cannot find
+# stdio.h. Point every compiler at the SDK xcrun selects.
+if [ "$(uname -s)" = Darwin ] && [ -z "${SDKROOT:-}" ] && command -v xcrun >/dev/null 2>&1; then
+    SDKROOT="$(xcrun --show-sdk-path 2>/dev/null)" && export SDKROOT
+fi
+
 # The <regex> helpers pass it to awk (ERE only): write a literal parenthesis as
 # `[(]`, not `\(`, which awk reads as a group.
 

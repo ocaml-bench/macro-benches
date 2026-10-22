@@ -93,6 +93,11 @@ python3 -m pip install --break-system-packages pyyaml
 No exports are needed: the setup scripts add Homebrew's paths. `gcc` is for
 goblint (its C frontend rejects Apple clang); `coreutils` provides `gtimeout`.
 
+`brew install` also upgrades any of these already installed, and the formulae that
+depend on them; set `HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1` to skip the
+dependents. If the Command Line Tools are older than your macOS, setup will point
+the compilers at the right SDK automatically.
+
 ### Setup
 
 ```bash
