@@ -121,7 +121,7 @@ jobs:
           pkg install -y \
             bash git gmake gcc autoconf automake libtool m4 pkgconf zip \
             gmp mpfr openblas lapacke gsl sqlite3 libyaml perl5 \
-            curl libev libevent pcre \
+            curl libev libevent \
             ocaml-opam python3
           # PyYAML, for scripts/ci-manifest.py. Two things make the package name
           # hard to state up front, so it is derived and then VERIFIED rather
