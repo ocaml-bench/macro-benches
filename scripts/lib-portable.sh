@@ -32,6 +32,14 @@ if [ -n "${_localbase}" ]; then
 fi
 unset _localbase
 
+# PCRE 1 is built by scripts/vendor-pcre.sh; pcre-ocaml finds it through pkg-config.
+_pcre_pc="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/vendor/.pcre-prefix/lib/pkgconfig"
+case ":${PKG_CONFIG_PATH:-}:" in
+    *":${_pcre_pc}:"*) ;;
+    *) export PKG_CONFIG_PATH="${_pcre_pc}${PKG_CONFIG_PATH:+:${PKG_CONFIG_PATH}}" ;;
+esac
+unset _pcre_pc
+
 # macOS: Homebrew's gcc (goblint's CIL needs it) is built against the newest
 # Command Line Tools SDK; with older CLT and a newer Xcode it cannot find
 # stdio.h. Point every compiler at the SDK xcrun selects.
