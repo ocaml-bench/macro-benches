@@ -27,11 +27,14 @@ Analysing all 11364 classes takes minutes, so each rung is tuned down with
 sampled at a fixed stride. The **input-size axis is the number of roots** — more roots means more
 procedures analysed, so more shared-heap allocation and multicore GC, at a flat capture footprint:
 
-| rung | roots | warm wall (`-j12`, 32-core) |
-|------|------:|-----------------------------|
-| `infer_small`   |  72 | ~9 s  |
-| `infer_default` | 215 | ~16 s |
-| `infer_large`   | 542 | ~44 s |
+| rung | roots | wall (`-j12`, 12 pinned cores) |
+|------|------:|--------------------------------|
+| `infer_small`   |  72 | ~10 s |
+| `infer_default` | 215 | ~19 s |
+| `infer_large`   | 542 | ~41 s |
+
+Measured on a Ryzen 9 9950X with OCaml 5.5.1 (2026-10-23). Run to run, wall time, CPU time and
+allocated words vary by 1-3%.
 
 A **cold** first analysis is ~2–2.5× the warm figure, and because the three rungs share one
 per-runtime capture, back-to-back rungs are mildly order-dependent (each reaches its own steady
@@ -82,9 +85,25 @@ Measured on an 8-core Xeon booted `nosmt isolcpus=4,6,8,10,12,14 irqaffinity=0,2
 | `4,6,8,10,12,14` (isolated) | 6 | 132.54s | 351% |
 
 The 193% matches what infer achieved in a real sweep before any of this, which is how the
-placement problem was found. 351% rather than ~600% is infer's own ceiling -- a single global
-`dbwriter_command_mutex` in `DBWriterDomain.ml` and the default `Restart` scheduler are the
-candidates -- and it is now measurable rather than hidden behind the placement.
+placement problem was found. The 351% was probably not infer's ceiling either: roots_default
+includes a procedure Pulse spends its whole 120 s timeout on (see Skipped procedures). With it
+skipped, the default rung keeps about 7.7 of 12 cores busy.
+
+## Skipped procedures
+
+The wrapper passes `--pulse-skip-procedures` for two procedures Pulse cannot analyse in a
+reasonable time. Each kept one worker busy for about two minutes while the others sat idle, so the
+wall time measured them rather than the analysis: it was ~123 s on both the default and the large
+rung, whatever `--jobs` was.
+
+- `SecP384R1FieldElement.sqrt()` (bouncycastle, default rung) runs into Pulse's 120 s timeout.
+- `SignatureReader.parseType` (asm, inside byte-buddy, large rung) recurses into ~100 s of
+  specialisations.
+
+Skipping them leaves the reported issues unchanged (4 on default, 6 on large). If a corpus or Infer
+bump brings in another one, the signs are equal walls across rungs and a `TIMEOUT in pulse` line in
+the capture directory's `logs` file. The regex is matched from the start of the procedure's unique
+id, hence the leading `.*`.
 
 ## Logging
 
@@ -176,8 +195,9 @@ rung (full corpus ≈ 20× the large rung, ~350 s at `-j12` — the ceiling). Co
 program if throughput is wanted alongside the shared-heap GC signal.
 
 **running-ng registration.** Add `infer_small` / `infer_default` / `infer_large` to the
-`OCamlBenchmarkSuite` config (and its test-build list) pointing at `benchmarks/infer/infer.build.sh`. Suggested ring size `re-25` (bump to `re-26`
-on runtime_events overflow). The output is a wrapper, not a copied binary, so on a rebuild delete
+`OCamlBenchmarkSuite` config (and its test-build list) pointing at `benchmarks/infer/infer.build.sh`. running-ng gives
+them `ocamlrunparam: "e=20,d=32"`: room for the 13 domains, and `e=18` lost olly events on the
+default rung. The output is a wrapper, not a copied binary, so on a rebuild delete
 the wrapper output as well as `_build-<runtime>` (see the top-level CLAUDE.md gotcha).
 
 **Gotchas.**
