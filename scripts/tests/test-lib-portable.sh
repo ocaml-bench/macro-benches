@@ -198,6 +198,21 @@ _sdkroot() {   # <preset SDKROOT or empty>
 [ "$(_sdkroot /mine.sdk)" = "/mine.sdk" ] \
     && ok "macOS: a caller's SDKROOT is kept" \
     || bad "macOS: SDKROOT overridden: '$(_sdkroot /mine.sdk)'"
+
+PCRE_PC="$ROOT_DIR/vendor/.pcre-prefix/lib/pkgconfig"
+_pkgcfg() {   # <preset PKG_CONFIG_PATH or empty> <times to source>
+    PKG_CONFIG_PATH="$1" bash -c '[ -n "$PKG_CONFIG_PATH" ] || unset PKG_CONFIG_PATH
+        for _ in $(seq "$1"); do . "$0/../lib-portable.sh"; done
+        printf "%s\n" "$PKG_CONFIG_PATH"' "$ROOT_DIR/scripts/tests" "$2"
+}
+case "$(_pkgcfg "" 1)" in
+    "$PCRE_PC"|"$PCRE_PC:"*) ok "PCRE's pkgconfig dir is on PKG_CONFIG_PATH" ;;
+    *) bad "PKG_CONFIG_PATH got '$(_pkgcfg "" 1)'" ;;
+esac
+case "$(_pkgcfg /mine 3)" in
+    "$PCRE_PC:/mine"|"$PCRE_PC:/mine:"*) ok "PCRE's pkgconfig dir comes first, once" ;;
+    *) bad "PKG_CONFIG_PATH got '$(_pkgcfg /mine 3)'" ;;
+esac
 rm -f "$ROOT_DIR/scripts/tests/.reader.sh"
 
 if [ "$(uname -s)" = "Linux" ]; then

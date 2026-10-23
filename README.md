@@ -61,7 +61,7 @@ Debian/Ubuntu:
 ```bash
 sudo apt install build-essential autoconf automake m4 pkg-config zip python3-yaml \
                  libgmp-dev libmpfr-dev libevent-dev libcurl4-openssl-dev \
-                 libpcre3-dev zlib1g-dev libopenblas-dev liblapacke-dev \
+                 zlib1g-dev libopenblas-dev liblapacke-dev \
                  libgsl-dev libsqlite3-dev libyaml-dev
 ```
 
@@ -70,7 +70,7 @@ FreeBSD (as root):
 ```sh
 pkg install bash git python3 autoconf automake libtool m4 pkgconf gmake gcc zip \
             gmp mpfr openblas lapacke gsl sqlite3 libyaml perl5 \
-            curl libev libevent pcre py311-pyyaml
+            curl libev libevent py311-pyyaml
 ```
 
 You might also need to set (if not set already):
@@ -85,7 +85,7 @@ suites need a source patch on FreeBSD; `make setup` applies them all.
 macOS (Apple Silicon, Homebrew):
 
 ```sh
-brew install autoconf automake pkgconf gmp mpfr libevent pcre openblas gsl \
+brew install autoconf automake pkgconf gmp mpfr libevent openblas gsl \
              sqlite libyaml gcc coreutils
 python3 -m pip install --break-system-packages pyyaml
 ```

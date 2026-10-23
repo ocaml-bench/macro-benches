@@ -221,3 +221,13 @@ mpfr:
     present), so scripts/vendor-apron.sh builds MPFR from this tarball into a
     shared, compiler-independent prefix (vendor/.mpfr-prefix) and points the
     mlgmpidl/apron configure at it. Skipped when the system already has mpfr.h.
+
+pcre:
+  version: "8.45"
+  url: "https://sourceforge.net/projects/pcre/files/pcre/8.45/pcre-8.45.tar.bz2/download"
+  sha256: "4dae6fdcd2bb0bb6c37b5f97c33c2be954da743985369cddac3546e3218bffb8"
+  notes: >
+    PCRE 1, the last release (upstream moved to PCRE2). devkit needs it through
+    pcre-ocaml. scripts/vendor-pcre.sh always builds it, static, into
+    vendor/.pcre-prefix, because distros are dropping the package (Ubuntu 26.04
+    has no libpcre3-dev).

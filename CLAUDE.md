@@ -358,6 +358,16 @@ README lists the apt and pkg lines. What it deliberately does not carry:
   `scripts/ci-manifest.py` imports, the second is frama-c's C library. Both lists
   carry both because a stock GitHub runner happens to ship PyYAML while a minimal
   container or a fresh FreeBSD host does not.
+- **PCRE 1 is built by setup, not installed.** devkit needs it through
+  pcre-ocaml, and distros are dropping it: Ubuntu 26.04 has no `libpcre3-dev`
+  (every Linux CI leg failed at apt on 2026-10-23, when `ubuntu-latest` moved to
+  it) and Homebrew deprecated `pcre`. `scripts/vendor-pcre.sh` builds 8.45
+  (pinned and sha256-checked in `sources.yml`) static into `vendor/.pcre-prefix`,
+  and `lib-portable.sh` puts its pkgconfig dir first on `PKG_CONFIG_PATH`, which
+  pcre-ocaml's discover reads. It needs `--enable-unicode-properties`: devkit's
+  `Stre` compiles `[^\pL\pN.]+` with `UTF8 at module initialisation. The
+  `conf-libpcre` dependency in the template and lock is inert (setup never
+  installs opam packages).
 - **No PCRE2 anywhere.** `conf-libpcre2-8` used to sit in
   `macro-bench-devkit.opam.template`, but nothing in the tree has ever used PCRE2:
   devkit depends on the `pcre` OCaml library (PCRE **1**, via `conf-libpcre`),
