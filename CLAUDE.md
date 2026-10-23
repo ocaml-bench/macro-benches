@@ -596,6 +596,11 @@ same source and none needs ppxlib (which trunk and OxCaml can't always build).
   name, so `dune-overlays/infer/.../{clang,unit}/dune` + `src/dune` link `ounit2` (same
   library). This is why infer built piecewise on a full macOS switch but not hermetically
   until the overlay was fixed.
+- **infer's wrapper skips two Pulse procedures** (`--pulse-skip-procedures`):
+  bouncycastle's `SecP384R1FieldElement.sqrt()` hit the 120 s timeout and asm's
+  `SignatureReader.parseType` recursed for ~100 s, so infer_default and infer_large both
+  measured ~123 s at any `--jobs`. A new one shows as equal walls across rungs and a
+  `TIMEOUT in pulse` line in the capture dir's `logs`. See docs/benchmarks/infer.md.
 
 ## Per-session workflow
 
@@ -765,17 +770,17 @@ MMTk-only issues:
 | `frama_c_eva_sqlite_small` | 7 | 13 | weak/ephemeron hash-consing (457MB RSS, promo 0.6%) | ephemeron key-scan (#11733), CIL AST hash-cons, `Weak.Make` at scale |
 | `frama_c_eva_sqlite_default` | 16 | 11 | as small, richer domains (641MB RSS, live 77M) | #11733 at higher precision |
 | `frama_c_eva_sqlite_large` | 113 | 3 | max ephemeron churn (165k minor GC, 695MB RSS, 3.3s gc_time, 11.5ms tail pause) | #11733 ephemeron-clean throughput + GC latency (widening thrash, precision 3) |
-| `infer_small` | ~9† | TBD | multicore shared-heap (72 roots, allocation-heavy abstract interpretation) | input size = #roots analysed; multi-domain shared-heap GC, minor+promotion, hashconsed type env |
-| `infer_default` | ~16† | TBD | as small, more procedures (215 roots) | as small, larger analysis working set |
-| `infer_large` | ~44† | TBD | as small, most procedures (542 roots, ~20x = full corpus) | shared-heap multicore GC at scale; read by wall + (pending) olly GC counts |
+| `infer_small` | ~10† | 13 | multicore shared-heap (72 roots, allocation-heavy abstract interpretation) | input size = #roots analysed; multi-domain shared-heap GC, minor+promotion, hashconsed type env |
+| `infer_default` | ~19† | 15 | as small, more procedures (215 roots) | as small, larger analysis working set |
+| `infer_large` | ~41† | 16 | as small, most procedures (542 roots, ~20x = full corpus) | shared-heap multicore GC at scale; read by wall + (pending) olly GC counts |
 
 (`merlin_bench` and `lavyek_kv_*` omitted — disabled. frama-c input size = `-eva-precision` (2nd
 wrapper arg); slevel is inert; no >5min huge rung reachable via EVA knobs — see
 `docs/benchmarks/frama-c.md`. gc% FALLS with size (13→11→3%, mutator-bound at large) while
 tail pause GROWS (3.1→8.9→11.5ms) — small/default GC-throughput-sensitive, large
-GC-latency-sensitive. olly re-25|md-2, 5.5.0, 2026-07-24. †`infer` walls are WARM
-`analyze --multicore` at `-j12` on a 32-core box, 5.5.0 (a cold first analysis is
-~2-2.5x); gc% not yet olly-profiled; wall is machine-, jobs- and roots-relative, and
+GC-latency-sensitive. olly re-25|md-2, 5.5.0, 2026-07-24. †`infer` walls and gc% are
+`analyze --multicore -j12` pinned to 12 cores of monolith, 5.5.1, 2026-10-23, with two
+Pulse procedures skipped (see below); wall is machine-, jobs- and roots-relative, and
 the shared per-runtime capture makes back-to-back rungs mildly order-dependent — see
 its doc page.)
 
