@@ -85,9 +85,7 @@ Measured on an 8-core Xeon booted `nosmt isolcpus=4,6,8,10,12,14 irqaffinity=0,2
 | `4,6,8,10,12,14` (isolated) | 6 | 132.54s | 351% |
 
 The 193% matches what infer achieved in a real sweep before any of this, which is how the
-placement problem was found. 351% rather than ~600% is infer's own ceiling -- a single global
-`dbwriter_command_mutex` in `DBWriterDomain.ml` and the default `Restart` scheduler are the
-candidates -- and it is now measurable rather than hidden behind the placement.
+placement problem was found.
 
 ## Skipped procedures
 
