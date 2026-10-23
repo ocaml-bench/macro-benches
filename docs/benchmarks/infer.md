@@ -36,10 +36,7 @@ procedures analysed, so more shared-heap allocation and multicore GC, at a flat 
 Measured on a Ryzen 9 9950X with OCaml 5.5.1 (2026-10-23). Run to run, wall time, CPU time and
 allocated words vary by 1-3%.
 
-A **cold** first analysis is ~2–2.5× the warm figure, and because the three rungs share one
-per-runtime capture, back-to-back rungs are mildly order-dependent (each reaches its own steady
-state when run repeatedly in isolation, as running-ng does). Walls are machine-, `INFER_JOBS`- and
-roots-relative. The full corpus is ~20× the large rung, so there is years of headroom. To resample
+To resample
 a rung for a given machine:
 
 ```
