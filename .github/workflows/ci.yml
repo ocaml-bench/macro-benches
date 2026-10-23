@@ -93,7 +93,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             build-essential autoconf automake m4 pkg-config \
             libgmp-dev libmpfr-dev libevent-dev libcurl4-openssl-dev \
-            libpcre3-dev zlib1g-dev libopenblas-dev liblapacke-dev \
+            zlib1g-dev libopenblas-dev liblapacke-dev \
             libgsl-dev libsqlite3-dev libyaml-dev python3-yaml
 
       # The README's macOS line. gcc: goblint's CIL rejects Apple clang.
@@ -102,7 +102,7 @@ jobs:
       - name: Install system dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install autoconf automake pkgconf gmp mpfr libevent pcre \
+          brew install autoconf automake pkgconf gmp mpfr libevent \
             openblas gsl sqlite libyaml gcc coreutils
           python3 -m pip install --break-system-packages pyyaml
           command -v python3

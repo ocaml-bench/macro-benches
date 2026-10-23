@@ -9,7 +9,7 @@
 #        not changed.
 #        SKIP_TEST_BUILD=1: skip the [9/9] smoke build
 # Needs opam 2.3+ and libgmp-dev, libevent-dev, libcurl4-openssl-dev,
-# libpcre3-dev, zlib1g-dev.
+# zlib1g-dev.
 set -euo pipefail
 
 MONOREPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -340,7 +340,8 @@ else
 fi
 echo ""
 
-echo "[6/9] Vendoring devkit deps (libevent + ocurl)..."
+echo "[6/9] Vendoring devkit deps (PCRE + libevent + ocurl)..."
+bash scripts/vendor-pcre.sh
 if [ -d vendor/libevent ]; then
   echo "  vendor/libevent already exists. Skipping."
 else
