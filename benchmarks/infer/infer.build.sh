@@ -107,7 +107,11 @@ set -euo pipefail
 # at 192% for --jobs 2.  INFER_JOBS still overrides, and the build-time default
 # survives as the fallback where nproc is absent (coreutils, so not everywhere
 # outside Linux).
+# --pulse-skip-procedures: two procedures stall Pulse on one worker, so the wall
+# time measured them, not the analysis: SecP384R1FieldElement.sqrt hits the 120 s
+# timeout (default rung), SignatureReader.parseType recurses for ~100 s (large).
 exec "${REAL_EXE}" analyze ${MC_FLAG} --no-progress-bar \\
+  --pulse-skip-procedures '.*\(SecP384R1FieldElement\.sqrt\|SignatureReader\.parseType\)' \\
   --jobs "\${INFER_JOBS:-\$(nproc 2>/dev/null || echo ${JOBS})}" \\
   --changed-files-index "${ROOTS}" -o "${CAPTURE}"
 WRAPPER
