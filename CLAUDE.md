@@ -305,7 +305,7 @@ Notes for whoever touches this next:
 The same three phases on FreeBSD 15.1, the release the port was validated on
 (95/95 by hand). GitHub has no FreeBSD runners and Cirrus CI, which had native
 ones, **shut down 2026-06-01**, so this runs `vmactions/freebsd-vm` (pinned to a
-commit) inside a Linux runner. `/dev/kvm` is present on `ubuntu-latest`, so the
+commit) inside a Linux runner. `/dev/kvm` is present on `ubuntu-26.04`, so the
 guest is hardware-accelerated rather than emulated; VM boot is ~3.5 min.
 
 Its steps **deliberately mirror `ci.yml` name for name and in order**, so the two

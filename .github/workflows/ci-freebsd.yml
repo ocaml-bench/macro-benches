@@ -27,7 +27,7 @@ concurrency:
 jobs:
   build-and-run:
     name: "freebsd build + run once (${{ matrix.label }})"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # Just under GitHub's 6 hour hard cap, so a slow job reports a duration
     # instead of being killed with nothing to show.
     timeout-minutes: 350
