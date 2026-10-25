@@ -1,0 +1,48 @@
+name: Runner image check
+
+# Weekly: opens an issue when GitHub offers a newer Ubuntu runner than the one
+# ci.yml pins, either as `ubuntu-latest` or as a newly listed (preview) image.
+# A hint to bump the pin and our own bench machines. Close the issue once done.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 5 * * 1"
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compare with the pin
+        run: |
+          pin="$(grep -oE 'ubuntu-[0-9]+\.[0-9]+' .github/workflows/ci.yml | sort -uV | tail -1)"
+          pin="${pin#ubuntu-}"
+          [ -n "$pin" ] || { echo "no ubuntu-XX.YY pin in ci.yml" >&2; exit 1; }
+          latest="$(. /etc/os-release && echo "$VERSION_ID")"
+          listed="$(gh api repos/actions/runner-images/contents/README.md -q .content | base64 -d \
+            | grep -oE '`ubuntu-[0-9]+\.[0-9]+`' | tr -d '`' | sed 's/^ubuntu-//' | sort -uV | tail -1)"
+          newest="$(printf '%s\n' "$pin" "$latest" "$listed" | sort -V | tail -1)"
+          echo "pin=$pin ubuntu-latest=$latest newest listed=$listed" | tee -a "$GITHUB_STEP_SUMMARY"
+          [ "$newest" = "$pin" ] && exit 0
+
+          title="Runner image ubuntu-$newest available (CI pins $pin)"
+          if gh issue list --state open --search "in:title \"$title\"" --json title -q '.[].title' | grep -qxF "$title"; then
+            echo "already open: $title"; exit 0
+          fi
+          gh issue create --title "$title" --body "$(cat <<EOF
+          GitHub now offers \`ubuntu-$newest\`; CI pins \`ubuntu-$pin\`.
+
+          - \`ubuntu-latest\` is $latest.
+          - Newest image in [runner-images](https://github.com/actions/runner-images#available-images): $listed.
+
+          Time to plan bumping the CI pin (macro-benches and micro-benches) and our bench machines. Close this once done.
+          EOF
+          )"

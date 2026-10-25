@@ -77,6 +77,8 @@ matrix and gaps, the gotchas, and the backlog.
   leg's compiler pin and its weekly bump (see §CI).
 - `.github/workflows/ci-freebsd.yml` — the same gate on FreeBSD, in a VM; a
   measurement rather than a gate for now (see §CI).
+- `.github/workflows/runner-image-check.yml` — weekly check for a newer Ubuntu
+  runner than the pin (see §CI).
 - `sources.yml`, `macro-bench-*.opam(.template)`, `dune-workspace`, `dune-overlays`.
 - `_build-<runtime>/` — per-runtime dune build output (gitignored).
 
@@ -209,6 +211,14 @@ upstream range, the CI run and a compare page; merging is a PR opened by hand
 (Actions may not open PRs in this repo). Linux only: OxCaml does not support FreeBSD. It adds 24 GB of swap
 before the build: OxCaml's `ocamlc` needs ~3x stock's memory, and jsoo's large
 workload peaks at 20.5 GB, over the runner's 16 GB (#36).
+
+**Linux jobs pin `ubuntu-26.04`**, the release our bench machines run, rather
+than `ubuntu-latest`, which GitHub moves gradually over 1-2 months (the 26.04 move
+broke apt, see PCRE below). `.github/workflows/runner-image-check.yml` (Monday
+cron, or by hand) opens an issue when `ubuntu-latest` or the runner-images README
+offers a newer release than the highest `ubuntu-XX.YY` in `ci.yml`, preview images
+included, as the cue to bump the pin here and in micro-benches, and the machines.
+Close the issue after the bump; an open one with the same title is not duplicated.
 
 The gate is enforced by branch protection on `master`: the required check is
 `build + run once (stable)`. The matrix `label` is deliberately version-free —
