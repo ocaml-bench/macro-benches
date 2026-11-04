@@ -37,25 +37,18 @@ jobs:
           # numbers out of it.
           - label: "stable"
             ocaml: "5.5.0"
-            # Released dune >= 3.24 breaks the vendored rocq build.
-            dune: "3.22.1"
           - label: "trunk"
             ocaml: "ocaml-variants.5.7.0+trunk"
-            # Released dune can't bootstrap against trunk; use git main.
-            dune: "dev"
           - label: "oxcaml"
             # setup-ocaml's switch only provides opam; the runtime is the
             # `oxcaml` switch built below from .github/oxcaml-pin.env.
             ocaml: "5.4.1"
             oxcaml: true
-            # The ocaml/dune commit in .github/oxcaml-pin.env.
-            dune: "pinned"
           # Apple Silicon, Homebrew. Informational until it has been green for
           # a while.
           - label: "macos"
             os: macos-14
             ocaml: "5.5.0"
-            dune: "3.22.1"
 
     env:
       # Picks the build dir (_build-ci) and the output binary suffix.
@@ -66,24 +59,26 @@ jobs:
 
       # Resolve the trunk tip before creating the switch and fold it into every
       # cache key, or a restored opam-root cache would hand back a stale switch.
+      # The dune pin is in the key too: switches cached before it carry their own dune.
       - name: Resolve compiler identity
         id: compiler
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          . .github/dune-pin.env
           if [ "${{ matrix.oxcaml }}" = "true" ]; then
             . .github/oxcaml-pin.env
-            sha="$OXCAML_SHA" repo="$OXCAML_REPO" recipe="$OXCAML_RECIPE" dune="$DUNE_SHA"
-            { echo "id=oxcaml-${sha:0:12}-${repo:0:12}-${dune:0:12}"; echo "sha=${sha}"; echo "repo=${repo}"; echo "recipe=${recipe}"; echo "dune=${dune}"; } >> "$GITHUB_OUTPUT"
-            echo "### Compiler: oxcaml/oxcaml @ \`${sha:0:12}\` (recipe \`${recipe}\`, opam-repository \`${repo:0:12}\`, dune \`${dune:0:12}\`)" >> "$GITHUB_STEP_SUMMARY"
+            sha="$OXCAML_SHA" repo="$OXCAML_REPO" recipe="$OXCAML_RECIPE"
+            { echo "id=oxcaml-${sha:0:12}-${repo:0:12}-dune${DUNE_VERSION}"; echo "sha=${sha}"; echo "repo=${repo}"; echo "recipe=${recipe}"; } >> "$GITHUB_OUTPUT"
+            echo "### Compiler: oxcaml/oxcaml @ \`${sha:0:12}\` (recipe \`${recipe}\`, opam-repository \`${repo:0:12}\`), dune ${DUNE_VERSION}" >> "$GITHUB_STEP_SUMMARY"
           elif [[ "${{ matrix.ocaml }}" == *trunk* ]]; then
             sha="$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/repos/ocaml/ocaml/commits/trunk \
                    | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"][:12])')"
-            echo "id=trunk-${sha}" >> "$GITHUB_OUTPUT"
-            echo "### Compiler: ocaml/ocaml trunk @ \`${sha}\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "id=trunk-${sha}-dune${DUNE_VERSION}" >> "$GITHUB_OUTPUT"
+            echo "### Compiler: ocaml/ocaml trunk @ \`${sha}\`, dune ${DUNE_VERSION}" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "id=${{ matrix.ocaml }}" >> "$GITHUB_OUTPUT"
-            echo "### Compiler: OCaml ${{ matrix.ocaml }}" >> "$GITHUB_STEP_SUMMARY"
+            echo "id=${{ matrix.ocaml }}-dune${DUNE_VERSION}" >> "$GITHUB_OUTPUT"
+            echo "### Compiler: OCaml ${{ matrix.ocaml }}, dune ${DUNE_VERSION}" >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Install system dependencies
@@ -150,18 +145,17 @@ jobs:
       - name: Validate the manifest against the tree
         run: python3 scripts/ci-manifest.py check
 
-      - name: Install dune (${{ matrix.dune }})
+      # dune from .github/dune-pin.env, not built by the compiler under test. It
+      # must not be shadowed by one in the runtime switch, which comes first on PATH.
+      - name: Install dune
         run: |
+          bash scripts/install-dune.sh "$RUNNER_TEMP/dune"
+          echo "$RUNNER_TEMP/dune" >> "$GITHUB_PATH"
           eval "$(opam env)"
-          if [ "${{ matrix.dune }}" = "dev" ]; then
-            opam pin add --yes dune --dev-repo
-          elif [ "${{ matrix.dune }}" = "pinned" ]; then
-            opam pin add --yes dune "git+https://github.com/ocaml/dune#${{ steps.compiler.outputs.dune }}"
-          else
-            opam pin add --yes --no-action dune ${{ matrix.dune }}
-            opam install --yes dune.${{ matrix.dune }}
+          if [ -e "$(opam var bin)/dune" ]; then
+            echo "::error::the runtime switch has its own dune: $(opam var bin)/dune"
+            exit 1
           fi
-          dune --version
           # goblint's apron and infer's javalib/sawja build with the runtime's
           # ocamlfind; setup's own tools live in its own switch.
           opam install --yes ocamlfind
