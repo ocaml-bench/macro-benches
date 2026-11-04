@@ -4,7 +4,7 @@ Coq (now Rocq) is an interactive proof assistant; `coqc` is its batch compiler.
 This benchmark runs `coqc` over one small `.v` file written specifically to make
 the Rocq kernel do a lot of reduction work on unary-Peano `nat` (`O | S nat`),
 where every `S` constructor the kernel produces is a heap allocation. Rocq sets
-its own GC parameters (a 32M-word minor heap and `space_overhead=120`), but only
+its own GC parameters (a 32M-word minor heap and `space_overhead=200`), but only
 when `OCAMLRUNPARAM` is unset, so the harness runs it without one.
 
 ## Ladder
