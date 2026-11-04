@@ -24,7 +24,7 @@ concurrency:
 jobs:
   build-and-run:
     name: build + run once (${{ matrix.label }})
-    runs-on: ${{ matrix.os || 'ubuntu-latest' }}
+    runs-on: ${{ matrix.os || 'ubuntu-26.04' }}
     timeout-minutes: 240
     # Only the stable leg is a required check. The trunk and oxcaml legs track
     # moving compilers, so they can go red for unrelated reasons; they fail the
