@@ -34,16 +34,19 @@ if [ ! -f "${MONOREPO_DIR}/duniverse/rocq/config/coq_config.ml" ]; then
 fi
 
 # Only the parts of rocq-runtime coqc loads: all of rocq-runtime.install also
-# needs topfind, which OxCaml cannot build.
+# needs topfind, which OxCaml cannot build. dune resolves targets inside the
+# build dir only when both are relative to the workspace root.
 RUNTIME_LIB="${BUILD_DIR}/install/default/lib/rocq-runtime"
-runtime_targets=("${RUNTIME_LIB}/META" "${RUNTIME_LIB}/rocqworker")
+BUILD_DIR_REL="${BUILD_DIR#"${MONOREPO_DIR}/"}"
+RUNTIME_TARGET="${BUILD_DIR_REL}/install/default/lib/rocq-runtime"
+runtime_targets=("${RUNTIME_TARGET}/META" "${RUNTIME_TARGET}/rocqworker")
 for p in "${ROCQ_PREFIX}"/lib/rocq-runtime/plugins/*/*.cmxs; do
-  runtime_targets+=("${RUNTIME_LIB}/${p#"${ROCQ_PREFIX}/lib/rocq-runtime/"}")
+  runtime_targets+=("${RUNTIME_TARGET}/${p#"${ROCQ_PREFIX}/lib/rocq-runtime/"}")
 done
 
-dune_locked build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
+(cd "${MONOREPO_DIR}" && dune_locked build --root . --build-dir "${BUILD_DIR_REL}" \
   --profile release \
-  duniverse/rocq/topbin/coqc_bin.exe "${runtime_targets[@]}"
+  duniverse/rocq/topbin/coqc_bin.exe "${runtime_targets[@]}")
 
 SWITCH_LIB="$(ocamlfind printconf destdir)"
 SWITCH_STDLIB="$(ocamlfind printconf stdlib)"
