@@ -102,7 +102,8 @@ A script first clears the ambient `OPAM_SWITCH_PREFIX`,
 `OCAMLTOP_INCLUDE_PATH`, `CAML_LD_LIBRARY_PATH`, `OCAMLLIB` and `OCAMLPATH` so a
 previously active switch can't contaminate the build with its `.cmi`s (the few
 benchmarks needing a library path — goblint's apron, coq's rocq prefix — set
-`OCAMLPATH` themselves afterwards), then `dune build --root <monorepo>
+`OCAMLPATH` themselves afterwards; coq's wrapper also sets `ROCQRUNTIMELIB` so
+coqc runs this runtime's rocqworker and plugins, not `_rocq_prefix/`'s), then `dune build --root <monorepo>
 --build-dir _build-<runtime> --profile release <target>` and copies the result
 out. Because every benchmark lives at `benchmarks/<tool>/`, each script derives
 the monorepo root from `BENCH_DIR` (`$(cd "${BENCH_DIR}/../.." && pwd)`); no
@@ -697,10 +698,10 @@ MMTk-only issues:
 
 | Benchmark | wall (s) | gc% | Allocation profile | Strongest signal for |
 |---|---|---|---|---|
-| `coqc_corelib_stress` | 17 | 94 | minor-saturation | minor-GC fast path (mixed fib/ack/tree; old 52s stale) |
-| `coqc_tree_small` | 5.3 | 90 | minor-saturation (D=17, 0.57GB) | minor-GC fast path (input size = make_tree depth) |
-| `coqc_tree_default` | 19 | 94 | minor-saturation (D=18, 0.98GB) | as small, deeper reduction |
-| `coqc_tree_large` | 69 | 97 | minor-saturation (D=19, 1.89GB, 64ms max pause) | minor-GC saturation at scale (highest gc% in suite) |
+| `coqc_corelib_stress` | 19 | 66 | large minor heap (rocq sets 32M words, 4.4GB) | few, long minor GCs (mixed fib/sum/ack/tree, sum_to ~70%; 248ms max pause) |
+| `coqc_tree_small` | 8.1 | 69 | large minor heap (D=19, 2.6GB) | few, long minor GCs (input size = make_tree depth; 222ms max pause) |
+| `coqc_tree_default` | 18 | 74 | large minor heap (D=20, 5.7GB) | as small, deeper reduction (354ms max pause) |
+| `coqc_tree_large` | 42 | 76 | large minor heap (D=21, 10GB, 379ms max pause) | long minor pauses at scale |
 | `eio_fiber_stream` | 6 | 10 | promotion-heavy | OCaml 5 effects, fiber scheduler |
 | `eio_conc_small` | 5.7 | 62 | live fibers+buffers (3000 pairs, 0.69GB) | input size = concurrency degree (eio_conc_bench: N indep fiber pairs) |
 | `eio_conc_default` | 17 | 63 | live set (9000 pairs, 1.99GB) | as small, more concurrent pipelines |
@@ -851,7 +852,7 @@ a list of what you can run; this file is where they are documented.
 
 | Benchmark | Hot-path tags |
 |---|---|
-| `coqc_corelib_stress{,_tree_small,_tree_default,_tree_large}` | ephemeron data-field (`CEphemeron` on the VM's global-slot path), C-side allocation (the VM's own `Alloc_small`/`caml_alloc_shr`/`caml_modify`; `caml_shared_try_alloc` 16.8%), marshal (`.vo` both ways) + `Digest.string`, minor-gc, constructor-alloc. NB `Compute` is `vm_compute`, so these run the bytecode VM, not just kernel reduction; `coqc_bin.exe` execve's itself into `rocqworker` and the wrapper shells out to ocamlfind twice; input size = numeral/make_tree depth → minor-GC-saturation ladder (RSS 0.57→1.89GB, gc% 90→97% = highest in suite) |
+| `coqc_corelib_stress{,_tree_small,_tree_default,_tree_large}` | ephemeron data-field (`CEphemeron` on the VM's global-slot path), C-side allocation (the VM's own `Alloc_small`/`caml_alloc_shr`/`caml_modify`; `caml_shared_try_alloc` 16.8%), marshal (`.vo` both ways) + `Digest.string`, minor-gc, constructor-alloc. NB `Compute` is `vm_compute`, so these run the bytecode VM, not just kernel reduction; `coqc_bin.exe` execve's itself into `rocqworker` and the wrapper shells out to ocamlfind twice; input size = numeral/make_tree depth → ladder of few, long minor GCs under rocq's own 32M-word minor heap (RSS 2.6→10GB, gc% 69→76%, max pause 222→379ms). rocq only sets that GC when OCAMLRUNPARAM is unset, so the harness must not set one for coq |
 | `eio_fiber_stream` | effects, eio-fibers, major-promotion; `Eio.Stream` takes a Mutex per op (`caml_ml_mutex_lock` ~2.3% + pthread_mutex ~7% on eio_conc), and Eio_main creates an io_uring that then stays idle |
 | `eio_conc_{small,default,large}` | input size = concurrency degree (eio_conc_bench.ml: N=3000/9000/21000 independent producer/consumer fiber pairs, each on own bounded stream; per-fiber work fixed 20000). Live-set ladder: retained fibers+buffers, top_heap 84->619M w, RSS 0.69->4.96GB, promo ~0.85 flat -> gc% ~62% (heavy, 2nd to liqvf), max pause 6.5->76ms. Effects-scheduler counterpart to goblint(churn)/pplacer(off-heap). Read by RSS/top_heap. Frozen eio_fiber_stream (throughput) unchanged |
 | `merlin_bench` *(disabled)* | domains, effects, atomics, hashtbl, format; cold: ephemerons, Gc.finalise |

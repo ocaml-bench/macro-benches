@@ -3,6 +3,9 @@
 # the dunestrap files in duniverse/rocq/theories/{Corelib,Ltac2}/dune, Rocq
 # installed into _rocq_prefix/ (all from setup-monorepo.sh) and a
 # ~/install/default/lib/rocq-runtime symlink for .vo compilation.
+# coqc execs rocqworker and loads plugins from ROCQRUNTIMELIB (default: next to
+# -coqlib), so the wrapper points it at this runtime's build; only the .vo
+# corelib in _rocq_prefix/ is shared.
 set -euo pipefail
 
 # running-ng runs this script directly, without setup-monorepo.sh's environment;
@@ -30,9 +33,23 @@ if [ ! -f "${MONOREPO_DIR}/duniverse/rocq/config/coq_config.ml" ]; then
   exit 1
 fi
 
-dune_locked build --root "${MONOREPO_DIR}" --build-dir "${BUILD_DIR}" \
+# Only the parts of rocq-runtime coqc loads: all of rocq-runtime.install also
+# needs topfind, which OxCaml cannot build. dune resolves targets inside the
+# build dir only when both are relative to the workspace root.
+RUNTIME_LIB="${BUILD_DIR}/install/default/lib/rocq-runtime"
+BUILD_DIR_REL="${BUILD_DIR#"${MONOREPO_DIR}/"}"
+RUNTIME_TARGET="${BUILD_DIR_REL}/install/default/lib/rocq-runtime"
+runtime_targets=("${RUNTIME_TARGET}/META" "${RUNTIME_TARGET}/rocqworker")
+for p in "${ROCQ_PREFIX}"/lib/rocq-runtime/plugins/*/*.cmxs; do
+  runtime_targets+=("${RUNTIME_TARGET}/${p#"${ROCQ_PREFIX}/lib/rocq-runtime/"}")
+done
+
+(cd "${MONOREPO_DIR}" && dune_locked build --root . --build-dir "${BUILD_DIR_REL}" \
   --profile release \
-  duniverse/rocq/topbin/coqc_bin.exe
+  duniverse/rocq/topbin/coqc_bin.exe "${runtime_targets[@]}")
+
+SWITCH_LIB="$(ocamlfind printconf destdir)"
+SWITCH_STDLIB="$(ocamlfind printconf stdlib)"
 
 mkdir -p "$(dirname "${OUT}")"
 cat > "${OUT}" << WRAPPER
@@ -42,20 +59,29 @@ MONOREPO_DIR="${MONOREPO_DIR}"
 ROCQ_PREFIX="${ROCQ_PREFIX}"
 BUILD_DIR="${BUILD_DIR}"
 
-# Set OCAMLPATH so findlib can locate rocq-runtime
-export OCAMLPATH="\${ROCQ_PREFIX}/lib:\${ROCQ_PREFIX}/lib/rocq-runtime"
-
-# Add switch lib paths if ocamlfind is available
-if command -v ocamlfind >/dev/null 2>&1; then
-  SWITCH_LIB="\$(ocamlfind printconf destdir 2>/dev/null || true)"
-  SWITCH_STDLIB="\$(ocamlfind printconf stdlib 2>/dev/null || true)"
-  export OCAMLPATH="\${OCAMLPATH}:\${SWITCH_LIB}:\${SWITCH_STDLIB}"
-fi
+# rocqworker and plugins from this runtime's build, .vo files from -coqlib;
+# this runtime's switch for the packages plugins require (threads)
+export ROCQRUNTIMELIB="${RUNTIME_LIB}"
+export OCAMLPATH="${BUILD_DIR}/install/default/lib:${SWITCH_LIB}:${SWITCH_STDLIB}"
 
 exec "\${BUILD_DIR}/default/duniverse/rocq/topbin/coqc_bin.exe" \\
   -coqlib "\${ROCQ_PREFIX}/lib/coq" \\
   "\$@"
 WRAPPER
 chmod +x "${OUT}"
+
+# Compiling an empty file loads the Prelude plugins into this build's worker.
+if [ ! -x "${RUNTIME_LIB}/rocqworker" ]; then
+  echo "ERROR: no rocqworker under ${RUNTIME_LIB}" >&2
+  exit 1
+fi
+probe="$(mktemp -d)"
+touch "${probe}/probe.v"
+if ! "${OUT}" "${probe}/probe.v"; then
+  rm -rf "${probe}"
+  echo "ERROR: ${OUT} cannot compile an empty file" >&2
+  exit 1
+fi
+rm -rf "${probe}"
 
 echo "coqc built: ${OUT}"
