@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Put the dune pinned in .github/dune-pin.env at <dir>/dune, never built by
-# the compiler under test: the release binary where one exists, else built in
-# a stock switch of its own (FreeBSD, where dune ships no binary).
+# Dowloads the release binary where one exists, else built in
+# a stock switch (e.g., FreeBSD, where dune ships no binary).
 #
 # Usage: bash scripts/install-dune.sh <dir>
 set -euo pipefail

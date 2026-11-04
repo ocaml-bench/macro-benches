@@ -310,8 +310,8 @@ Notes for whoever touches this next:
   switches cached before the change are not restored. Patch 19 is what lets dune
   >= 3.24 parse the workspace at all (it deleted the `coq` extension vendored rocq
   declared). Bumping: new version and both sha256s in `dune-pin.env`, keep
-  running-ng's tools switch on the same one, and add it to README's "Verified
-  with dune" line.
+  running-ng's tools switch on the same one, and update README's "Verified
+  with dune" line to it.
 - The **weekly cron run skips the cache** on purpose. Everything is pinned now
   (see §Vendored source pins), so this is not a drift detector — it is a check
   that a *cold* setup still works: that every pinned commit and tarball is still
