@@ -75,6 +75,8 @@ matrix and gaps, the gotchas, and the backlog.
 - `.github/workflows/ci.yml` — master-only build + run-once gate (see §CI).
 - `.github/workflows/oxcaml-bump.yml` + `.github/oxcaml-pin.env` — the oxcaml
   leg's compiler pin and its weekly bump (see §CI).
+- `.github/dune-pin.env` + `scripts/install-dune.sh` — the one dune every CI leg
+  builds with (see §CI).
 - `.github/workflows/ci-freebsd.yml` — the same gate on FreeBSD, in a VM; a
   measurement rather than a gate for now (see §CI).
 - `.github/workflows/runner-image-check.yml` — weekly check for a newer Ubuntu
@@ -198,14 +200,12 @@ A third leg, **`oxcaml`**, builds the `oxcaml/oxcaml` commit pinned in
 `.github/oxcaml-pin.env`: OxCaml has no in-tree compiler opam file, so it pins the
 `oxcaml-compiler` recipe named there, from the pinned `oxcaml/opam-repository`
 commit, to that commit (in an `oxcaml` switch next to setup-ocaml's, which then
-only provides opam), with dune pinned to the `ocaml/dune` commit there
-(`DUNE_SHA`). Dune's CI bootstraps dune `main` with OxCaml `main`, while the
-released `+ox` dunes in oxcaml/opam-repository target OxCaml releases
-(oxcaml#5462 broke `3.22.2+ox` on main; dune fixed it in ocaml/dune#16589). All
-three commits go into the cache keys. Not required, like trunk. It is pinned
+only provides opam). Its dune is the same pinned one as every leg's (below), so
+it no longer needs a dune that bootstraps on OxCaml main. Both commits go into
+the cache keys. Not required, like trunk. It is pinned
 rather than tracking main so a red leg points at one upstream range.
 `.github/workflows/oxcaml-bump.yml` moves it weekly (Sunday cron, or by hand): it
-points both pins at main on the
+points the pin at main on the
 `oxcaml-bump` branch, dispatches `ci.yml` there (a `GITHUB_TOKEN` push triggers no
 workflow), waits, and fails unless the oxcaml leg passed. Its summary links the
 upstream range, the CI run and a compare page; merging is a PR opened by hand
@@ -298,13 +298,20 @@ Notes for whoever touches this next:
 - **`SKIP_TEST_BUILD=1`** makes `setup-monorepo.sh` skip its `[9/9]` test build.
   CI sets it because that step targets the default `_build/` while the build
   scripts target `_build-<tag>/` — running both compiles the duniverse twice.
-- **Dune is pinned per leg**: `3.22.1` on stable, git `main` on trunk (released
-  dune can't bootstrap against trunk), a `main` commit on oxcaml (`DUNE_SHA` in
-  `.github/oxcaml-pin.env`). Patch 19 is what lets the trunk leg work at
-  all — its dune is ≥ 3.24, which deleted the `coq` extension vendored rocq
-  declared. The stable pin is for determinism, not necessity: the workspace parses
-  under both 3.22.1 and 3.24 now, and pinning keeps the build environment fixed
-  the same way every source is pinned.
+- **One dune for every leg, never built by the compiler under test**:
+  `.github/dune-pin.env` pins the version (3.24.2, as running-ng's tools switch)
+  and the sha256 of each release binary; `scripts/install-dune.sh` downloads it
+  (Linux x86_64, macOS arm64) or, on FreeBSD, where dune ships no binary, builds
+  it in a stock `dune-<version>` switch. Each leg used to install dune into its
+  runtime switch, so it had to bootstrap on that compiler: trunk tracked unpinned
+  dune `main` and oxcaml a `main` commit (`DUNE_SHA`), because released dune could
+  not bootstrap on either. The runtime switch comes first on `PATH`, so a dune in
+  it would win: `ci.yml` fails if one is there, and the pin is in the cache key so
+  switches cached before the change are not restored. Patch 19 is what lets dune
+  >= 3.24 parse the workspace at all (it deleted the `coq` extension vendored rocq
+  declared). Bumping: new version and both sha256s in `dune-pin.env`, keep
+  running-ng's tools switch on the same one, and update README's "Verified
+  with dune" line to it.
 - The **weekly cron run skips the cache** on purpose. Everything is pinned now
   (see §Vendored source pins), so this is not a drift detector — it is a check
   that a *cold* setup still works: that every pinned commit and tarball is still

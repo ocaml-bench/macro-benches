@@ -108,7 +108,7 @@ make setup          # or: bash scripts/setup-monorepo.sh
 This pulls the vendored packages, applies the source patches, builds the few
 non-dune dependencies (pplacer, apron, rocq), replaces ppx preprocessing with its expanded source, and test-builds every binary.
 
-Verified with dune **3.22.1** and **3.24.0**. If you already have a populated
+Verified with dune **3.24.2**. If you already have a populated
 `duniverse/` and are moving to dune 3.24+, rerun `make setup`.
 
 ### Run one benchmark by hand
