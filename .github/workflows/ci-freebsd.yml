@@ -200,9 +200,9 @@ jobs:
         run: |
           cd /work
           bash scripts/install-dune.sh /usr/local/bin
-          . scripts/lib-switch.sh
-          ensure_tools_switch opam
-          ln -sf "$(opam var bin --switch="$TOOLS_SWITCH")/ocamlfind" /usr/local/bin/
+          # lib-switch.sh is bash; the VM's steps run under sh.
+          bash -c '. scripts/lib-switch.sh && ensure_tools_switch opam &&
+            ln -sf "$(opam var bin --switch="$TOOLS_SWITCH")/ocamlfind" /usr/local/bin/'
 
       - name: Set up the monorepo (vendor sources, patch, bootstrap rocq)
         shell: freebsd {0}
