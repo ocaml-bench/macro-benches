@@ -88,6 +88,7 @@ for rule in ("%.cmi: %.mli", "%.cmo: %.ml %.cmi"):
 open(p, "w").write(s)
 PY
 export OCAMLPATH="$PREFIX/lib" OCAMLFIND_DESTDIR="$PREFIX/lib" PATH="$PREFIX/bin:$PATH"
+use_prefix_findlib "$PREFIX"
 echo "compiler: $(ocaml -version)"
 
 echo "[1/4] bigarray-compat (dune)"

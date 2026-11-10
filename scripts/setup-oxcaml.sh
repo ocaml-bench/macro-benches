@@ -92,7 +92,7 @@ duniverse_patches() {
   fi
 
   if vendored duniverse/ocaml-extlib/src 36 extlib; then
-    extlib_patches 36 duniverse/ocaml-extlib/src
+    extlib_patches 36 69 duniverse/ocaml-extlib/src
   fi
 
   if vendored vendor/camlpdf 37 camlpdf; then
@@ -414,13 +414,17 @@ BATUNIX
   fi
 }
 
-# extlib's List/String re-export stdlib functions through `include`.
+# extlib's List/String re-export stdlib functions through `include`, and
+# ExtList.List.t re-exports list's constructors.
 extlib_patches() {
-  local num=$1 d=$2
+  local num=$1 list_num=$2 d=$3
   after "$num" "extlib List" "$d/extList.ml" $'include List\n' \
     $'\nlet mem x t = mem x t\nlet memq x t = memq x t\n'
   after "$num" "extlib String" "$d/extString.ml" $'include String\n' \
     $'\nlet blit a b c d e = blit a b c d e\nlet index_from a b c = index_from a b c\nlet index_from_opt a b c = index_from_opt a b c\nlet rindex_from a b c = rindex_from a b c\nlet rindex_from_opt a b c = rindex_from_opt a b c\n'
+  replace "$list_num" "extlib List.t" "$d/extList.mli" \
+    $'type \'a t = \'a list\n#if OCAML >= 408\n    = [] | (::) of \'a * \'a list\n#endif\n' \
+    $'type \'a t = \'a list\n'
 }
 
 # Patches to files the ppx expansion rewrites, so they match its output.
@@ -434,7 +438,7 @@ post_expand_patches() {
 
 infer_patches() {
   local src=$1
-  extlib_patches 46 "$src/extlib/src"
+  extlib_patches 46 70 "$src/extlib/src"
   # OxCaml records the pack prefix in the .cmi too, so interfaces and bytecode
   # must be compiled with -for-pack like the native code; stock OCaml accepts it.
   local rule

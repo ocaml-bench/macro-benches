@@ -55,6 +55,7 @@ explain the details and what coverage they would add back.
 ### Prerequisites
 
 opam 2.3+ and a switch with `dune` and `ocamlfind`, plus the system libraries below.
+<!-- TODO(docs): ocamlfind can come from any switch on PATH (e.g. macro-benches-tools); the runtime switch needs only the compiler. -->
 
 Debian/Ubuntu:
 

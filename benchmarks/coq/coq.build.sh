@@ -48,8 +48,8 @@ done
   --profile release \
   duniverse/rocq/topbin/coqc_bin.exe "${runtime_targets[@]}")
 
-SWITCH_LIB="$(ocamlfind printconf destdir)"
-SWITCH_STDLIB="$(ocamlfind printconf stdlib)"
+SWITCH_STDLIB="$(ocamlc -where)"
+SWITCH_LIB="$(dirname "${SWITCH_STDLIB}")"
 
 mkdir -p "$(dirname "${OUT}")"
 cat > "${OUT}" << WRAPPER

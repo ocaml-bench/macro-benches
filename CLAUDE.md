@@ -859,7 +859,7 @@ a list of what you can run; this file is where they are documented.
 
 | Benchmark | Hot-path tags |
 |---|---|
-| `coqc_corelib_stress{,_tree_small,_tree_default,_tree_large}` | ephemeron data-field (`CEphemeron` on the VM's global-slot path), C-side allocation (the VM's own `Alloc_small`/`caml_alloc_shr`/`caml_modify`; `caml_shared_try_alloc` 16.8%), marshal (`.vo` both ways) + `Digest.string`, minor-gc, constructor-alloc. NB `Compute` is `vm_compute`, so these run the bytecode VM, not just kernel reduction; `coqc_bin.exe` execve's itself into `rocqworker` and the wrapper shells out to ocamlfind twice; input size = numeral/make_tree depth → ladder of few, long minor GCs under rocq's own 32M-word minor heap (RSS 2.6→10GB, gc% 69→76%, max pause 222→379ms). rocq only sets that GC when OCAMLRUNPARAM is unset, so the harness must not set one for coq |
+| `coqc_corelib_stress{,_tree_small,_tree_default,_tree_large}` | ephemeron data-field (`CEphemeron` on the VM's global-slot path), C-side allocation (the VM's own `Alloc_small`/`caml_alloc_shr`/`caml_modify`; `caml_shared_try_alloc` 16.8%), marshal (`.vo` both ways) + `Digest.string`, minor-gc, constructor-alloc. NB `Compute` is `vm_compute`, so these run the bytecode VM, not just kernel reduction; `coqc_bin.exe` execve's itself into `rocqworker`; input size = numeral/make_tree depth → ladder of few, long minor GCs under rocq's own 32M-word minor heap (RSS 2.6→10GB, gc% 69→76%, max pause 222→379ms). rocq only sets that GC when OCAMLRUNPARAM is unset, so the harness must not set one for coq |
 | `eio_fiber_stream` | effects, eio-fibers, major-promotion; `Eio.Stream` takes a Mutex per op (`caml_ml_mutex_lock` ~2.3% + pthread_mutex ~7% on eio_conc), and Eio_main creates an io_uring that then stays idle |
 | `eio_conc_{small,default,large}` | input size = concurrency degree (eio_conc_bench.ml: N=3000/9000/21000 independent producer/consumer fiber pairs, each on own bounded stream; per-fiber work fixed 20000). Live-set ladder: retained fibers+buffers, top_heap 84->619M w, RSS 0.69->4.96GB, promo ~0.85 flat -> gc% ~62% (heavy, 2nd to liqvf), max pause 6.5->76ms. Effects-scheduler counterpart to goblint(churn)/pplacer(off-heap). Read by RSS/top_heap. Frozen eio_fiber_stream (throughput) unchanged |
 | `merlin_bench` *(disabled)* | domains, effects, atomics, hashtbl, format; cold: ephemerons, Gc.finalise |
@@ -1022,6 +1022,8 @@ Applied automatically by `scripts/setup-monorepo.sh` (33 by `scripts/ppx-expand.
 | 66 | `duniverse/base/src/option.ml(i)`, `duniverse/ppx_yojson_conv_lib/ppx_yojson_conv_lib.ml`, `duniverse/core/core/src/option.mli`, `duniverse/ocamlformat/vendor/odoc-parser/compat.ml(i)` | base and ppx_yojson_conv_lib: split as 55, the OxCaml side declaring `type ('a : any) t = 'a option = None \| Some of 'a`; core: split the same way, restating it in `with type ('a : any) t := 'a option` (applied after the ppx expansion, by `setup-oxcaml.sh post-expand`, since the expansion rewrites the file); odoc-parser: drop the constructors (`type 'a t = 'a option`) | oxcaml/oxcaml#5462 gave `option` an `any` parameter, which a re-export with constructors must restate, and stock can't parse the annotation. Base's and ppx_yojson_conv's constructors are used qualified (`Option.Some`, and the yojson deriver's `Ppx_yojson_conv_lib.Option.None`), so they keep them; odoc-parser's are not |
 | 67 | `duniverse/js_of_ocaml/compiler/lib/magic_number.ml` | Raise the OCaml bound from `[ 5; 7 ]` to `[ 5; 8 ]` | jsoo refuses to run when built by OCaml >= 5.7 (`Failure("OCaml version unsupported. Upgrade js_of_ocaml.")`, exit 2), and trunk is 5.7. Upstream's 5.6 support was this bound alone. Checked 2026-10-16 on trunk `cfa217c`: `jsoo_default` builds and runs, its JavaScript is within 0.04% of 5.4.1's size and runs under node. Drop once upstream jsoo accepts 5.7 |
 | 68 | `duniverse/owl/src/owl/config/configure.ml` (after 26) | On macOS, add `-L<libomp>/lib -lomp` when the cflags ask for OpenMP and the libs carry no runtime, taking the dir from pkg-config's `-I.../libomp/include` | macOS, the same hole as 26: Homebrew's openblas `.pc` passes `-fopenmp` and keg-only libomp's headers but not its library, so owl fails with `___kmpc_*` undefined. Linux unchanged (guarded on `macosx`) |
+| 69 | `duniverse/ocaml-extlib/src/extList.mli` | Drop the constructors from `ExtList.List.t`'s re-export (`type 'a t = 'a list`) | OxCaml main (seen at 490d0b79, not at 0c3b79a) gave `list` an `any` parameter, as oxcaml/oxcaml#5462 did `option`, so restating `[] \| (::)` no longer matches ("This has a fixed representation and the original doesn't"). Same fix as 66's odoc-parser: `[]` and `(::)` are built in, so nothing needs them through `ExtList.List` |
+| 70 | infer's `extlib` checkout (`vendor/.infer-js-src`) | Same as 69 | Applied by `vendor-javalib-sawja.sh`, as 46 |
 
 ## OxCaml compatibility
 
@@ -1085,6 +1087,10 @@ the generator).
   source (`sources.yml` `mpfr`) into `vendor/.mpfr-prefix` and feeds `mlgmpidl` (via
   `CPPFLAGS`) and `apron` (via `MPFR_PREFIX`, which apron wants instead of `-I`) — skipped
   when the system already provides `mpfr.h` (Linux x86 apt, FreeBSD pkg, macOS brew).
+- **ocamlfind**: runtime switches need none. The apron and javalib/sawja chains use
+  whichever `ocamlfind` is on PATH, pointed at their prefix and at the compiler on PATH
+  by `use_prefix_findlib` (`scripts/lib-portable.sh`, via `OCAMLFIND_CONF`). CI links
+  setup's; running-ng puts its tools switch's bin after the runtime's.
 - **OxCaml**: see §OxCaml compatibility.
 - **Trunk (5.6) support**: depends on lwt git main (patch 5). ppxlib is now built only
   on the ppx switch (OCaml 5.4.1, §ppx expansion), so patch 4 may no longer be needed.

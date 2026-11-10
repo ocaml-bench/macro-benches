@@ -194,15 +194,15 @@ jobs:
 
       # dune ships no FreeBSD binary, so install-dune.sh builds the pinned one in
       # a stock switch; /usr/local/bin is on PATH in every step of the VM.
-      - name: Install dune
+      # ocamlfind is setup's, as on Linux.
+      - name: Install dune and ocamlfind
         shell: freebsd {0}
         run: |
           cd /work
           bash scripts/install-dune.sh /usr/local/bin
-          eval "$(opam env --switch=ci --set-switch)"
-          # goblint's apron and infer's javalib/sawja build with the runtime's
-          # ocamlfind; setup's own tools live in its own switch.
-          opam install --yes ocamlfind
+          # lib-switch.sh is bash; the VM's steps run under sh.
+          bash -c '. scripts/lib-switch.sh && ensure_tools_switch opam &&
+            ln -sf "$(opam var bin --switch="$TOOLS_SWITCH")/ocamlfind" /usr/local/bin/'
 
       - name: Set up the monorepo (vendor sources, patch, bootstrap rocq)
         shell: freebsd {0}

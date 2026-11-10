@@ -32,6 +32,7 @@ done
 bash "$(cd "$(dirname "$0")" && pwd)/setup-oxcaml.sh" infer "$(cd "$SRC" && pwd)"
 export OCAMLPATH="$PREFIX/lib" OCAMLFIND_DESTDIR="$PREFIX/lib" PATH="$PREFIX/bin:$PATH"
 mkdir -p "$OCAMLFIND_DESTDIR"
+use_prefix_findlib "$PREFIX"
 echo "compiler: $(ocaml -version)"
 
 # extlib's dune build preprocesses with cppo; build it into PREFIX/bin rather
