@@ -211,3 +211,26 @@ seed_src_copy() {
         gen_unlock
     }
 }
+
+# use_prefix_findlib <prefix>: point ocamlfind, wherever it is installed, at
+# <prefix>/lib and the compiler on PATH. Runtime switches have no ocamlfind of
+# their own, and the one on PATH reads its own switch's findlib.conf.
+use_prefix_findlib() {
+    local stdlib bin
+    stdlib="$(ocamlc -where)"
+    bin="$(dirname "$(command -v ocamlc)")"
+    cat > "$1/findlib.conf" <<CONF
+destdir="$1/lib"
+path="$1/lib:$stdlib"
+stdlib="$stdlib"
+ldconf="ignore"
+ocamlc="$bin/ocamlc"
+ocamlopt="$bin/ocamlopt"
+ocamldep="$bin/ocamldep"
+ocamldoc="$bin/ocamldoc"
+ocamlmklib="$bin/ocamlmklib"
+ocamlmktop="$bin/ocamlmktop"
+ocamlcp="$bin/ocamlcp"
+CONF
+    export OCAMLFIND_CONF="$1/findlib.conf"
+}

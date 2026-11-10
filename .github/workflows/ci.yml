@@ -145,20 +145,26 @@ jobs:
       - name: Validate the manifest against the tree
         run: python3 scripts/ci-manifest.py check
 
-      # dune from .github/dune-pin.env, not built by the compiler under test. It
-      # must not be shadowed by one in the runtime switch, which comes first on PATH.
-      - name: Install dune
+      # dune from .github/dune-pin.env and setup's ocamlfind, neither built by
+      # the compiler under test. Only ocamlfind is linked: the rest of setup's
+      # switch would shadow the runtime's compiler. Neither may be shadowed by
+      # one in the runtime switch, which comes first on PATH.
+      - name: Install dune and ocamlfind
         run: |
-          bash scripts/install-dune.sh "$RUNNER_TEMP/dune"
-          echo "$RUNNER_TEMP/dune" >> "$GITHUB_PATH"
+          bash scripts/install-dune.sh "$RUNNER_TEMP/tools"
+          . scripts/lib-switch.sh
+          ensure_tools_switch opam
+          ln -sf "$(opam var bin --switch="$TOOLS_SWITCH")/ocamlfind" "$RUNNER_TEMP/tools/"
+          echo "$RUNNER_TEMP/tools" >> "$GITHUB_PATH"
           eval "$(opam env)"
+          # Runtime switches cached before this step existed have their own.
+          if opam list --installed --short | grep -qx ocamlfind; then
+            opam remove --yes ocamlfind
+          fi
           if [ -e "$(opam var bin)/dune" ]; then
             echo "::error::the runtime switch has its own dune: $(opam var bin)/dune"
             exit 1
           fi
-          # goblint's apron and infer's javalib/sawja build with the runtime's
-          # ocamlfind; setup's own tools live in its own switch.
-          opam install --yes ocamlfind
 
       # duniverse/, vendor/ and _rocq_prefix/ are the setup phase's output, and
       # configured for the OS (actions/cache shares keys across Linux and macOS);
