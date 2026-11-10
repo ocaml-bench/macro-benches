@@ -197,12 +197,17 @@ creating the switch and folds the SHA into every cache key — otherwise a resto
 opam-root cache silently tests a stale trunk.
 
 A third leg, **`oxcaml`**, builds the `oxcaml/oxcaml` commit pinned in
-`.github/oxcaml-pin.env`: OxCaml has no in-tree compiler opam file, so it pins the
-`oxcaml-compiler` recipe named there, from the pinned `oxcaml/opam-repository`
-commit, to that commit (in an `oxcaml` switch next to setup-ocaml's, which then
-only provides opam). Its dune is the same pinned one as every leg's (below), so
-it no longer needs a dune that bootstraps on OxCaml main. Both commits go into
-the cache keys. Not required, like trunk. It is pinned
+`.github/oxcaml-pin.env`, with `opam-compiler create oxcaml/oxcaml:<sha>`, into an
+`oxcaml` switch next to setup-ocaml's. opam-compiler installs the dune and menhir
+the commit's `oxcaml-dev.opam` asks for into a build switch of their own, builds
+OxCaml with them, and installs only the compiler. It is pinned in setup-ocaml's
+switch (which the leg otherwise uses only for opam) to the
+ocaml-opam/opam-compiler#42 commit in the pin file, until that is released.
+opam-compiler adds no configure flags, so the pin file also carries
+`OXCAML_CONFIGURE` (multidomain, poll insertion, stack checks). The benchmarks
+build with the same pinned dune as every leg (below). The OxCaml commit, the
+flags and the opam-compiler commit all go into the cache keys. Not required,
+like trunk. It is pinned
 rather than tracking main so a red leg points at one upstream range.
 `.github/workflows/oxcaml-bump.yml` moves it weekly (Sunday cron, or by hand): it
 points the pin at main on the
