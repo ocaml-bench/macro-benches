@@ -68,9 +68,10 @@ jobs:
           . .github/dune-pin.env
           if [ "${{ matrix.oxcaml }}" = "true" ]; then
             . .github/oxcaml-pin.env
-            sha="$OXCAML_SHA" repo="$OXCAML_REPO" recipe="$OXCAML_RECIPE"
-            { echo "id=oxcaml-${sha:0:12}-${repo:0:12}-dune${DUNE_VERSION}"; echo "sha=${sha}"; echo "repo=${repo}"; echo "recipe=${recipe}"; } >> "$GITHUB_OUTPUT"
-            echo "### Compiler: oxcaml/oxcaml @ \`${sha:0:12}\` (recipe \`${recipe}\`, opam-repository \`${repo:0:12}\`), dune ${DUNE_VERSION}" >> "$GITHUB_STEP_SUMMARY"
+            sha="$OXCAML_SHA"
+            build="$(printf '%s\n' "$OXCAML_CONFIGURE" "$OPAM_COMPILER_SHA" | sha256sum | cut -c1-12)"
+            echo "id=oxcaml-${sha:0:12}-${build}-dune${DUNE_VERSION}" >> "$GITHUB_OUTPUT"
+            echo "### Compiler: oxcaml/oxcaml @ \`${sha:0:12}\` (\`${OXCAML_CONFIGURE}\`, opam-compiler \`${OPAM_COMPILER_SHA:0:12}\`), dune ${DUNE_VERSION}" >> "$GITHUB_STEP_SUMMARY"
           elif [[ "${{ matrix.ocaml }}" == *trunk* ]]; then
             sha="$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/repos/ocaml/ocaml/commits/trunk \
                    | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"][:12])')"
@@ -108,18 +109,22 @@ jobs:
           ocaml-compiler: ${{ matrix.ocaml }}
           cache-prefix: ${{ steps.compiler.outputs.id }}
 
-      # Restored with the opam root on a cache hit. The recipe is pinned to the
-      # commit, so this builds main, not the recipe's release.
+      # Restored with the opam root on a cache hit. opam-compiler goes in
+      # setup-ocaml's switch, which this leg otherwise uses only for opam; it
+      # builds OxCaml with the dune and menhir of the commit's oxcaml-dev.opam,
+      # in a build switch of their own, and installs only the compiler.
       - name: Create the OxCaml switch
         if: matrix.oxcaml
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          OPAMYES: "1"
         run: |
+          . .github/oxcaml-pin.env
           if ! opam switch list --short | grep -qx oxcaml; then
-            opam switch create oxcaml --empty --no-switch \
-              --repositories="oxcaml=git+https://github.com/oxcaml/opam-repository#${{ steps.compiler.outputs.repo }},default"
-            opam pin add --switch oxcaml --yes --no-action ${{ steps.compiler.outputs.recipe }} \
-              "git+https://github.com/oxcaml/oxcaml#${{ steps.compiler.outputs.sha }}"
-            v="${{ steps.compiler.outputs.recipe }}"; v="${v#oxcaml-compiler.}"
-            opam install --switch oxcaml --yes "ocaml-variants.${v%%-*}+ox"
+            opam pin add --yes opam-compiler \
+              "git+https://github.com/udesou/opam-compiler#${OPAM_COMPILER_SHA}"
+            "$(opam var bin)/opam-compiler" create "oxcaml/oxcaml:${OXCAML_SHA}" --switch oxcaml \
+              --configure-command "./configure ${OXCAML_CONFIGURE}"
           fi
           # setup-ocaml's switch is local (_opam), which `opam switch set` can't override.
           echo "OPAMSWITCH=oxcaml" >> "$GITHUB_ENV"
