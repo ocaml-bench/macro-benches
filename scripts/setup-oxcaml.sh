@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Source patches that let the vendored tree compile with OxCaml as well as stock
 # OCaml. Each one is plain OCaml that behaves identically on stock OCaml, so they
-# are applied for every compiler. Called by setup-monorepo.sh ([35]-[45], [48]-[53], [55]-[62], [66]) and, for
+# are applied for every compiler. Called by setup-monorepo.sh ([35]-[45], [48]-[53], [55]-[62], [66], [69], [71]) and, for
 # infer's own checkouts that vendor-javalib-sawja.sh resets on every build, by
 # vendor-javalib-sawja.sh ([46]-[47]). scripts/tests/oxcaml-repros.sh reproduces
 # each class of incompatibility on its own.
@@ -22,9 +22,17 @@ cd "$MONOREPO_DIR"
 # (a no-op once applied). Without "all", <old> must occur
 # exactly once; a source in any other shape is an error, not a silent skip.
 replace() {
+  # A file a later `variant` split: patch both of its copies.
+  local d=${3%/*} ext=${3##*.} stem
+  stem=$(basename "$3" ".$ext")
+  if [ ! -e "$3" ] && [ -e "$d/$stem.upstream.$ext" ]; then
+    replace "$1" "$2" "$d/$stem.upstream.$ext" "$4" "$5" "${6:-}"
+    replace "$1" "$2" "$d/$stem.oxcaml.$ext" "$4" "$5" "${6:-}"
+    return
+  fi
   # An expanded file was patched before the expansion, which reprints it; the
   # manifest check covers its content.
-  if [ -f duniverse/.ppx-expanded ] && grep -q "  $3\$" duniverse/.ppx-expanded; then
+  if [ -z "${POST_EXPAND:-}" ] && [ -f duniverse/.ppx-expanded ] && grep -q "  $3\$" duniverse/.ppx-expanded; then
     echo "  [$1] $2: already applied (ppx-expanded)."
     return
   fi
@@ -65,7 +73,11 @@ variant() {
   fi
   mv "$f" "$d/$stem.upstream.$ext"
   cp "$d/$stem.upstream.$ext" "$d/$stem.oxcaml.$ext"
-  replace "$num" "$label" "$d/$stem.oxcaml.$ext" "$4" "$5"
+  if [ "$4" = --any ]; then
+    any_params "$num" "$label" "$d/$stem.oxcaml.$ext"
+  else
+    replace "$num" "$label" "$d/$stem.oxcaml.$ext" "$4" "$5"
+  fi
   cat >> "$d/dune" <<EOF
 
 (rule
@@ -77,6 +89,54 @@ variant() {
    (system
     "case '%{ocaml_version}' in *+ox*) cat $stem.oxcaml.$ext ;; *) cat $stem.upstream.$ext ;; esac"))))
 EOF
+}
+
+# any_params <num> <label> <file>: give every re-export of a type whose
+# parameters OxCaml made `any` (result, Either.t, Seq.node, ref, list) the same
+# parameters, so it may restate the constructors (and Seq.t, which node refers to). `variant <num> <label> <file>
+# --any` applies it to the OxCaml copy only.
+any_params() {
+  python3 - "$@" <<'PYEOF'
+import re, sys
+num, label, path = sys.argv[1:]
+s = open(path).read()
+head = re.compile(
+    r"\b(type|and)(\s+nonrec)?\s+(\([^()]*\)|[+-]?'\w+)(\s+\w+\s*=\s*(?:##V[^#]*##\s*)?(?:\([^()]*\)|'\w+)\s*"
+    r"(?:(?:Stdlib\.)?(?:result|ref|list|t|Seq\.node|(?:\w+\.)*(?:Result|Either|Ref)\.t|(?:\w+\.)*either|Bat\w+\.result)\s*="
+    r"|(?:Stdlib\.)?Seq\.t\b))")
+def any_(params):
+    ps = [p.strip() for p in params.strip("()").split(",")]
+    return "(" + ", ".join(p if ":" in p else p + " : any" for p in ps) + ")"
+s, n = head.subn(lambda m: m[1] + (m[2] or "") + " " + any_(m[3]) + m[4], s)
+if n == 0:
+    sys.exit(f"  [{num}] {label}: {path} not in the expected shape (0 matches)")
+open(path, "w").write(s)
+print(f"  [{num}] {label}: patched ({n}x).")
+PYEOF
+}
+
+# stdlib_variant <num> <label> <file> <stdlib file> <regex> <old> <new>: as
+# variant, for changes OxCaml made without changing its version: the copy with
+# <new> is used when the compiler's <stdlib file> matches <regex>.
+stdlib_variant() {
+  local num=$1 label=$2 f=$3 lib=$4 re=$5 d ext stem
+  d=$(dirname "$f"); ext=${f##*.}; stem=$(basename "$f" ".$ext")
+  if [ ! -f "$d/$stem.newstdlib.$ext" ]; then
+    mv "$f" "$d/$stem.upstream.$ext"
+    cp "$d/$stem.upstream.$ext" "$d/$stem.newstdlib.$ext"
+    cat >> "$d/dune" <<EOF
+
+(rule
+ (targets $stem.$ext)
+ (deps $stem.upstream.$ext $stem.newstdlib.$ext)
+ (action
+  (with-stdout-to
+   %{targets}
+   (system
+    "if grep -q '$re' '%{ocaml_where}/$lib'; then cat $stem.newstdlib.$ext; else cat $stem.upstream.$ext; fi"))))
+EOF
+  fi
+  replace "$num" "$label" "$d/$stem.newstdlib.$ext" "$6" "$7"
 }
 
 vendored() { [ -e "$1" ] || { echo "  [$2] $3: not vendored. Skipping."; return 1; }; }
@@ -412,6 +472,29 @@ BATUNIX
         "type 'a t = 'a option = None | Some of 'a" "type 'a t = 'a option"
     done
   fi
+
+  # OxCaml main made result, Either.t, Seq.node, ref and list `any` in their
+  # parameters too; every re-export with constructors restates them (71).
+  local f
+  for f in \
+    duniverse/rresult/src/rresult.ml duniverse/rresult/src/rresult.mli \
+    duniverse/result/result-as-alias-4.08.ml duniverse/either/src/either-as-alias.ml \
+    duniverse/dune_/otherlibs/configurator/src/import.ml \
+    $B/batSeq.mli $B/batInnerPervasives.ml $B/batEither.mli \
+    duniverse/base/src/import0.ml \
+    duniverse/ppx_deriving/src/runtime/ppx_deriving_runtime.cppo.ml \
+    duniverse/ppx_deriving/src/runtime/ppx_deriving_runtime.cppo.mli \
+    duniverse/ppx_deriving_yojson/src/ppx_deriving_yojson_runtime.mli \
+    duniverse/result/result-as-alias.ml \
+    $B/batSeq.ml $B/batEither.ml $B/batPervasives.mli $B/batList.ml $B/batList.mli \
+    $B/batResult.ml $B/batResult.mli \
+    duniverse/base/src/result.ml duniverse/base/src/result.mli \
+    duniverse/base/src/ref.ml duniverse/base/src/ref.mli \
+    duniverse/irmin/src/irmin/reversed_list.ml \
+    duniverse/octavius/src/octavius.ml duniverse/octavius/src/octavius.mli \
+    duniverse/bos/src/bos_setup.ml duniverse/bos/src/bos_setup.mli; do
+    vendored "$(dirname "$f")" 71 "$f" && variant 71 "$f any" "$f" --any
+  done
 }
 
 # extlib's List/String re-export stdlib functions through `include`, and
@@ -429,10 +512,46 @@ extlib_patches() {
 
 # Patches to files the ppx expansion rewrites, so they match its output.
 post_expand_patches() {
+  local POST_EXPAND=1
   # core re-exports Base.Option, whose parameter is now `any` (66).
   if vendored duniverse/core/core/src 66 core; then
     variant 66 "core option.mli Base.Option" duniverse/core/core/src/option.mli \
       "end with type 'a  t :=  'a option" "end with type ('a : any) t :=  'a option"
+  fi
+  # core re-exports base's Result.t and Ref.t, and stdlib's in its OxCaml-only
+  # core_pervasives (71).
+  if vendored duniverse/core/core/src 71 core; then
+    local C=duniverse/core/core/src
+    for f in result.ml result.mli ref.mli; do
+      variant 71 "core $f any" "$C/$f" --any
+    done
+    replace 71 "core ref.mli Base.Ref" "$C/ref.oxcaml.mli" \
+      "include Base.Ref end with type 'a  t :=" "include Base.Ref end with type ('a : any) t :="
+    replace 71 "core result.mli Base.Result" "$C/result.oxcaml.mli" \
+      "of Base.Result with type ('a, 'b)  t :=" "of Base.Result with type ('a : any, 'b : any) t :="
+    # Its OxCaml-only core_pervasives must also declare ref, ! and := as the
+    # stdlib does: layout-polymorphic on OxCaml main (the last two renamed), not
+    # before.
+    local CP=$C/core_pervasives.oxcaml.mli
+    if [ -f "$CP" ] && ! grep -q "type ('a : any) ref" "$CP"; then
+      any_params 71 "core core_pervasives.oxcaml.mli any" "$CP"
+    fi
+    stdlib_variant 71 "core_pervasives ref" "$CP" stdlib.mli field0_singleton \
+      $'external ref : \'a -> ((\'a ref)[@local_opt ]) = "%makemutable"' \
+      $'external ref : (\'a : any). \'a -> ((\'a ref)[@local_opt ]) = "%makemutable"[@@layout_poly ]'
+    CP=$C/core_pervasives.oxcaml.newstdlib.mli
+    replace 71 "core_pervasives !" "$CP" \
+      $'external (!) : ((\'a ref)[@local_opt ]) -> \'a = "%field0"' \
+      $'external (!) : (\'a : any). ((\'a ref)[@local_opt ]) -> \'a = "%field0_singleton"[@@layout_poly ]'
+    replace 71 "core_pervasives :=" "$CP" \
+      $'external (:=) : ((\'a ref)[@local_opt ]) -> \'a -> unit = "%setfield0"' \
+      $'external (:=) : (\'a : any). ((\'a ref)[@local_opt ]) -> \'a -> unit = "%setfield0_singleton"[@@layout_poly ]'
+  fi
+  # irmin's Reversed_list.t is list, so its parameter is `any` too when list's
+  # is (71).
+  if vendored duniverse/irmin/src/irmin 71 irmin; then
+    stdlib_variant 71 "irmin reversed_list.mli any" duniverse/irmin/src/irmin/reversed_list.mli \
+      list.mli 'any) t = .a list' $'type \'a t =\n  | [] ' $'type (\'a : any) t =\n  | [] '
   fi
 }
 
