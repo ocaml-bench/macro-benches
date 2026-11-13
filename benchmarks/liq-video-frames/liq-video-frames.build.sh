@@ -51,7 +51,7 @@ mkdir -p "$(dirname "${OUT}")"
 emit_wrapper "${OUT}"
 
 # Always emit the canonical pool wrapper too, so a base-name build leaves it in place.
-POOL_OUT="${BENCH_DIR}/liq_video_frames_pool-${RUNTIME_TAG}"
+POOL_OUT="$(dirname "${OUT}")/liq_video_frames_pool-${RUNTIME_TAG}"
 [ "${OUT}" = "${POOL_OUT}" ] || emit_wrapper "${POOL_OUT}"
 
 echo "liq-video-frames built: ${OUT}"

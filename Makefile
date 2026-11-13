@@ -6,7 +6,7 @@ setup:
 
 # Clean build artifacts (keeps vendored sources and rocq install)
 clean:
-	rm -rf _build/ _build-*
+	rm -rf _build/ _build-* _build_status/
 	find benchmarks -name "*.build-failed" -delete 2>/dev/null || true
 	@# "*-ocaml-*" files under benchmarks/ are per-runtime wrappers/binaries
 	@# emitted by build scripts; deleting them forces running-ng to rebuild.
@@ -14,7 +14,7 @@ clean:
 
 # Clean everything (vendored sources + build artifacts + rocq install)
 clean-all: clean
-	rm -rf duniverse/ vendor/ _rocq_prefix/
+	rm -rf duniverse/ vendor/ _rocq_prefix/ .setup-done
 	@# Remove the symlink created for rocq .vo compilation
 	@LINK_DIR="$$(dirname "$$(pwd)")/install/default/lib/rocq-runtime"; \
 	 if [ -L "$$LINK_DIR" ]; then rm -f "$$LINK_DIR"; echo "Removed $$LINK_DIR symlink"; fi

@@ -14,7 +14,7 @@ BUILD_DIR="${MONOREPO_DIR}/_build-${RUNTIME_TAG//[^a-zA-Z0-9._-]/_}"
 # running-ng converts MEMTRACE traces to JSON with this tool (runbms.py's
 # write_memtrace_json_sidecar); building it from the same vendored memtrace
 # keeps reader and writer in sync. The name must match runtime.name exactly.
-FLAMEGRAPH_OUT="${BENCH_DIR}/memtrace_flamegraph-${RUNNING_OCAML_RUNTIME_NAME:-runtime}"
+FLAMEGRAPH_OUT="$(dirname "${OUT}")/memtrace_flamegraph-${RUNNING_OCAML_RUNTIME_NAME:-runtime}"
 
 echo "Building test_decompress (monorepo) for runtime: ${RUNTIME_TAG}"
 

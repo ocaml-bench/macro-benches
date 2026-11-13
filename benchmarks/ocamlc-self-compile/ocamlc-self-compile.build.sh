@@ -88,7 +88,8 @@ gen_unlock
 # rejects /proc/<pid>/exe basenames in BUILD_TOOLS ("ocamlc", "ocamlc.opt"), so
 # runtime-events attach would fail on the real binary. Hardlink avoids a 16 MB copy.
 OCAMLC_REAL="$(readlink -f "${OCAMLC}")"
-STAGED_OCAMLC="${BENCH_DIR}/ocamlc_self_compile_bin-${RUNTIME_TAG}"
+STAGED_OCAMLC="$(dirname "${OUT}")/ocamlc_self_compile_bin-${RUNTIME_TAG}"
+mkdir -p "$(dirname "${OUT}")"
 # rm first: if the stale link already points at this ocamlc.opt, both ln -f and
 # cp -f refuse with "are the same file".
 rm -f "${STAGED_OCAMLC}"

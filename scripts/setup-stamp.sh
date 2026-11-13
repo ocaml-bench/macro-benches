@@ -4,6 +4,8 @@
 #
 # Usage: bash scripts/setup-stamp.sh            print the hash (CI's cache key)
 #        bash scripts/setup-stamp.sh --refresh  start over if .setup-stamp differs
+#        bash scripts/setup-stamp.sh --check    exit 1 unless a setup from these
+#                                               inputs ran to the end (.setup-done)
 #
 # Each setup step skips when its output exists, so a tree set up from other
 # inputs (a pin bump, a changed patch) would otherwise survive. --refresh removes
@@ -29,6 +31,11 @@ for path in sorted(p for p in sys.stdin.buffer.read().split(b"\0") if p):
         h.update(hashlib.sha256(f.read()).digest())
 print(h.hexdigest())
 ')"
+
+if [ "${1:-}" = "--check" ]; then
+  [ "$(cat .setup-done 2>/dev/null)" = "$hash" ]
+  exit
+fi
 
 if [ "${1:-}" != "--refresh" ]; then
   echo "$hash"
