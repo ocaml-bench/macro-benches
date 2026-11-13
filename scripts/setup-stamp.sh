@@ -16,7 +16,7 @@ INPUTS=(
   macro-benches.opam.locked sources.yml dune-project dune-overlays
   scripts/setup-monorepo.sh scripts/setup-oxcaml.sh scripts/setup-stamp.sh
   'scripts/vendor-*.sh' scripts/lib-sources.sh scripts/lib-switch.sh
-  scripts/lib-portable.sh scripts/ppx-expand.sh scripts/ppx-expand
+  scripts/lib-portable.sh scripts/ppx-expand.sh scripts/ppx-expand .github/dune-pin.env
 )
 
 # Working-tree contents, so a local edit to a setup script counts too.
