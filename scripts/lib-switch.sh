@@ -5,7 +5,8 @@
 # never change the active switch: they read this one's environment in their
 # own process.
 TOOLS_SWITCH="${TOOLS_SWITCH:-macro-benches-tools}"
-TOOLS_PACKAGES="ocaml-base-compiler.5.4.1 dune.3.22.1 ocamlfind.1.9.8 opam-monorepo.0.4.3 zarith.1.14"
+source "$(dirname "${BASH_SOURCE[0]}")/../.github/dune-pin.env"
+TOOLS_PACKAGES="ocaml-base-compiler.5.4.1 dune.$DUNE_VERSION ocamlfind.1.9.8 opam-monorepo.0.4.3 zarith.1.14"
 TOOLS_OCAML_VERSION=5.4.1
 
 # ensure_tools_switch <opam>: create the switch, or install what it lacks. A
@@ -22,8 +23,12 @@ ensure_tools_switch() {
   fi
   if ! "$opam" switch list --short --color=never 2>/dev/null | grep -qx "$TOOLS_SWITCH"; then
     echo "Creating opam switch $TOOLS_SWITCH ($TOOLS_PACKAGES)..."
-    "$opam" switch create "$TOOLS_SWITCH" --no-switch --yes --repos=default \
-      --packages="${TOOLS_PACKAGES// /,}"
+    if ! "$opam" switch create "$TOOLS_SWITCH" --no-switch --yes --repos=default \
+         --packages="${TOOLS_PACKAGES// /,}"; then
+      echo "ERROR: could not create opam switch $TOOLS_SWITCH (opam's error is above)." >&2
+      echo "       If a version has no match, run 'opam update default' and retry." >&2
+      return 1
+    fi
   fi
   installed="$("$opam" list --switch="$TOOLS_SWITCH" --installed --short --columns=package --color=never 2>/dev/null)"
   for pkg in $TOOLS_PACKAGES; do
@@ -42,7 +47,7 @@ ensure_tools_switch() {
   done
   if [ -n "$missing" ]; then
     # shellcheck disable=SC2086
-    "$opam" install --switch="$TOOLS_SWITCH" --yes $missing
+    "$opam" install --switch="$TOOLS_SWITCH" --yes $missing || return 1
   fi
   # The package versions are not enough: the compiler itself must be the plain one.
   local version flambda

@@ -314,9 +314,9 @@ Notes for whoever touches this next:
   it would win: `ci.yml` fails if one is there, and the pin is in the cache key so
   switches cached before the change are not restored. Patch 19 is what lets dune
   >= 3.24 parse the workspace at all (it deleted the `coq` extension vendored rocq
-  declared). Bumping: new version and both sha256s in `dune-pin.env`, keep
-  running-ng's tools switch on the same one, and update README's "Verified
-  with dune" line to it.
+  declared). Bumping: new version and both sha256s in `dune-pin.env` (setup's
+  tools switch reads it too), keep running-ng's tools switch on the same one,
+  and update README's "Verified with dune" line to it.
 - The **weekly cron run skips the cache** on purpose. Everything is pinned now
   (see §Vendored source pins), so this is not a drift detector — it is a check
   that a *cold* setup still works: that every pinned commit and tarball is still
@@ -518,12 +518,13 @@ replaces every ppx use with its expanded source, so every compiler builds the
 same source and none needs ppxlib (which trunk and OxCaml can't always build).
 
 - **Tools switch** `macro-benches-tools` (`TOOLS_SWITCH`, `scripts/lib-switch.sh`):
-  all of setup runs on it, the expansion included. Exactly OCaml 5.4.1, dune 3.22.1,
-  ocamlfind 1.9.8, opam-monorepo 0.4.3, zarith 1.14; created with `--no-switch` on
-  first use from opam's `default` repository only (another registered repository
-  can resolve `ocaml-base-compiler.5.4.1` to `5.4.1+relocatable`), and checked by
-  `ocamlc -version` and non-flambda. An existing switch of that name at other
-  versions is an error, and setup never changes an existing switch's compiler.
+  all of setup runs on it, the expansion included. Exactly OCaml 5.4.1, the dune
+  of `.github/dune-pin.env`, ocamlfind 1.9.8, opam-monorepo 0.4.3, zarith 1.14;
+  created with `--no-switch` on first use from opam's `default` repository only
+  (another registered repository can resolve `ocaml-base-compiler.5.4.1` to
+  `5.4.1+relocatable`), and checked by `ocamlc -version` and non-flambda. An
+  existing switch of that name at other versions is an error, and setup never
+  changes an existing switch's compiler.
   An uninitialised opam root (fresh machine, or a new `OPAMROOT`) is
   `opam init --bare`ed first. Scripts only read its environment in their own process (ppx-expand.sh also
   strips other switches from `PATH`), so the caller's switch never changes. Pinned
@@ -961,7 +962,7 @@ Applied automatically by `scripts/setup-monorepo.sh` (33 by `scripts/ppx-expand.
 |---|--------|------|-----|
 | 1 | `duniverse/alt-ergo/.../theories.ml` | Fix ppx_blob paths | ppx_blob resolves from workspace root |
 | 2 | `duniverse/alt-ergo/.../text/dune` | Rewrite dune file | Remove public_name/package (vendored exec) |
-| 3 | `duniverse/dune_/dune-project` | `3.22` → `3.21`, rm test/ | dune 3.22 features not in installed dune |
+| 3 | (removed) | Was: `duniverse/dune_/dune-project` `3.2x` → `3.21`, rm test/ | Only the tools switch's old dune 3.22.1 needed it; it now has the pinned dune |
 | 4 | `duniverse/ppxlib/` | Replace with a pinned commit (`sources.yml`) | Adds Ast_506 for OCaml 5.6 trunk |
 | 5 | `duniverse/lwt/` | Replace with a pinned commit (`sources.yml`) | Fixes socketaddr.h for OCaml 5.6 |
 | 6 | `duniverse/devkit/lwt_engines.ml` | Add `engine_id` type + method | lwt 6.1.1 added virtual `id` method |

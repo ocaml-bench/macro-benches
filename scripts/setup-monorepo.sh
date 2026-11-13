@@ -209,19 +209,6 @@ echo "[2.4/9] Vendoring lavyek + multicore deps... SKIPPED (private repo)."
 # echo "(dirs src)" > duniverse/lavyek/dune
 echo ""
 
-# The switch dune binaries (3.22.1) cannot parse the `lang dune 3.23`
-# dune-project the lock's dune pulls; lower it to 3.21.
-echo "[3/9] Patching duniverse/dune_/dune-project (lang dune 3.2x → 3.21)..."
-if grep -qE 'lang dune 3\.2[0-9]' duniverse/dune_/dune-project 2>/dev/null && \
-   ! grep -q 'lang dune 3.21' duniverse/dune_/dune-project 2>/dev/null; then
-  sed_i -E 's/lang dune 3\.2[0-9]+/lang dune 3.21/' duniverse/dune_/dune-project
-  rm -rf duniverse/dune_/test
-  echo "  Patched ($(head -1 duniverse/dune_/dune-project))."
-else
-  echo "  Already patched (or version differs). Skipping."
-fi
-echo ""
-
 # dune 3.24 deleted the `coq` language extension, so `(using coq 0.8)` fails to
 # parse and takes every build in the workspace down:
 #   Error: Extension coq was deleted in the 3.24 version of the dune language
