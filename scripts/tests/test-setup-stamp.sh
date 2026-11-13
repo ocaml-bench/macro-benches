@@ -47,6 +47,15 @@ check "changed input: stamp updated" '[ "$(cat .setup-stamp)" = "$(bash scripts/
 trees; rm -f .setup-stamp; refresh
 check "no stamp: trees removed" '[ ! -e duniverse ] && [ ! -e benchmarks/foo/foo-oxcaml-b ]'
 
+check "--check: unfinished setup fails" '! bash scripts/setup-stamp.sh --check'
+cp .setup-stamp .setup-done
+check "--check: finished setup passes" 'bash scripts/setup-stamp.sh --check'
+mkdir -p _build_status; : > _build_status/foo-ocaml-a
+echo "pin: 3" > sources.yml
+check "--check: changed input fails" '! bash scripts/setup-stamp.sh --check'
+trees; refresh
+check "changed input: marker and _build_status removed" '[ ! -e .setup-done ] && [ ! -e _build_status ]'
+
 echo ""
 echo "  $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

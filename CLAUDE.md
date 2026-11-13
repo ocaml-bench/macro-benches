@@ -32,7 +32,11 @@ matrix and gaps, the gotchas, and the backlog.
 - Driven by `~/running-ng` (suite type `OCamlBenchmarkSuite`, **not** the
   satellite-switch path): each benchmark has `benchmarks/<tool>/<tool>.build.sh` that
   runs `dune build` with the runtime compiler on PATH, into a **per-runtime build dir**
-  `_build-<runtime>`, then copies/links out the binary `benchmarks/<tool>/<prog>-<runtime>`.
+  `_build-<runtime>`, then copies/links out the binary to `RUNNING_OCAML_OUTPUT`:
+  running-ng's default is `_build_status/<prog>-<runtime>` (gitignored by its own
+  `.gitignore`, with running-ng's build stamps and failure sentinels), the script's
+  own fallback `benchmarks/<tool>/<prog>-<runtime>`. Anything else a script emits
+  per runtime (staged `ocamlc` copies, the extra pool wrapper) goes next to it.
 
 ## Hard rules (do not violate)
 
@@ -580,6 +584,7 @@ same source and none needs ppxlib (which trunk and OxCaml can't always build).
   the wrappers in place, so running-ng thinks they're built, **skips rebuild, and the
   wrapper fails at run with `exit 127, .exe: No such file`** — *not* an MMTk/runtime
   bug. Re-`buildbms` after deleting the wrapper output to regenerate the `.exe`.
+  (`make clean` removes both `_build-*` and `_build_status/`.)
 - **A tree set up from other inputs starts over.** Every setup step skips when
   its output exists, so after a pin bump or a patch change the old patched and
   expanded tree used to survive, and failed the ppx manifest check (or worse,
@@ -587,10 +592,14 @@ same source and none needs ppxlib (which trunk and OxCaml can't always build).
   `sources.yml`, `dune-project`, `dune-overlays/`, the setup/vendor/lib scripts,
   `ppx-expand/`); `setup-monorepo.sh` calls it with `--refresh`, which compares
   the hash with `.setup-stamp` and on a mismatch (or no stamp) runs `make
-  clean-all` plus `git clean -fdX benchmarks/`, since wrappers exec into the old
-  tree. The same hash keys CI's vendored-sources cache, and the stamp is cached
-  with the trees. A file setup reads that is not in `INPUTS` there will not
-  trigger a re-vendor: add it. `scripts/tests/test-setup-stamp.sh` covers it.
+  clean-all` (which also removes `_build_status/`) plus `git clean -fdX
+  benchmarks/`, since wrappers exec into the old tree. The stamp is written when
+  a refresh starts, so an interrupted setup resumes; `.setup-done` is written
+  when setup finishes, and `--check` exits 1 unless it matches the current hash.
+  running-ng runs `--check` before building and `make setup` when it fails. The
+  same hash keys CI's vendored-sources cache, and the stamp is cached with the
+  trees. A file setup reads that is not in `INPUTS` there will not trigger a
+  re-vendor: add it. `scripts/tests/test-setup-stamp.sh` covers it.
 - **`opam monorepo pull` is retried 3 times** (15 s, then 30 s apart): GitHub release
   downloads fail with transient 5xx errors. A failed attempt's partial `duniverse/`
   is deleted, because setup skips the pull whenever `duniverse/` is non-empty.

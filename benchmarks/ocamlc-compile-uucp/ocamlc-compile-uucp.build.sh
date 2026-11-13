@@ -80,7 +80,8 @@ OCAMLLIB_DIR="$("${OCAMLC}" -where)"
 # ("ocamlc", "ocamlc.opt"), so olly could not attach. OCAMLLIB is pinned for the
 # relocated binary, as in ocamlc-self-compile.
 OCAMLC_REAL="$(readlink -f "${OCAMLC}")"
-STAGED_OCAMLC="${BENCH_DIR}/$(basename "${OUT}")_bin"
+STAGED_OCAMLC="${OUT}_bin"
+mkdir -p "$(dirname "${OUT}")"
 rm -f "${STAGED_OCAMLC}"
 ln -f "${OCAMLC_REAL}" "${STAGED_OCAMLC}" 2>/dev/null \
   || cp -f "${OCAMLC_REAL}" "${STAGED_OCAMLC}"

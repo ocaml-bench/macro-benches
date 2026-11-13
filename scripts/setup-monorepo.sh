@@ -1349,6 +1349,7 @@ echo ""
 # compile the duniverse twice.
 if [ "${SKIP_TEST_BUILD:-0}" = "1" ]; then
   echo "[9/9] Test build SKIPPED (SKIP_TEST_BUILD=1)."
+  cp .setup-stamp .setup-done
   echo ""
   echo "=== Setup complete! ==="
   exit 0
@@ -1377,6 +1378,7 @@ dune build \
   benchmarks/frama-c/frama_c_eva.exe \
   --profile release
 
+cp .setup-stamp .setup-done
 echo ""
 echo "=== Setup complete! ==="
 echo ""
