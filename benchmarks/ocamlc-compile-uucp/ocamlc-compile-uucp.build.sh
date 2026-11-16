@@ -91,8 +91,9 @@ mkdir -p "$(dirname "${OUT}")"
 cat > "${OUT}" << WRAPPER
 #!/usr/bin/env bash
 set -euo pipefail
-WORK="\$(mktemp -d -t ocamlc_uucp.XXXXXX)"
-trap 'rm -rf "\$WORK"' EXIT
+WORK="${OUT}_work"
+rm -rf "\$WORK"
+mkdir -p "\$WORK"
 cp "${STAGE}"/* "\$WORK"/
 cd "\$WORK"
 export OCAMLLIB="${OCAMLLIB_DIR}"
