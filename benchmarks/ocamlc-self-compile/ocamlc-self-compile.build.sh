@@ -108,10 +108,11 @@ mkdir -p "$(dirname "${OUT}")"
 cat > "${OUT}" << WRAPPER
 #!/usr/bin/env bash
 set -euo pipefail
-WORK_TMPDIR="\$(mktemp -d -t ocamlc_self_compile.XXXXXX)"
-trap 'rm -rf "\$WORK_TMPDIR"' EXIT
+WORK="${OUT}_work"
+rm -rf "\$WORK"
+mkdir -p "\$WORK"
 export OCAMLLIB="${OCAMLLIB_DIR}"
-exec "${STAGED_OCAMLC}" -c "${WORKLOAD}" -o "\$WORK_TMPDIR/out.cmo"
+exec "${STAGED_OCAMLC}" -c "${WORKLOAD}" -o "\$WORK/out.cmo"
 WRAPPER
 chmod +x "${OUT}"
 

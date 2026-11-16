@@ -103,15 +103,16 @@ mkdir -p "$(dirname "${OUT}")"
 cat > "${OUT}" << WRAPPER
 #!/usr/bin/env bash
 set -euo pipefail
-WORK_TMPDIR="\$(mktemp -d -t jsoo_bench.XXXXXX)"
-trap 'rm -rf "\$WORK_TMPDIR"' EXIT
+WORK="${OUT}_work"
+rm -rf "\$WORK"
+mkdir -p "\$WORK"
 export OCAMLPATH="${RUNTIME_LIB}"
 export OCAMLFIND_CONF="${FINDLIB_CONF_ABS}"
 case "\${1:-}" in
   small|default|large) WL="${BENCH_DIR}/jsoo_wl_\${1}-${RUNTIME_TAG}.byte" ;;
   *) WL="${WORKLOAD}" ;;
 esac
-exec "${REAL_EXE}" "\$WL" -o "\$WORK_TMPDIR/out.js"
+exec "${REAL_EXE}" "\$WL" -o "\$WORK/out.js"
 WRAPPER
 chmod +x "${OUT}"
 
