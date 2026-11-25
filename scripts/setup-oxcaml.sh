@@ -323,11 +323,17 @@ BATUNIX
     done
   fi
 
-  # Only in jsoo's [@@if oxcaml] code: OxCaml's Const_untagged_char carries an int.
+  # Only in jsoo's [@@if oxcaml] code: OxCaml's Const_untagged_char and the
+  # 8- and 16-bit constants carry a Numbers.Int8.t / Numbers.Int16.t.
   local J=duniverse/js_of_ocaml/compiler/lib/ocaml_compiler.ml
   if vendored "$J" 50 js_of_ocaml; then
-    replace 50 "jsoo Const_untagged_char" "$J" \
-      $'  | Const_base\n      ( Const_int8 i\n' $'  | Const_base\n      ( Const_untagged_char i\n      | Const_int8 i\n'
+    replace 50 "jsoo small int constants" "$J" \
+      $'  | Const_base (Const_int i)\n  | Const_base\n      ( Const_int8 i\n      | Const_int16 i\n      | Const_untagged_int i\n      | Const_untagged_int8 i\n      | Const_untagged_int16 i ) -> Int (Targetint.of_int_warning_on_overflow i)\n' \
+      $'  | Const_base (Const_int i | Const_untagged_int i) ->\n      Int (Targetint.of_int_warning_on_overflow i)\n  | Const_base (Const_untagged_char i | Const_int8 i | Const_untagged_int8 i) ->\n      Int (Targetint.of_int_warning_on_overflow (Numbers.Int8.to_int i))\n  | Const_base (Const_int16 i | Const_untagged_int16 i) ->\n      Int (Targetint.of_int_warning_on_overflow (Numbers.Int16.to_int i))\n'
+    # jsoo's own Targetint shadows the compiler's, which OxCaml now uses here.
+    replace 50 "jsoo Const_nativeint" "$J" \
+      $'  | Const_base (Const_nativeint i) | Const_base (Const_unboxed_nativeint i) ->\n      NativeInt (Int32.of_nativeint_warning_on_overflow i)\n' \
+      $'  | Const_base (Const_nativeint i) | Const_base (Const_unboxed_nativeint i) ->\n      NativeInt\n        (Int32.of_nativeint_warning_on_overflow\n           (Int64.to_nativeint (Ocaml_common.Targetint.to_int64 i)))\n'
     replace 50 "jsoo Const_char" "$J" \
       $'  | Const_base (Const_char c) | Const_base (Const_untagged_char c) ->\n      Int (Targetint.of_int_exn (Char.code c))' \
       $'  | Const_base (Const_char c) -> Int (Targetint.of_int_exn (Char.code c))'
