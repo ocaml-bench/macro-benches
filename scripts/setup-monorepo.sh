@@ -1221,6 +1221,21 @@ else
   echo "ERROR: [67] jsoo magic_number.ml: not in the expected shape" >&2
   exit 1
 fi
+
+# Patch 72: since ocaml/ocaml#14571 (trunk), caml/shared_heap.h uses Make_header
+# from caml/gc.h without including it. Drop once trunk's header includes it.
+ROCQ_MEMORY="duniverse/rocq/kernel/byterun/rocq_memory.c"
+if [ ! -f "$ROCQ_MEMORY" ]; then
+  echo "  [72] rocq rocq_memory.c: not vendored. Skipping."
+elif grep -q '^#include <caml/gc.h>' "$ROCQ_MEMORY"; then
+  echo "  [72] rocq rocq_memory.c: already patched."
+elif [ "$(grep -c '^#include <caml/shared_heap.h>$' "$ROCQ_MEMORY")" = 1 ]; then
+  insert_at_line "$ROCQ_MEMORY" "$(grep -n '^#include <caml/alloc.h>$' "$ROCQ_MEMORY" | cut -d: -f1)" '#include <caml/gc.h>'
+  echo "  [72] rocq rocq_memory.c: added #include <caml/gc.h>."
+else
+  echo "ERROR: [72] rocq rocq_memory.c: not in the expected shape" >&2
+  exit 1
+fi
 echo ""
 
 # [22] sedlex's `(mode promote)` rule regenerates the shipped unicode.ml from
